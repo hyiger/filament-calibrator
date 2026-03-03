@@ -28,8 +28,10 @@ class TestDefaultSlicerArgs:
     def test_layer_height(self):
         assert DEFAULT_SLICER_ARGS["layer-height"] == "0.2"
 
-    def test_no_support(self):
-        assert DEFAULT_SLICER_ARGS["support-material"] == "0"
+    def test_no_support_material_key(self):
+        # support-material is a boolean flag in PrusaSlicer; omitting it
+        # means "disabled" (the default), so we don't include it.
+        assert "support-material" not in DEFAULT_SLICER_ARGS
 
 
 # ---------------------------------------------------------------------------
@@ -59,8 +61,8 @@ class TestSliceTower:
         assert req.output_path == "/tmp/tower.gcode"
         assert req.config_ini == "/path/to/config.ini"
         # With config_ini, default args should NOT be added
-        for key in DEFAULT_SLICER_ARGS:
-            assert f"--{key}" not in req.extra_args
+        for key, val in DEFAULT_SLICER_ARGS.items():
+            assert f"--{key}={val}" not in req.extra_args
 
     @patch("filament_calibrator.slicer.gl.slice_model")
     @patch("filament_calibrator.slicer.gl.find_prusaslicer_executable")
@@ -74,11 +76,9 @@ class TestSliceTower:
 
         req = mock_slice.call_args[0][1]
         assert req.config_ini is None
-        # All default args should be present
+        # All default args should be present as --key=value
         for key, val in DEFAULT_SLICER_ARGS.items():
-            assert f"--{key}" in req.extra_args
-            idx = req.extra_args.index(f"--{key}")
-            assert req.extra_args[idx + 1] == val
+            assert f"--{key}={val}" in req.extra_args
 
     @patch("filament_calibrator.slicer.gl.slice_model")
     @patch("filament_calibrator.slicer.gl.find_prusaslicer_executable")
@@ -144,9 +144,8 @@ class TestSliceTower:
 
         req = mock_slice.call_args[0][1]
         # No default slicer args (config_ini provided), no extra_args
-        # Only bed/fan args if provided
-        for key in DEFAULT_SLICER_ARGS:
-            assert f"--{key}" not in req.extra_args
+        for key, val in DEFAULT_SLICER_ARGS.items():
+            assert f"--{key}={val}" not in req.extra_args
 
     # --- bed_temp and fan_speed ---
 
@@ -162,12 +161,8 @@ class TestSliceTower:
                      config_ini="/config.ini", bed_temp=80)
 
         req = mock_slice.call_args[0][1]
-        assert "--bed-temperature" in req.extra_args
-        idx = req.extra_args.index("--bed-temperature")
-        assert req.extra_args[idx + 1] == "80"
-        assert "--first-layer-bed-temperature" in req.extra_args
-        idx2 = req.extra_args.index("--first-layer-bed-temperature")
-        assert req.extra_args[idx2 + 1] == "80"
+        assert "--bed-temperature=80" in req.extra_args
+        assert "--first-layer-bed-temperature=80" in req.extra_args
 
     @patch("filament_calibrator.slicer.gl.slice_model")
     @patch("filament_calibrator.slicer.gl.find_prusaslicer_executable")
@@ -181,12 +176,8 @@ class TestSliceTower:
                      config_ini="/config.ini", fan_speed=40)
 
         req = mock_slice.call_args[0][1]
-        assert "--max-fan-speed" in req.extra_args
-        idx = req.extra_args.index("--max-fan-speed")
-        assert req.extra_args[idx + 1] == "40"
-        assert "--min-fan-speed" in req.extra_args
-        idx2 = req.extra_args.index("--min-fan-speed")
-        assert req.extra_args[idx2 + 1] == "40"
+        assert "--max-fan-speed=40" in req.extra_args
+        assert "--min-fan-speed=40" in req.extra_args
 
     @patch("filament_calibrator.slicer.gl.slice_model")
     @patch("filament_calibrator.slicer.gl.find_prusaslicer_executable")
@@ -202,10 +193,10 @@ class TestSliceTower:
 
         req = mock_slice.call_args[0][1]
         # Default args present (no config_ini)
-        assert "--layer-height" in req.extra_args
+        assert "--layer-height=0.2" in req.extra_args
         # bed/fan also present
-        assert "--bed-temperature" in req.extra_args
-        assert "--max-fan-speed" in req.extra_args
+        assert "--bed-temperature=60" in req.extra_args
+        assert "--max-fan-speed=100" in req.extra_args
 
     @patch("filament_calibrator.slicer.gl.slice_model")
     @patch("filament_calibrator.slicer.gl.find_prusaslicer_executable")
@@ -221,8 +212,8 @@ class TestSliceTower:
                      bed_temp=None, fan_speed=None)
 
         req = mock_slice.call_args[0][1]
-        assert "--bed-temperature" not in req.extra_args
-        assert "--max-fan-speed" not in req.extra_args
+        assert not any(a.startswith("--bed-temperature") for a in req.extra_args)
+        assert not any(a.startswith("--max-fan-speed") for a in req.extra_args)
 
     @patch("filament_calibrator.slicer.gl.slice_model")
     @patch("filament_calibrator.slicer.gl.find_prusaslicer_executable")
@@ -239,6 +230,6 @@ class TestSliceTower:
                      extra_args=["--custom", "val"])
 
         req = mock_slice.call_args[0][1]
-        bed_idx = req.extra_args.index("--bed-temperature")
+        bed_idx = req.extra_args.index("--bed-temperature=60")
         custom_idx = req.extra_args.index("--custom")
         assert custom_idx > bed_idx

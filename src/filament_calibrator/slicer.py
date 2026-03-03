@@ -20,14 +20,13 @@ DEFAULT_SLICER_ARGS: Dict[str, str] = {
     "top-solid-layers": "4",
     "bottom-solid-layers": "3",
     "fill-density": "15%",
-    "support-material": "0",
     "skirts": "1",
 }
 """Slicer defaults applied when no ``--config-ini`` is supplied.
 
 These produce a reasonable temp tower slice with 0.2mm layers, 2 perimeters,
 and 15% infill — enough structure to evaluate temperature quality without
-wasting filament.
+wasting filament.  Support material is disabled by PrusaSlicer's default.
 """
 
 
@@ -81,14 +80,14 @@ def slice_tower(
     cli_extra: List[str] = []
     if config_ini is None:
         for key, val in DEFAULT_SLICER_ARGS.items():
-            cli_extra.extend([f"--{key}", val])
+            cli_extra.append(f"--{key}={val}")
 
     if bed_temp is not None:
-        cli_extra.extend(["--bed-temperature", str(bed_temp)])
-        cli_extra.extend(["--first-layer-bed-temperature", str(bed_temp)])
+        cli_extra.append(f"--bed-temperature={bed_temp}")
+        cli_extra.append(f"--first-layer-bed-temperature={bed_temp}")
     if fan_speed is not None:
-        cli_extra.extend(["--max-fan-speed", str(fan_speed)])
-        cli_extra.extend(["--min-fan-speed", str(fan_speed)])
+        cli_extra.append(f"--max-fan-speed={fan_speed}")
+        cli_extra.append(f"--min-fan-speed={fan_speed}")
 
     if extra_args:
         cli_extra.extend(extra_args)
