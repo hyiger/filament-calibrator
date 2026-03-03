@@ -229,6 +229,7 @@ def run(args: argparse.Namespace) -> None:
         extra_args=args.extra_slicer_args,
         bed_temp=bed_temp,
         fan_speed=fan_speed,
+        nozzle_temp=high_temp,
     )
     if not result.ok:
         print(f"PrusaSlicer failed (exit {result.returncode}):", file=sys.stderr)

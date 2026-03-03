@@ -43,14 +43,16 @@ def slice_tower(
     extra_args: Optional[List[str]] = None,
     bed_temp: Optional[int] = None,
     fan_speed: Optional[int] = None,
+    nozzle_temp: Optional[int] = None,
 ) -> gl.RunResult:
     """Slice the temperature tower STL into G-code.
 
     If *config_ini* is ``None``, :data:`DEFAULT_SLICER_ARGS` are passed as
     ``--key value`` CLI arguments to PrusaSlicer, together with
-    *bed_temp* and *fan_speed* when provided.  When *config_ini* is set
-    the ``.ini`` profile is loaded via ``--load`` and *bed_temp* /
-    *fan_speed* are still appended (they override ``.ini`` values).
+    *nozzle_temp*, *bed_temp*, and *fan_speed* when provided.  When
+    *config_ini* is set the ``.ini`` profile is loaded via ``--load``
+    and the temperature / fan args are still appended (they override
+    ``.ini`` values).
 
     Parameters
     ----------
@@ -64,6 +66,10 @@ def slice_tower(
                        ``--bed-temperature``).
     fan_speed:         Fan speed 0–100 % (passed as
                        ``--max-fan-speed`` and ``--min-fan-speed``).
+    nozzle_temp:       Nozzle temperature in °C (passed as
+                       ``--temperature`` and ``--first-layer-temperature``).
+                       Should be the tower's *high_temp* so PrusaSlicer's
+                       start G-code heats to the correct initial temperature.
 
     Returns
     -------
@@ -82,6 +88,9 @@ def slice_tower(
         for key, val in DEFAULT_SLICER_ARGS.items():
             cli_extra.append(f"--{key}={val}")
 
+    if nozzle_temp is not None:
+        cli_extra.append(f"--temperature={nozzle_temp}")
+        cli_extra.append(f"--first-layer-temperature={nozzle_temp}")
     if bed_temp is not None:
         cli_extra.append(f"--bed-temperature={bed_temp}")
         cli_extra.append(f"--first-layer-bed-temperature={bed_temp}")

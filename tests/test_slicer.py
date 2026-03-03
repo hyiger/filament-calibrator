@@ -147,7 +147,55 @@ class TestSliceTower:
         for key, val in DEFAULT_SLICER_ARGS.items():
             assert f"--{key}={val}" not in req.extra_args
 
-    # --- bed_temp and fan_speed ---
+    # --- nozzle_temp, bed_temp and fan_speed ---
+
+    @patch("filament_calibrator.slicer.gl.slice_model")
+    @patch("filament_calibrator.slicer.gl.find_prusaslicer_executable")
+    def test_nozzle_temp_passed(self, mock_find, mock_slice):
+        mock_find.return_value = "/usr/bin/prusa-slicer"
+        mock_slice.return_value = gl.RunResult(
+            cmd=[], returncode=0, stdout="", stderr=""
+        )
+
+        slice_tower("/tmp/tower.stl", "/tmp/tower.gcode",
+                     config_ini="/config.ini", nozzle_temp=280)
+
+        req = mock_slice.call_args[0][1]
+        assert "--temperature=280" in req.extra_args
+        assert "--first-layer-temperature=280" in req.extra_args
+
+    @patch("filament_calibrator.slicer.gl.slice_model")
+    @patch("filament_calibrator.slicer.gl.find_prusaslicer_executable")
+    def test_nozzle_temp_none_not_added(self, mock_find, mock_slice):
+        mock_find.return_value = "/usr/bin/prusa-slicer"
+        mock_slice.return_value = gl.RunResult(
+            cmd=[], returncode=0, stdout="", stderr=""
+        )
+
+        slice_tower("/tmp/tower.stl", "/tmp/tower.gcode",
+                     config_ini="/config.ini", nozzle_temp=None)
+
+        req = mock_slice.call_args[0][1]
+        assert not any(a.startswith("--temperature=") for a in req.extra_args)
+        assert not any(a.startswith("--first-layer-temperature=") for a in req.extra_args)
+
+    @patch("filament_calibrator.slicer.gl.slice_model")
+    @patch("filament_calibrator.slicer.gl.find_prusaslicer_executable")
+    def test_nozzle_temp_before_bed_temp(self, mock_find, mock_slice):
+        """nozzle_temp args appear before bed_temp args."""
+        mock_find.return_value = "/usr/bin/prusa-slicer"
+        mock_slice.return_value = gl.RunResult(
+            cmd=[], returncode=0, stdout="", stderr=""
+        )
+
+        slice_tower("/tmp/tower.stl", "/tmp/tower.gcode",
+                     config_ini="/config.ini",
+                     nozzle_temp=280, bed_temp=80)
+
+        req = mock_slice.call_args[0][1]
+        nozzle_idx = req.extra_args.index("--temperature=280")
+        bed_idx = req.extra_args.index("--bed-temperature=80")
+        assert nozzle_idx < bed_idx
 
     @patch("filament_calibrator.slicer.gl.slice_model")
     @patch("filament_calibrator.slicer.gl.find_prusaslicer_executable")
