@@ -145,15 +145,12 @@ def _make_45_overhang() -> cq.Workplane:
 
 def _make_35_overhang() -> cq.Workplane:
     """Create the 35° overhang cut solid (triangular prism)."""
-    pts = [(0, 0), (OVERHANG_35_X, 0), (OVERHANG_35_X, TIER_HEIGHT)]
     return (
         cq.Workplane("XZ")
         .moveTo(TIER_LENGTH - OVERHANG_35_X, 0)
-        .polyline([
-            (TIER_LENGTH - OVERHANG_35_X, 0),
-            (TIER_LENGTH, 0),
-            (TIER_LENGTH, TIER_HEIGHT),
-        ]).close()
+        .lineTo(TIER_LENGTH, 0)
+        .lineTo(TIER_LENGTH, TIER_HEIGHT)
+        .close()
         .extrude(TIER_WIDTH)
     )
 
@@ -216,62 +213,44 @@ def _make_cone(x_offset: float, diameter: float) -> cq.Workplane:
 
 
 def _make_test_cutout_profile() -> cq.Workplane:
-    """Create the 2D test cutout shape.
+    """Create the test cutout solid matching the OpenSCAD ``AddTestCutouts``.
 
-    Approximation of the OpenSCAD sieve pattern: a half-circle on top of a
-    rectangle, with a notch cut from the upper-right corner.
+    The profile is the union of a top-half circle (r=6, centre 6,1.7) and a
+    rectangle (6,1.7)→(16,7.7), with a D-shaped notch (bottom-left quarter
+    of r=4, centre 16,6.7) removed from the right side.  The 2D outline is
+    built as a single wire and extruded 8 mm from the front face.
     """
-    r_main = 6.0
-    rect_w = 10.0
-    rect_h = 6.0
-    r_notch = 4.0
+    # Arc midpoints computed from circle geometry.
+    # Main circle: centre (6, 1.7), radius 6 — midpoint of left quarter-arc.
+    mid_main_x = 6 + 6 * math.cos(math.radians(135))   # ≈ 1.76
+    mid_main_z = 1.7 + 6 * math.sin(math.radians(135))  # ≈ 5.94
+    # Notch circle: centre (16, 6.7), radius 4 — midpoint of bottom-left arc.
+    mid_notch_x = 16 + 4 * math.cos(math.radians(225))  # ≈ 13.17
+    mid_notch_z = 6.7 + 4 * math.sin(math.radians(225))  # ≈ 3.87
 
-    # Build a simplified version of the test shape:
-    # Main body = half-circle (top) + rectangle (bottom)
-    main_circle = (
+    profile = (
         cq.Workplane("XZ")
-        .transformed(offset=cq.Vector(6, 1.7, 0))
-        .circle(r_main)
-    )
-    main_rect = (
-        cq.Workplane("XZ")
-        .transformed(offset=cq.Vector(6 + rect_w / 2, 1.7 + rect_h / 2, 0))
-        .rect(rect_w, rect_h)
-    )
-    # Bottom cut to make half-circle
-    bottom_cut = (
-        cq.Workplane("XZ")
-        .transformed(offset=cq.Vector(6, 1.7 - 6, 0))
-        .rect(12, 12)
-    )
-    # Notch in upper right
-    notch_circle = (
-        cq.Workplane("XZ")
-        .transformed(offset=cq.Vector(16, 6.7, 0))
-        .circle(r_notch)
-    )
-    notch_cut = (
-        cq.Workplane("XZ")
-        .transformed(offset=cq.Vector(16, 6.7 + 4, 0))
-        .rect(8, 8)
+        .moveTo(0, 1.7)
+        # Left side: top-half of main circle (arc from left to top)
+        .threePointArc((mid_main_x, mid_main_z), (6, 7.7))
+        # Top edge (rectangle portion)
+        .lineTo(16, 7.7)
+        # Right edge above notch
+        .lineTo(16, 6.7)
+        # Notch top — straight across the circle diameter
+        .lineTo(12, 6.7)
+        # Notch arc — bottom-left quarter of notch circle
+        .threePointArc((mid_notch_x, mid_notch_z), (16, 2.7))
+        # Right edge below notch
+        .lineTo(16, 1.7)
+        # Bottom edge (close back to start)
+        .close()
+        .extrude(TEST_CUTOUT_DEPTH + 0.01)
     )
 
-    # Extrude each and do CSG
-    depth = TEST_CUTOUT_DEPTH + 0.01
-    main_c = main_circle.extrude(depth)
-    main_r = main_rect.extrude(depth)
-    bot_c = bottom_cut.extrude(depth)
-    notch_c = notch_circle.extrude(depth)
-    notch_top = notch_cut.extrude(depth)
-
-    union_shape = main_c.union(main_r)
-    union_shape = union_shape.cut(bot_c)
-    notch = notch_c.cut(notch_top)
-    result = union_shape.cut(notch)
-
-    return result.translate(cq.Vector(
+    return profile.translate(cq.Vector(
         TEST_CUTOUT_H_OFFSET,
-        TEST_CUTOUT_DEPTH,
+        0,
         TEST_CUTOUT_V_OFFSET,
     ))
 
