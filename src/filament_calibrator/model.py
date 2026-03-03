@@ -134,12 +134,18 @@ def _make_tier_block() -> cq.Workplane:
 
 
 def _make_45_overhang() -> cq.Workplane:
-    """Create the 45° overhang cut solid (triangular prism)."""
+    """Create the 45° overhang cut solid (triangular prism).
+
+    Note: ``Workplane("XZ")`` has normal **-Y** (right-hand rule), so
+    ``.extrude(d)`` goes from *Y=0* toward *Y=-d*.  We translate +Y
+    afterward to place the prism inside the tier (Y 0→10).
+    """
     pts = [(0, 0), (OVERHANG_45_X, 0), (0, TIER_HEIGHT)]
     return (
         cq.Workplane("XZ")
         .polyline(pts).close()
         .extrude(TIER_WIDTH)
+        .translate(cq.Vector(0, TIER_WIDTH, 0))
     )
 
 
@@ -152,6 +158,7 @@ def _make_35_overhang() -> cq.Workplane:
         .lineTo(TIER_LENGTH, TIER_HEIGHT)
         .close()
         .extrude(TIER_WIDTH)
+        .translate(cq.Vector(0, TIER_WIDTH, 0))
     )
 
 
@@ -250,7 +257,7 @@ def _make_test_cutout_profile() -> cq.Workplane:
 
     return profile.translate(cq.Vector(
         TEST_CUTOUT_H_OFFSET,
-        0,
+        TEST_CUTOUT_DEPTH + 0.01,  # compensate for XZ -Y normal
         TEST_CUTOUT_V_OFFSET,
     ))
 
@@ -274,7 +281,8 @@ def _make_temp_label(text: str) -> cq.Workplane:
     """Create 3D text for a temperature label on the back face of a tier.
 
     The text is positioned on the back face (Y = TIER_WIDTH) of the tier,
-    engraved into the surface.
+    engraved into the surface.  ``Workplane("XZ")`` normal is **-Y**, so
+    positive *distance* extrudes in -Y (into the tier from the back face).
     """
     return (
         cq.Workplane("XZ")
@@ -286,7 +294,7 @@ def _make_temp_label(text: str) -> cq.Workplane:
         .text(
             text,
             fontsize=TEMP_LABEL_SIZE,
-            distance=-TEMP_LABEL_DEPTH,
+            distance=TEMP_LABEL_DEPTH,
             halign="center",
             valign="center",
         )
@@ -299,7 +307,7 @@ def _make_overhang_label_45() -> cq.Workplane:
     return (
         cq.Workplane("XZ")
         .transformed(offset=cq.Vector(8, TIER_HEIGHT - 4, 0))
-        .text("45", fontsize=OH_LABEL_SIZE, distance=-OH_LABEL_DEPTH,
+        .text("45", fontsize=OH_LABEL_SIZE, distance=OH_LABEL_DEPTH,
               halign="center", valign="center")
         .translate(cq.Vector(0, TIER_WIDTH, 0))
     )
@@ -310,7 +318,7 @@ def _make_overhang_label_35() -> cq.Workplane:
     return (
         cq.Workplane("XZ")
         .transformed(offset=cq.Vector(TIER_LENGTH - 11, TIER_HEIGHT - 3, 0))
-        .text("35", fontsize=OH_LABEL_SIZE, distance=-OH_LABEL_DEPTH,
+        .text("35", fontsize=OH_LABEL_SIZE, distance=OH_LABEL_DEPTH,
               halign="center", valign="center")
         .translate(cq.Vector(0, TIER_WIDTH, 0))
     )
