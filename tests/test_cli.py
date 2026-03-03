@@ -293,8 +293,10 @@ class TestRun:
 
         mock_gen.assert_called_once()
         mock_slice.assert_called_once()
-        # Verify bed_temp and fan_speed are passed to slicer
+        # Verify nozzle_temp, bed_temp and fan_speed are passed to slicer
         slice_kwargs = mock_slice.call_args[1]
+        # PLA preset: high_temp = 215 + (2//2)*10 = 225
+        assert slice_kwargs["nozzle_temp"] == 225
         assert slice_kwargs["bed_temp"] == 60   # PLA preset
         assert slice_kwargs["fan_speed"] == 100  # PLA preset
         mock_tiers.assert_called_once()
