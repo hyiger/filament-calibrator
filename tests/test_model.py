@@ -20,8 +20,13 @@ from filament_calibrator.model import (
     HORIZ_HOLE_LEN,
     LG_CONE_DIAM,
     LG_CONE_OFFSET,
+    OH_LABEL_DEPTH,
+    OH_LABEL_SIZE,
     OVERHANG_35_X,
     OVERHANG_45_X,
+    PROTRUSION_DEPTH,
+    PROTRUSION_HEIGHT,
+    PROTRUSION_LENGTH,
     SM_CONE_DIAM,
     SM_CONE_OFFSET,
     TEMP_LABEL_DEPTH,
@@ -135,7 +140,9 @@ class TestConstants:
     def test_cone_dimensions(self):
         assert CONE_HEIGHT == pytest.approx(5.0)
         assert SM_CONE_DIAM == pytest.approx(3.0)
+        assert SM_CONE_OFFSET == pytest.approx(5.0)
         assert LG_CONE_DIAM == pytest.approx(5.0)
+        assert LG_CONE_OFFSET == pytest.approx(25.0)
 
     def test_hole_dimensions(self):
         assert HOLE_DIAM == pytest.approx(3.0)
@@ -148,12 +155,19 @@ class TestConstants:
         assert TEST_CUTOUT_V_OFFSET == pytest.approx(0.3)
         assert TEST_CUTOUT_DEPTH == pytest.approx(8.0)
 
+    def test_protrusion_dimensions(self):
+        assert PROTRUSION_LENGTH == pytest.approx(16.0)
+        assert PROTRUSION_HEIGHT == pytest.approx(0.7)
+        assert PROTRUSION_DEPTH == pytest.approx(0.5)
+
     def test_label_constants(self):
         assert TEMP_LABEL_SIZE == pytest.approx(6.0)
         assert TEMP_LABEL_DEPTH == pytest.approx(1.0)
         assert TEMP_LABEL_V_OFFSET == pytest.approx(6.0)
         assert TEMP_LABEL_H_OFFSET == pytest.approx(25.0)
         assert TEXT_DEPTH == pytest.approx(0.6)
+        assert OH_LABEL_SIZE == pytest.approx(3.0)
+        assert OH_LABEL_DEPTH == pytest.approx(0.6)
 
 
 # ---------------------------------------------------------------------------
