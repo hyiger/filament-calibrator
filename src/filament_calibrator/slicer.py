@@ -26,6 +26,10 @@ DEFAULT_SLICER_ARGS: Dict[str, str] = {
 # Default bed centre for Prusa MK-series printers (250 × 210 mm bed).
 # Used with PrusaSlicer's --center flag to place the model on the bed.
 DEFAULT_BED_CENTER: str = "125,105"
+
+# Thumbnail sizes embedded in G-code for LCD preview on Prusa printers.
+# 16×16 provides a small icon; 220×124 matches the MK3S LCD resolution.
+DEFAULT_THUMBNAILS: str = "16x16,220x124"
 DEFAULT_BED_SHAPE: str = "0x0,250x0,250x210,0x210"
 """Slicer defaults applied when no ``--config-ini`` is supplied.
 
@@ -113,6 +117,7 @@ def slice_tower(
     cli_extra: List[str] = [
         f"--center={bed_center or DEFAULT_BED_CENTER}",
         f"--bed-shape={DEFAULT_BED_SHAPE}",
+        f"--thumbnails={DEFAULT_THUMBNAILS}",
     ]
     if config_ini is None:
         for key, val in DEFAULT_SLICER_ARGS.items():
@@ -190,6 +195,7 @@ def slice_flow_specimen(
     cli_extra: List[str] = [
         f"--center={bed_center or DEFAULT_BED_CENTER}",
         f"--bed-shape={DEFAULT_BED_SHAPE}",
+        f"--thumbnails={DEFAULT_THUMBNAILS}",
         "--spiral-vase",
     ]
 

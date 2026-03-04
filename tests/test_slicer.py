@@ -10,6 +10,7 @@ import gcode_lib as gl
 from filament_calibrator.slicer import (
     DEFAULT_BED_CENTER,
     DEFAULT_SLICER_ARGS,
+    DEFAULT_THUMBNAILS,
     VASE_MODE_SLICER_ARGS,
     slice_flow_specimen,
     slice_tower,
@@ -35,6 +36,19 @@ class TestDefaultSlicerArgs:
         # support-material is a boolean flag in PrusaSlicer; omitting it
         # means "disabled" (the default), so we don't include it.
         assert "support-material" not in DEFAULT_SLICER_ARGS
+
+
+class TestDefaultThumbnails:
+    def test_value(self):
+        assert DEFAULT_THUMBNAILS == "16x16,220x124"
+
+    def test_contains_two_sizes(self):
+        sizes = DEFAULT_THUMBNAILS.split(",")
+        assert len(sizes) == 2
+        for size in sizes:
+            w, h = size.split("x")
+            assert int(w) > 0
+            assert int(h) > 0
 
 
 class TestDefaultBedCenter:
@@ -344,6 +358,22 @@ class TestSliceTower:
         req = mock_slice.call_args[0][1]
         assert req.extra_args[0] == f"--center={DEFAULT_BED_CENTER}"
 
+    # --- thumbnails ---
+
+    @patch("filament_calibrator.slicer.gl.slice_model")
+    @patch("filament_calibrator.slicer.gl.find_prusaslicer_executable")
+    def test_thumbnails_in_args(self, mock_find, mock_slice):
+        """--thumbnails is always present in slice_tower CLI args."""
+        mock_find.return_value = "/usr/bin/prusa-slicer"
+        mock_slice.return_value = gl.RunResult(
+            cmd=[], returncode=0, stdout="", stderr=""
+        )
+
+        slice_tower("/tmp/tower.stl", "/tmp/tower.gcode")
+
+        req = mock_slice.call_args[0][1]
+        assert f"--thumbnails={DEFAULT_THUMBNAILS}" in req.extra_args
+
 
 # ---------------------------------------------------------------------------
 # VASE_MODE_SLICER_ARGS
@@ -566,3 +596,19 @@ class TestSliceFlowSpecimen:
         mock_find.assert_called_once_with(
             explicit_path="/custom/prusa-slicer"
         )
+
+    # --- thumbnails ---
+
+    @patch("filament_calibrator.slicer.gl.slice_model")
+    @patch("filament_calibrator.slicer.gl.find_prusaslicer_executable")
+    def test_thumbnails_in_args(self, mock_find, mock_slice):
+        """--thumbnails is always present in slice_flow_specimen CLI args."""
+        mock_find.return_value = "/usr/bin/prusa-slicer"
+        mock_slice.return_value = gl.RunResult(
+            cmd=[], returncode=0, stdout="", stderr=""
+        )
+
+        slice_flow_specimen("/tmp/specimen.stl", "/tmp/specimen.gcode")
+
+        req = mock_slice.call_args[0][1]
+        assert f"--thumbnails={DEFAULT_THUMBNAILS}" in req.extra_args
