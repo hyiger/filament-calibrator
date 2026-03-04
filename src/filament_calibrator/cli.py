@@ -47,18 +47,19 @@ def build_parser() -> argparse.ArgumentParser:
         "--high-temp", type=int, default=_UNSET,
         help=(
             "Highest temperature in °C (bottom tier). "
-            "Default: derived from filament preset "
-            "(preset hotend + num_tiers/2 * temp_jump)."
+            "Default: from filament preset temp_max."
         ),
     )
     model.add_argument(
-        "--temp-jump", type=int, default=10,
-        help="Temperature decrease per tier in °C. Default: 10",
+        "--low-temp", type=int, default=_UNSET,
+        help=(
+            "Lowest temperature in °C (top tier). "
+            "Default: from filament preset temp_min."
+        ),
     )
     model.add_argument(
-        "--num-tiers", type=int, default=9, choices=range(1, 11),
-        metavar="N",
-        help="Number of temperature tiers (1–10). Default: 9",
+        "--temp-jump", type=int, default=5,
+        help="Temperature decrease per tier in °C. Default: 5",
     )
     model.add_argument(
         "--brand-top", type=str, default="",
@@ -137,42 +138,73 @@ def _resolve_output_dir(output_dir: Optional[str]) -> Path:
 def resolve_preset(args: argparse.Namespace) -> Dict[str, object]:
     """Look up the filament preset and return resolved settings.
 
-    Returns a dict with keys ``high_temp``, ``bed_temp``, ``fan_speed``.
-    Values come from the preset when the user did not supply explicit
-    CLI overrides.
+    Returns a dict with keys ``high_temp``, ``low_temp``, ``bed_temp``,
+    ``fan_speed``.  Values come from the preset when the user did not
+    supply explicit CLI overrides.
 
-    For ``high_temp`` the formula is::
-
-        preset_hotend + (num_tiers // 2) * temp_jump
-
-    This centres the preset's recommended temperature roughly in the
-    middle of the tower, giving a useful range above and below.
+    Preset ``temp_max`` / ``temp_min`` are used directly as the default
+    high and low temperatures.
     """
     filament_key = args.filament_type.upper()
     preset = gl.FILAMENT_PRESETS.get(filament_key)
 
     if preset is not None:
-        default_high = int(preset["hotend"]) + (args.num_tiers // 2) * args.temp_jump
+        default_high = int(preset["temp_max"])
+        default_low = int(preset["temp_min"])
         default_bed = int(preset["bed"])
         default_fan = int(preset["fan"])
     else:
-        default_high = 220
+        default_high = 230
+        default_low = 190
         default_bed = 60
         default_fan = 100
 
     return {
         "high_temp": args.high_temp if args.high_temp is not _UNSET else default_high,
+        "low_temp": args.low_temp if args.low_temp is not _UNSET else default_low,
         "bed_temp": args.bed_temp if args.bed_temp is not _UNSET else default_bed,
         "fan_speed": args.fan_speed if args.fan_speed is not _UNSET else default_fan,
     }
 
 
-def _build_tower_config(args: argparse.Namespace, high_temp: int) -> TowerConfig:
+def _compute_num_tiers(high_temp: int, low_temp: int, temp_jump: int) -> int:
+    """Compute the number of tiers from a temperature range.
+
+    Validates that *high_temp* > *low_temp*, that the range is evenly
+    divisible by *temp_jump*, and that the result is at most 10 tiers.
+    Calls :func:`sys.exit` with a clear message on validation failure.
+    """
+    if high_temp <= low_temp:
+        sys.exit(
+            "error: --high-temp must be greater than --low-temp "
+            f"(got {high_temp} and {low_temp})"
+        )
+    spread = high_temp - low_temp
+    if spread % temp_jump != 0:
+        sys.exit(
+            f"error: temperature range {spread}°C "
+            f"is not evenly divisible by --temp-jump {temp_jump}"
+        )
+    num_tiers = spread // temp_jump + 1
+    if num_tiers > 10:
+        sys.exit(
+            f"error: computed {num_tiers} tiers exceeds maximum of 10 "
+            f"(range {high_temp}→{low_temp}°C, step {temp_jump})"
+        )
+    return num_tiers
+
+
+def _build_tower_config(
+    args: argparse.Namespace,
+    high_temp: int,
+    low_temp: int,
+) -> TowerConfig:
     """Build a TowerConfig from parsed CLI arguments."""
+    num_tiers = _compute_num_tiers(high_temp, low_temp, args.temp_jump)
     return TowerConfig(
         high_temp=high_temp,
         temp_jump=args.temp_jump,
-        num_tiers=args.num_tiers,
+        num_tiers=num_tiers,
         filament_type=args.filament_type,
         brand_top=args.brand_top,
         brand_bottom=args.brand_bottom,
@@ -196,13 +228,12 @@ def run(args: argparse.Namespace) -> None:
 
     resolved = resolve_preset(args)
     high_temp: int = resolved["high_temp"]
+    low_temp: int = resolved["low_temp"]
     bed_temp: int = resolved["bed_temp"]
     fan_speed: int = resolved["fan_speed"]
 
-    config = _build_tower_config(args, high_temp)
+    config = _build_tower_config(args, high_temp, low_temp)
     out_dir = _resolve_output_dir(args.output_dir)
-
-    low_temp = high_temp - (config.num_tiers - 1) * config.temp_jump
     print(
         f"Filament: {config.filament_type}  "
         f"Range: {high_temp}→{low_temp}°C  "

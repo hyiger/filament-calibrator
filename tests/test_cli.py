@@ -13,6 +13,7 @@ import gcode_lib as gl
 from filament_calibrator.cli import (
     _UNSET,
     _KNOWN_TYPES,
+    _compute_num_tiers,
     build_parser,
     main,
     resolve_preset,
@@ -36,10 +37,9 @@ class TestBuildParser:
     def test_defaults(self):
         p = build_parser()
         args = p.parse_args([])
-        # high_temp default is the _UNSET sentinel, not 220
         assert args.high_temp is _UNSET
-        assert args.temp_jump == 10
-        assert args.num_tiers == 9
+        assert args.low_temp is _UNSET
+        assert args.temp_jump == 5
         assert args.filament_type == "PLA"
         assert args.brand_top == ""
         assert args.brand_bottom == ""
@@ -61,8 +61,8 @@ class TestBuildParser:
         # everything after it
         args = p.parse_args([
             "--high-temp", "250",
+            "--low-temp", "220",
             "--temp-jump", "5",
-            "--num-tiers", "6",
             "--filament-type", "PETG",
             "--brand-top", "BrandA",
             "--brand-bottom", "BrandB",
@@ -79,8 +79,8 @@ class TestBuildParser:
             "--extra-slicer-args", "--nozzle-diameter", "0.4",
         ])
         assert args.high_temp == 250
+        assert args.low_temp == 220
         assert args.temp_jump == 5
-        assert args.num_tiers == 6
         assert args.filament_type == "PETG"
         assert args.brand_top == "BrandA"
         assert args.brand_bottom == "BrandB"
@@ -134,77 +134,88 @@ class TestResolveOutputDir:
 
 class TestResolvePreset:
     def test_pla_defaults(self):
-        """PLA preset: hotend=215, bed=60, fan=100."""
+        """PLA preset: temp_max=230, temp_min=190, bed=60, fan=100."""
         args = argparse.Namespace(
-            filament_type="PLA", high_temp=_UNSET, temp_jump=10,
-            num_tiers=9, bed_temp=_UNSET, fan_speed=_UNSET,
+            filament_type="PLA", high_temp=_UNSET, low_temp=_UNSET,
+            bed_temp=_UNSET, fan_speed=_UNSET,
         )
         r = resolve_preset(args)
-        # high_temp = 215 + (9 // 2) * 10 = 215 + 40 = 255
-        assert r["high_temp"] == 255
+        assert r["high_temp"] == 230
+        assert r["low_temp"] == 190
         assert r["bed_temp"] == 60
         assert r["fan_speed"] == 100
 
     def test_petg_defaults(self):
-        """PETG preset: hotend=240, bed=80, fan=40."""
+        """PETG preset: temp_max=260, temp_min=220, bed=80, fan=40."""
         args = argparse.Namespace(
-            filament_type="PETG", high_temp=_UNSET, temp_jump=5,
-            num_tiers=9, bed_temp=_UNSET, fan_speed=_UNSET,
+            filament_type="PETG", high_temp=_UNSET, low_temp=_UNSET,
+            bed_temp=_UNSET, fan_speed=_UNSET,
         )
         r = resolve_preset(args)
-        # high_temp = 240 + (9 // 2) * 5 = 240 + 20 = 260
         assert r["high_temp"] == 260
+        assert r["low_temp"] == 220
         assert r["bed_temp"] == 80
         assert r["fan_speed"] == 40
 
     def test_abs_defaults(self):
-        """ABS preset: hotend=255, bed=100, fan=20."""
+        """ABS preset: temp_max=270, temp_min=230, bed=100, fan=20."""
         args = argparse.Namespace(
-            filament_type="ABS", high_temp=_UNSET, temp_jump=10,
-            num_tiers=5, bed_temp=_UNSET, fan_speed=_UNSET,
+            filament_type="ABS", high_temp=_UNSET, low_temp=_UNSET,
+            bed_temp=_UNSET, fan_speed=_UNSET,
         )
         r = resolve_preset(args)
-        # high_temp = 255 + (5 // 2) * 10 = 255 + 20 = 275
-        assert r["high_temp"] == 275
+        assert r["high_temp"] == 270
+        assert r["low_temp"] == 230
         assert r["bed_temp"] == 100
         assert r["fan_speed"] == 20
 
     def test_case_insensitive(self):
         """Filament type lookup is case-insensitive."""
         args = argparse.Namespace(
-            filament_type="pla", high_temp=_UNSET, temp_jump=10,
-            num_tiers=9, bed_temp=_UNSET, fan_speed=_UNSET,
+            filament_type="pla", high_temp=_UNSET, low_temp=_UNSET,
+            bed_temp=_UNSET, fan_speed=_UNSET,
         )
         r = resolve_preset(args)
-        assert r["high_temp"] == 255
+        assert r["high_temp"] == 230
+        assert r["low_temp"] == 190
         assert r["bed_temp"] == 60
 
     def test_unknown_filament_uses_fallback(self):
         """Unknown filament type uses conservative defaults."""
         args = argparse.Namespace(
-            filament_type="EXOTIC", high_temp=_UNSET, temp_jump=10,
-            num_tiers=9, bed_temp=_UNSET, fan_speed=_UNSET,
+            filament_type="EXOTIC", high_temp=_UNSET, low_temp=_UNSET,
+            bed_temp=_UNSET, fan_speed=_UNSET,
         )
         r = resolve_preset(args)
-        assert r["high_temp"] == 220
+        assert r["high_temp"] == 230
+        assert r["low_temp"] == 190
         assert r["bed_temp"] == 60
         assert r["fan_speed"] == 100
 
     def test_explicit_high_temp_overrides_preset(self):
         args = argparse.Namespace(
-            filament_type="PLA", high_temp=230, temp_jump=10,
-            num_tiers=9, bed_temp=_UNSET, fan_speed=_UNSET,
+            filament_type="PLA", high_temp=240, low_temp=_UNSET,
+            bed_temp=_UNSET, fan_speed=_UNSET,
         )
         r = resolve_preset(args)
-        assert r["high_temp"] == 230
-        # bed/fan still from preset
+        assert r["high_temp"] == 240
+        assert r["low_temp"] == 190  # still from preset
         assert r["bed_temp"] == 60
         assert r["fan_speed"] == 100
 
+    def test_explicit_low_temp_overrides_preset(self):
+        args = argparse.Namespace(
+            filament_type="PLA", high_temp=_UNSET, low_temp=200,
+            bed_temp=_UNSET, fan_speed=_UNSET,
+        )
+        r = resolve_preset(args)
+        assert r["high_temp"] == 230  # still from preset
+        assert r["low_temp"] == 200
+
     def test_explicit_bed_temp_overrides_preset(self):
         args = argparse.Namespace(
-            filament_type="PETG", high_temp=_UNSET, temp_jump=10,
-            num_tiers=9, bed_temp=90, fan_speed=_UNSET,
+            filament_type="PETG", high_temp=_UNSET, low_temp=_UNSET,
+            bed_temp=90, fan_speed=_UNSET,
         )
         r = resolve_preset(args)
         assert r["bed_temp"] == 90
@@ -212,8 +223,8 @@ class TestResolvePreset:
 
     def test_explicit_fan_speed_overrides_preset(self):
         args = argparse.Namespace(
-            filament_type="PLA", high_temp=_UNSET, temp_jump=10,
-            num_tiers=9, bed_temp=_UNSET, fan_speed=50,
+            filament_type="PLA", high_temp=_UNSET, low_temp=_UNSET,
+            bed_temp=_UNSET, fan_speed=50,
         )
         r = resolve_preset(args)
         assert r["fan_speed"] == 50
@@ -222,11 +233,12 @@ class TestResolvePreset:
     def test_all_explicit_overrides(self):
         """When all values are explicit, preset is ignored."""
         args = argparse.Namespace(
-            filament_type="PLA", high_temp=200, temp_jump=10,
-            num_tiers=9, bed_temp=70, fan_speed=80,
+            filament_type="PLA", high_temp=250, low_temp=200,
+            bed_temp=70, fan_speed=80,
         )
         r = resolve_preset(args)
-        assert r["high_temp"] == 200
+        assert r["high_temp"] == 250
+        assert r["low_temp"] == 200
         assert r["bed_temp"] == 70
         assert r["fan_speed"] == 80
 
@@ -236,17 +248,49 @@ class TestResolvePreset:
 # ---------------------------------------------------------------------------
 
 
+class TestComputeNumTiers:
+    def test_normal_range(self):
+        # 230→190 step 5 → 9 tiers
+        assert _compute_num_tiers(230, 190, 5) == 9
+
+    def test_small_range(self):
+        # 210→200 step 10 → 2 tiers
+        assert _compute_num_tiers(210, 200, 10) == 2
+
+    def test_max_ten_tiers(self):
+        # 250→200 step 5 → 11 tiers → error
+        with pytest.raises(SystemExit):
+            _compute_num_tiers(250, 200, 5)
+
+    def test_high_equals_low_exits(self):
+        with pytest.raises(SystemExit):
+            _compute_num_tiers(200, 200, 5)
+
+    def test_high_less_than_low_exits(self):
+        with pytest.raises(SystemExit):
+            _compute_num_tiers(190, 200, 5)
+
+    def test_not_divisible_exits(self):
+        # 230→190 = 40, not divisible by 7
+        with pytest.raises(SystemExit):
+            _compute_num_tiers(230, 190, 7)
+
+    def test_ten_tiers_allowed(self):
+        # 250→200 step 5 → 11 (too many), but 245→200 step 5 → 10 (ok)
+        assert _compute_num_tiers(245, 200, 5) == 10
+
+
 class TestBuildTowerConfig:
     def test_maps_args(self):
         args = argparse.Namespace(
-            temp_jump=5, num_tiers=6,
+            temp_jump=5,
             filament_type="PETG", brand_top="X", brand_bottom="Y",
         )
-        config = _build_tower_config(args, high_temp=250)
+        config = _build_tower_config(args, high_temp=250, low_temp=220)
         assert isinstance(config, TowerConfig)
         assert config.high_temp == 250
         assert config.temp_jump == 5
-        assert config.num_tiers == 6
+        assert config.num_tiers == 7  # (250-220)/5 + 1 = 7
         assert config.filament_type == "PETG"
         assert config.brand_top == "X"
         assert config.brand_bottom == "Y"
@@ -260,7 +304,7 @@ class TestBuildTowerConfig:
 class TestRun:
     def _make_args(self, tmp_path, **overrides):
         defaults = dict(
-            high_temp=_UNSET, temp_jump=10, num_tiers=2,
+            high_temp=_UNSET, low_temp=_UNSET, temp_jump=5,
             filament_type="PLA", brand_top="", brand_bottom="",
             bed_temp=_UNSET, fan_speed=_UNSET,
             config_ini=None, prusaslicer_path=None,
@@ -295,8 +339,8 @@ class TestRun:
         mock_slice.assert_called_once()
         # Verify nozzle_temp, bed_temp and fan_speed are passed to slicer
         slice_kwargs = mock_slice.call_args[1]
-        # PLA preset: high_temp = 215 + (2//2)*10 = 225
-        assert slice_kwargs["nozzle_temp"] == 225
+        # PLA preset: high_temp = temp_max = 230
+        assert slice_kwargs["nozzle_temp"] == 230
         assert slice_kwargs["bed_temp"] == 60   # PLA preset
         assert slice_kwargs["fan_speed"] == 100  # PLA preset
         mock_tiers.assert_called_once()
@@ -393,9 +437,9 @@ class TestRun:
         self, mock_gen, mock_slice, mock_tiers,
         mock_insert, mock_load, mock_save, tmp_path
     ):
-        # PLA preset: high_temp = 215 + (2//2)*10 = 225
-        stl = tmp_path / "temp_tower_PLA_225_10x2.stl"
-        raw_gcode = tmp_path / "temp_tower_PLA_225_10x2_raw.gcode"
+        # PLA preset: high=230, low=190, jump=5 → 9 tiers
+        stl = tmp_path / "temp_tower_PLA_230_5x9.stl"
+        raw_gcode = tmp_path / "temp_tower_PLA_230_5x9_raw.gcode"
         stl.write_text("dummy")
         raw_gcode.write_text("dummy")
 
@@ -421,8 +465,8 @@ class TestRun:
         self, mock_gen, mock_slice, mock_tiers,
         mock_insert, mock_load, mock_save, tmp_path
     ):
-        stl = tmp_path / "temp_tower_PLA_225_10x2.stl"
-        raw_gcode = tmp_path / "temp_tower_PLA_225_10x2_raw.gcode"
+        stl = tmp_path / "temp_tower_PLA_230_5x9.stl"
+        raw_gcode = tmp_path / "temp_tower_PLA_230_5x9_raw.gcode"
         stl.write_text("dummy")
         raw_gcode.write_text("dummy")
 
@@ -481,6 +525,7 @@ class TestMain:
         main([])
         args = mock_run.call_args[0][0]
         assert args.high_temp is _UNSET
+        assert args.low_temp is _UNSET
 
     @patch("filament_calibrator.cli.run")
     def test_bed_temp_and_fan_speed(self, mock_run):
