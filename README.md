@@ -1,10 +1,15 @@
 # filament-calibrator
 
-Automated filament temperature tower calibration for Prusa 3D printers.
+CLI tool suite for 3D printer filament calibration on Prusa printers.
 
-Generates a parametric temperature tower model, slices it with PrusaSlicer,
-injects per-tier temperature changes into the G-code, and optionally uploads
-the result to your printer via PrusaLink.
+**Two calibration tools included:**
+
+- **`temperature-tower`** — generates a parametric temperature tower, slices it
+  with PrusaSlicer, injects per-tier temperature changes into the G-code, and
+  optionally uploads the result to your printer via PrusaLink.
+- **`volumetric-flow`** — generates a serpentine wall specimen, slices it in
+  spiral vase mode, and injects progressively increasing print speeds to
+  determine the maximum volumetric flow rate for a filament/hotend combination.
 
 ## Prerequisites
 
@@ -30,9 +35,9 @@ This pulls all Python dependencies from PyPI automatically:
 [gcode-lib](https://github.com/hyiger/gcode-lib) (>= 1.0.0) for G-code
 manipulation.
 
-The `temperature-tower` command is available whenever the venv is active.
-To reactivate later, run `source .venv/bin/activate` from the project
-directory.
+Both the `temperature-tower` and `volumetric-flow` commands are available
+whenever the venv is active. To reactivate later, run
+`source .venv/bin/activate` from the project directory.
 
 ### Python version compatibility
 
@@ -69,21 +74,19 @@ pip install -e .
 > [Anaconda docs](https://www.anaconda.com/blog/using-pip-in-a-conda-environment)
 > for details on mixing conda and pip.
 
-## Quick Start
+## Filament Presets
 
-Generate and upload a PLA temperature tower with preset defaults:
+Both tools use presets from `gcode-lib` to set smart defaults for each filament
+type. Known presets: **ABS**, **ASA**, **HIPS**, **PA**, **PA-CF**, **PC**,
+**PCTG**, **PETG**, **PETG-CF**, **PLA**, **PLA-CF**, **PP**, **PPA**, **TPU**.
 
-```bash
-temperature-tower \
-  --printer-url http://192.168.1.100 \
-  --api-key YOUR_API_KEY
-```
+Each preset provides: recommended hotend temperature, bed temperature, fan
+speed, retraction distance, safe temperature range (`temp_min`/`temp_max`),
+print speed, and enclosure recommendation.
 
-Generate without uploading:
-
-```bash
-temperature-tower --no-upload --output-dir ./output --keep-files
-```
+When you specify `--filament-type` (default `PLA`), the tool uses the preset
+to set default temperatures and fan speed. All preset values can be overridden
+with explicit CLI flags.
 
 ## Configuration
 
@@ -120,9 +123,11 @@ All keys are optional — include only what you need. In particular,
 location (e.g. `/usr/bin/prusa-slicer`, `/Applications/PrusaSlicer.app`, or
 anywhere on your `PATH`).
 
+The config file is shared between both tools.
+
 ### Config file locations
 
-The tool looks for a config file in this order (first found wins):
+The tools look for a config file in this order (first found wins):
 
 | Priority | Location | Use case |
 |----------|----------|----------|
@@ -133,42 +138,46 @@ The tool looks for a config file in this order (first found wins):
 CLI arguments always override config file values, so you can set your usual
 defaults in the file and override individual flags as needed.
 
-## How It Works
+---
 
-1. **Model generation** -- CadQuery builds a parametric temp tower STL matching
+## Temperature Tower
+
+### Quick Start
+
+Generate and upload a PLA temperature tower with preset defaults:
+
+```bash
+temperature-tower \
+  --printer-url http://192.168.1.100 \
+  --api-key YOUR_API_KEY
+```
+
+Generate without uploading:
+
+```bash
+temperature-tower --no-upload --output-dir ./output --keep-files
+```
+
+### How It Works
+
+1. **Model generation** — CadQuery builds a parametric temp tower STL matching
    the classic OpenSCAD design: filleted base, stacked tiers with overhang
    tests (45/35 deg), bridge holes, cones, and engraved temperature labels.
 
-2. **Slicing** -- PrusaSlicer CLI slices the STL using either a user-supplied
+2. **Slicing** — PrusaSlicer CLI slices the STL using either a user-supplied
    `.ini` profile or built-in defaults (0.2mm layers, 2 perimeters, 15%
    infill, no supports).
 
-3. **Temperature insertion** -- `M104` commands are inserted at the G-code
+3. **Temperature insertion** — `M104` commands are inserted at the G-code
    layer boundaries corresponding to each tier, so the printer changes
    temperature as it moves up the tower.
 
-4. **Upload** -- The final G-code is uploaded to the printer via PrusaLink
+4. **Upload** — The final G-code is uploaded to the printer via PrusaLink
    REST API, with optional auto-start.
 
-## Filament Presets
+### CLI Reference
 
-The tool uses presets from `gcode-lib` to set smart defaults for each filament
-type. Known presets: **ABS**, **ASA**, **HIPS**, **PA**, **PA-CF**, **PC**,
-**PCTG**, **PETG**, **PETG-CF**, **PLA**, **PLA-CF**, **PP**, **PPA**, **TPU**.
-
-Each preset provides: recommended hotend temperature, bed temperature, fan
-speed, retraction distance, safe temperature range (`temp_min`/`temp_max`),
-print speed, and enclosure recommendation.
-
-When you specify `--filament-type PLA` (the default), the tool uses the
-preset's `temp_max` and `temp_min` as the default high and low temperatures.
-The number of tiers is computed automatically from the range and step size.
-
-All preset values can be overridden with explicit CLI flags.
-
-## CLI Reference
-
-### Model Options
+#### Model Options
 
 | Flag | Default | Description |
 |------|---------|-------------|
@@ -180,22 +189,22 @@ All preset values can be overridden with explicit CLI flags.
 | `--brand-bottom` | | Optional brand label on bottom |
 
 Tier count is computed automatically: `(start_temp - end_temp) / temp_step + 1`,
-validated to a maximum of 10. Temperatures must be within 150–350°C,
+validated to a maximum of 10. Temperatures must be within 150--350 deg C,
 `--start-temp` must be at least `--end-temp + --temp-step`, and the range
 must be evenly divisible by `--temp-step`.
 
-### Slicer Options
+#### Slicer Options
 
 | Flag | Default | Description |
 |------|---------|-------------|
 | `--bed-temp` | from preset | Bed temperature (deg C) |
-| `--fan-speed` | from preset | Fan speed (0-100%) |
+| `--fan-speed` | from preset | Fan speed (0--100%) |
 | `--config-ini` | | PrusaSlicer `.ini` config file |
 | `--prusaslicer-path` | auto-detect | Path to PrusaSlicer executable |
 | `--bed-center` | `125,105` | Bed centre as X,Y in mm |
 | `--extra-slicer-args` | | Additional PrusaSlicer CLI args (must be last) |
 
-### Printer Options
+#### Printer Options
 
 | Flag | Default | Description |
 |------|---------|-------------|
@@ -204,24 +213,16 @@ must be evenly divisible by `--temp-step`.
 | `--no-upload` | `false` | Skip uploading to printer |
 | `--print-after-upload` | `false` | Start printing after upload |
 
-### Output Options
+#### Output Options
 
 | Flag | Default | Description |
 |------|---------|-------------|
 | `--output-dir` | temp dir | Directory for output files |
 | `--keep-files` | `false` | Keep intermediate STL and raw G-code |
-
-### General Options
-
-| Flag | Default | Description |
-|------|---------|-------------|
 | `--config` | auto-detect | Path to a TOML config file |
 | `-v`, `--verbose` | `false` | Show detailed debug output |
 
-See the [Configuration](#configuration) section above for config file setup
-and supported keys.
-
-## Examples
+### Examples
 
 PETG tower with 5-degree steps:
 
@@ -250,6 +251,136 @@ temperature-tower \
   --no-upload
 ```
 
+---
+
+## Volumetric Flow
+
+### Quick Start
+
+Test PLA flow from 5 to 20 mm³/s in 1 mm³/s steps:
+
+```bash
+volumetric-flow \
+  --start-speed 5 --end-speed 20 --step 1 \
+  --no-upload --output-dir ./output --keep-files
+```
+
+Upload directly to printer:
+
+```bash
+volumetric-flow \
+  --start-speed 5 --end-speed 20 --step 1 \
+  --printer-url http://192.168.1.100 \
+  --api-key YOUR_API_KEY
+```
+
+### How It Works
+
+1. **Model generation** — CadQuery builds a serpentine (E-shaped) wall: three
+   horizontal arms connected by a spine, with rounded ends. This creates a
+   long continuous outer perimeter ideal for sustained extrusion testing in
+   vase mode. The model height equals `num_levels * level_height`.
+
+2. **Slicing** — PrusaSlicer slices in `--spiral-vase` mode (single wall,
+   continuous Z rise) with a 5mm brim for adhesion.
+
+3. **Feedrate insertion** — The G-code is walked line-by-line tracking Z
+   height. At each level boundary, the feedrate on extrusion moves is
+   overridden to achieve the target volumetric flow rate using the formula:
+   `F = (flow_mm³/s / (layer_height * extrusion_width)) * 60`.
+
+4. **Upload** — Same PrusaLink upload path as the temperature tower.
+
+### Interpreting the Print
+
+Print the specimen and observe where quality degrades — under-extrusion,
+layer splitting, or extruder clicking indicate you have exceeded the maximum
+flow rate. The last level that printed cleanly is your safe maximum volumetric
+flow for that filament/hotend combination.
+
+### CLI Reference
+
+#### Flow Options
+
+| Flag | Default | Description |
+|------|---------|-------------|
+| `--start-speed` | *required* | Starting volumetric flow rate (mm³/s) |
+| `--end-speed` | *required* | Ending volumetric flow rate (mm³/s) |
+| `--step` | *required* | Flow rate increment per level (mm³/s) |
+
+The flow range must be evenly divisible by `--step`, and the resulting number
+of levels cannot exceed 50.
+
+#### Model Options
+
+| Flag | Default | Description |
+|------|---------|-------------|
+| `--filament-type` | `PLA` | Filament type — sets nozzle temp, bed temp, and fan speed from preset |
+| `--level-height` | `1.0` | Height per flow level in mm |
+
+#### Slicer Options
+
+| Flag | Default | Description |
+|------|---------|-------------|
+| `--nozzle-temp` | from preset | Nozzle temperature (deg C) — overrides preset |
+| `--bed-temp` | from preset | Bed temperature (deg C) — overrides preset |
+| `--fan-speed` | from preset | Fan speed (0--100%) — overrides preset |
+| `--layer-height` | `0.2` | Slicer layer height (mm) |
+| `--extrusion-width` | `0.45` | Slicer extrusion width (mm) |
+| `--config-ini` | | PrusaSlicer `.ini` config file |
+| `--prusaslicer-path` | auto-detect | Path to PrusaSlicer executable |
+| `--bed-center` | `125,105` | Bed centre as X,Y in mm |
+| `--extra-slicer-args` | | Additional PrusaSlicer CLI args (must be last) |
+
+#### Printer Options
+
+| Flag | Default | Description |
+|------|---------|-------------|
+| `--printer-url` | | PrusaLink URL (e.g. `http://192.168.1.100`) |
+| `--api-key` | | PrusaLink API key |
+| `--no-upload` | `false` | Skip uploading to printer |
+| `--print-after-upload` | `false` | Start printing after upload |
+
+#### Output Options
+
+| Flag | Default | Description |
+|------|---------|-------------|
+| `--output-dir` | temp dir | Directory for output files |
+| `--keep-files` | `false` | Keep intermediate STL and raw G-code |
+| `--config` | auto-detect | Path to a TOML config file |
+| `-v`, `--verbose` | `false` | Show detailed debug output |
+
+### Examples
+
+PLA flow test with fine steps:
+
+```bash
+volumetric-flow \
+  --start-speed 5 --end-speed 15 --step 0.5 \
+  --no-upload --output-dir ./output
+```
+
+PETG flow test with custom temperatures:
+
+```bash
+volumetric-flow \
+  --filament-type PETG \
+  --start-speed 3 --end-speed 12 --step 1 \
+  --nozzle-temp 240 --bed-temp 80 \
+  --no-upload
+```
+
+Use a PrusaSlicer profile:
+
+```bash
+volumetric-flow \
+  --start-speed 5 --end-speed 20 --step 1 \
+  --config-ini ~/PrusaSlicer/my_profile.ini \
+  --no-upload
+```
+
+---
+
 ## Development
 
 Run tests:
@@ -258,6 +389,8 @@ Run tests:
 pip install -e ".[dev]"
 pytest tests/ --cov=src/filament_calibrator --cov-report=term-missing
 ```
+
+100% statement coverage is required and enforced via `--cov-fail-under=100`.
 
 ## License
 

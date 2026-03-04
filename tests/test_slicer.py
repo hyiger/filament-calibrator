@@ -10,6 +10,8 @@ import gcode_lib as gl
 from filament_calibrator.slicer import (
     DEFAULT_BED_CENTER,
     DEFAULT_SLICER_ARGS,
+    VASE_MODE_SLICER_ARGS,
+    slice_flow_specimen,
     slice_tower,
 )
 
@@ -341,3 +343,226 @@ class TestSliceTower:
 
         req = mock_slice.call_args[0][1]
         assert req.extra_args[0] == f"--center={DEFAULT_BED_CENTER}"
+
+
+# ---------------------------------------------------------------------------
+# VASE_MODE_SLICER_ARGS
+# ---------------------------------------------------------------------------
+
+
+class TestVaseModeSlicerArgs:
+    def test_has_required_keys(self):
+        assert "first-layer-height" in VASE_MODE_SLICER_ARGS
+        assert "perimeters" in VASE_MODE_SLICER_ARGS
+        assert "top-solid-layers" in VASE_MODE_SLICER_ARGS
+        assert "bottom-solid-layers" in VASE_MODE_SLICER_ARGS
+        assert "fill-density" in VASE_MODE_SLICER_ARGS
+        assert "brim-width" in VASE_MODE_SLICER_ARGS
+
+    def test_vase_mode_values(self):
+        assert VASE_MODE_SLICER_ARGS["perimeters"] == "1"
+        assert VASE_MODE_SLICER_ARGS["top-solid-layers"] == "0"
+        assert VASE_MODE_SLICER_ARGS["fill-density"] == "0%"
+        assert VASE_MODE_SLICER_ARGS["skirts"] == "0"
+        assert VASE_MODE_SLICER_ARGS["brim-width"] == "5"
+
+    def test_no_layer_height(self):
+        """layer-height is NOT in VASE_MODE_SLICER_ARGS (set explicitly)."""
+        assert "layer-height" not in VASE_MODE_SLICER_ARGS
+
+
+# ---------------------------------------------------------------------------
+# slice_flow_specimen
+# ---------------------------------------------------------------------------
+
+
+class TestSliceFlowSpecimen:
+    @patch("filament_calibrator.slicer.gl.slice_model")
+    @patch("filament_calibrator.slicer.gl.find_prusaslicer_executable")
+    def test_spiral_vase_always_present(self, mock_find, mock_slice):
+        """--spiral-vase is always in the CLI args."""
+        mock_find.return_value = "/usr/bin/prusa-slicer"
+        mock_slice.return_value = gl.RunResult(
+            cmd=[], returncode=0, stdout="", stderr=""
+        )
+
+        slice_flow_specimen("/tmp/specimen.stl", "/tmp/specimen.gcode")
+
+        req = mock_slice.call_args[0][1]
+        assert "--spiral-vase" in req.extra_args
+
+    @patch("filament_calibrator.slicer.gl.slice_model")
+    @patch("filament_calibrator.slicer.gl.find_prusaslicer_executable")
+    def test_vase_defaults_used_without_config_ini(self, mock_find, mock_slice):
+        """VASE_MODE_SLICER_ARGS applied when no config_ini."""
+        mock_find.return_value = "/usr/bin/prusa-slicer"
+        mock_slice.return_value = gl.RunResult(
+            cmd=[], returncode=0, stdout="", stderr=""
+        )
+
+        slice_flow_specimen("/tmp/specimen.stl", "/tmp/specimen.gcode")
+
+        req = mock_slice.call_args[0][1]
+        for key, val in VASE_MODE_SLICER_ARGS.items():
+            assert f"--{key}={val}" in req.extra_args
+        # layer-height and extrusion-width are set explicitly
+        assert "--layer-height=0.2" in req.extra_args
+        assert "--extrusion-width=0.45" in req.extra_args
+
+    @patch("filament_calibrator.slicer.gl.slice_model")
+    @patch("filament_calibrator.slicer.gl.find_prusaslicer_executable")
+    def test_no_vase_defaults_with_config_ini(self, mock_find, mock_slice):
+        """VASE_MODE_SLICER_ARGS NOT applied when config_ini is given."""
+        mock_find.return_value = "/usr/bin/prusa-slicer"
+        mock_slice.return_value = gl.RunResult(
+            cmd=[], returncode=0, stdout="", stderr=""
+        )
+
+        slice_flow_specimen(
+            "/tmp/specimen.stl", "/tmp/specimen.gcode",
+            config_ini="/config.ini",
+        )
+
+        req = mock_slice.call_args[0][1]
+        for key, val in VASE_MODE_SLICER_ARGS.items():
+            assert f"--{key}={val}" not in req.extra_args
+        # --spiral-vase still present
+        assert "--spiral-vase" in req.extra_args
+
+    @patch("filament_calibrator.slicer.gl.slice_model")
+    @patch("filament_calibrator.slicer.gl.find_prusaslicer_executable")
+    def test_custom_layer_height_and_extrusion_width(self, mock_find, mock_slice):
+        """Custom layer_height and extrusion_width are passed."""
+        mock_find.return_value = "/usr/bin/prusa-slicer"
+        mock_slice.return_value = gl.RunResult(
+            cmd=[], returncode=0, stdout="", stderr=""
+        )
+
+        slice_flow_specimen(
+            "/tmp/specimen.stl", "/tmp/specimen.gcode",
+            layer_height=0.3, extrusion_width=0.6,
+        )
+
+        req = mock_slice.call_args[0][1]
+        assert "--layer-height=0.3" in req.extra_args
+        assert "--extrusion-width=0.6" in req.extra_args
+
+    @patch("filament_calibrator.slicer.gl.slice_model")
+    @patch("filament_calibrator.slicer.gl.find_prusaslicer_executable")
+    def test_nozzle_temp_passed(self, mock_find, mock_slice):
+        mock_find.return_value = "/usr/bin/prusa-slicer"
+        mock_slice.return_value = gl.RunResult(
+            cmd=[], returncode=0, stdout="", stderr=""
+        )
+
+        slice_flow_specimen(
+            "/tmp/specimen.stl", "/tmp/specimen.gcode",
+            config_ini="/config.ini", nozzle_temp=230,
+        )
+
+        req = mock_slice.call_args[0][1]
+        assert "--temperature=230" in req.extra_args
+        assert "--first-layer-temperature=230" in req.extra_args
+
+    @patch("filament_calibrator.slicer.gl.slice_model")
+    @patch("filament_calibrator.slicer.gl.find_prusaslicer_executable")
+    def test_bed_temp_and_fan_speed(self, mock_find, mock_slice):
+        mock_find.return_value = "/usr/bin/prusa-slicer"
+        mock_slice.return_value = gl.RunResult(
+            cmd=[], returncode=0, stdout="", stderr=""
+        )
+
+        slice_flow_specimen(
+            "/tmp/specimen.stl", "/tmp/specimen.gcode",
+            config_ini="/config.ini", bed_temp=80, fan_speed=40,
+        )
+
+        req = mock_slice.call_args[0][1]
+        assert "--bed-temperature=80" in req.extra_args
+        assert "--first-layer-bed-temperature=80" in req.extra_args
+        assert "--max-fan-speed=40" in req.extra_args
+        assert "--min-fan-speed=40" in req.extra_args
+
+    @patch("filament_calibrator.slicer.gl.slice_model")
+    @patch("filament_calibrator.slicer.gl.find_prusaslicer_executable")
+    def test_none_temps_not_added(self, mock_find, mock_slice):
+        mock_find.return_value = "/usr/bin/prusa-slicer"
+        mock_slice.return_value = gl.RunResult(
+            cmd=[], returncode=0, stdout="", stderr=""
+        )
+
+        slice_flow_specimen(
+            "/tmp/specimen.stl", "/tmp/specimen.gcode",
+            config_ini="/config.ini",
+            nozzle_temp=None, bed_temp=None, fan_speed=None,
+        )
+
+        req = mock_slice.call_args[0][1]
+        assert not any(a.startswith("--temperature=") for a in req.extra_args)
+        assert not any(a.startswith("--bed-temperature") for a in req.extra_args)
+        assert not any(a.startswith("--max-fan-speed") for a in req.extra_args)
+
+    @patch("filament_calibrator.slicer.gl.slice_model")
+    @patch("filament_calibrator.slicer.gl.find_prusaslicer_executable")
+    def test_extra_args_appended(self, mock_find, mock_slice):
+        mock_find.return_value = "/usr/bin/prusa-slicer"
+        mock_slice.return_value = gl.RunResult(
+            cmd=[], returncode=0, stdout="", stderr=""
+        )
+
+        slice_flow_specimen(
+            "/tmp/specimen.stl", "/tmp/specimen.gcode",
+            config_ini="/config.ini",
+            extra_args=["--custom", "val"],
+        )
+
+        req = mock_slice.call_args[0][1]
+        assert "--custom" in req.extra_args
+        assert "val" in req.extra_args
+
+    @patch("filament_calibrator.slicer.gl.slice_model")
+    @patch("filament_calibrator.slicer.gl.find_prusaslicer_executable")
+    def test_default_bed_center(self, mock_find, mock_slice):
+        mock_find.return_value = "/usr/bin/prusa-slicer"
+        mock_slice.return_value = gl.RunResult(
+            cmd=[], returncode=0, stdout="", stderr=""
+        )
+
+        slice_flow_specimen("/tmp/specimen.stl", "/tmp/specimen.gcode",
+                            config_ini="/config.ini")
+
+        req = mock_slice.call_args[0][1]
+        assert f"--center={DEFAULT_BED_CENTER}" in req.extra_args
+
+    @patch("filament_calibrator.slicer.gl.slice_model")
+    @patch("filament_calibrator.slicer.gl.find_prusaslicer_executable")
+    def test_custom_bed_center(self, mock_find, mock_slice):
+        mock_find.return_value = "/usr/bin/prusa-slicer"
+        mock_slice.return_value = gl.RunResult(
+            cmd=[], returncode=0, stdout="", stderr=""
+        )
+
+        slice_flow_specimen(
+            "/tmp/specimen.stl", "/tmp/specimen.gcode",
+            config_ini="/config.ini", bed_center="90,90",
+        )
+
+        req = mock_slice.call_args[0][1]
+        assert "--center=90,90" in req.extra_args
+
+    @patch("filament_calibrator.slicer.gl.slice_model")
+    @patch("filament_calibrator.slicer.gl.find_prusaslicer_executable")
+    def test_custom_prusaslicer_path(self, mock_find, mock_slice):
+        mock_find.return_value = "/custom/prusa-slicer"
+        mock_slice.return_value = gl.RunResult(
+            cmd=[], returncode=0, stdout="", stderr=""
+        )
+
+        slice_flow_specimen(
+            "/tmp/specimen.stl", "/tmp/specimen.gcode",
+            prusaslicer_path="/custom/prusa-slicer",
+        )
+
+        mock_find.assert_called_once_with(
+            explicit_path="/custom/prusa-slicer"
+        )
