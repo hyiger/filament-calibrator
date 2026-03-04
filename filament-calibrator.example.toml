@@ -1,0 +1,14 @@
+# filament-calibrator configuration
+# Copy to ./filament-calibrator.toml or ~/.config/filament-calibrator/config.toml
+
+# Printer connection
+printer-url = "http://192.168.1.100"
+api-key = "your-prusalink-api-key"
+
+# Slicer setup
+prusaslicer-path = "/usr/bin/prusa-slicer"
+config-ini = "/path/to/printer-profile.ini"
+
+# Defaults
+filament-type = "PLA"
+output-dir = "./output"
