@@ -8,6 +8,7 @@ from filament_calibrator.gui import (
     _FALLBACK_PRESET,
     _NOZZLE_SIZES,
     _PRINTER_LIST,
+    _fresh_output_dir,
     build_flow_namespace,
     build_pa_namespace,
     build_temp_tower_namespace,
@@ -327,3 +328,24 @@ class TestConstants:
     def test_printer_list(self) -> None:
         assert "COREONE" in _PRINTER_LIST
         assert _PRINTER_LIST == sorted(_PRINTER_LIST)
+
+
+# ---------------------------------------------------------------------------
+# _fresh_output_dir
+# ---------------------------------------------------------------------------
+
+class TestFreshOutputDir:
+    """Test _fresh_output_dir() creates isolated directories per run."""
+
+    def test_custom_dir_returned_as_is(self) -> None:
+        assert _fresh_output_dir("/my/custom/dir") == "/my/custom/dir"
+
+    def test_empty_string_creates_temp_dir(self) -> None:
+        d1 = _fresh_output_dir("")
+        d2 = _fresh_output_dir("")
+        assert d1 != d2
+        assert d1.startswith("/")
+
+    def test_temp_dirs_are_unique(self) -> None:
+        dirs = {_fresh_output_dir("") for _ in range(5)}
+        assert len(dirs) == 5

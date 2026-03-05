@@ -233,6 +233,18 @@ def build_pa_namespace(
     )
 
 
+def _fresh_output_dir(custom_output_dir: str) -> str:
+    """Return *custom_output_dir* if set, otherwise a fresh temp directory.
+
+    Each pipeline run gets its own directory so that output files from
+    a previous run (e.g. a temperature tower) are never confused with
+    the current run (e.g. a flow specimen).
+    """
+    if custom_output_dir:
+        return custom_output_dir
+    return tempfile.mkdtemp(prefix="fc-gui-")
+
+
 def find_output_file(output_dir: str, ascii_gcode: bool) -> Optional[Path]:
     """Find the final G-code file in *output_dir* (not the ``_raw`` one)."""
     ext = ".gcode" if ascii_gcode else ".bgcode"
@@ -260,10 +272,6 @@ def _app() -> None:  # pragma: no cover
         layout="wide",
     )
     st.title("Filament Calibrator")
-
-    # --- Session state defaults ---
-    if "output_dir" not in st.session_state:
-        st.session_state.output_dir = tempfile.mkdtemp(prefix="fc-gui-")
 
     # --- Sidebar: shared settings ---
     with st.sidebar:
@@ -322,7 +330,6 @@ def _app() -> None:  # pragma: no cover
             "Output directory",
             placeholder="Auto (temp directory)",
         )
-        output_dir = custom_output_dir or st.session_state.output_dir
 
     # --- Derived values ---
     derived_lh = round(nozzle_size * 0.5, 2)
@@ -401,6 +408,7 @@ def _app() -> None:  # pragma: no cover
 
         if st.button("Generate Temperature Tower", type="primary",
                       key="run_temp"):
+            run_dir = _fresh_output_dir(custom_output_dir)
             args = build_temp_tower_namespace(
                 filament_type=filament_type,
                 start_temp=start_temp,
@@ -413,7 +421,7 @@ def _app() -> None:  # pragma: no cover
                 nozzle_size=nozzle_size,
                 printer=printer,
                 ascii_gcode=ascii_gcode,
-                output_dir=output_dir,
+                output_dir=run_dir,
                 config_ini=config_ini,
                 prusaslicer_path=prusaslicer_path,
                 printer_url=printer_url if enable_upload else None,
@@ -423,7 +431,7 @@ def _app() -> None:  # pragma: no cover
             )
             with st.spinner("Running temperature tower pipeline..."):
                 success, log = run_pipeline(temp_run, args)
-            _show_results(st, output_dir, ascii_gcode, success, log)
+            _show_results(st, run_dir, ascii_gcode, success, log)
 
     # === Tab 2: Volumetric Flow ===
     with tab_flow:
@@ -520,6 +528,7 @@ def _app() -> None:  # pragma: no cover
 
         if st.button("Generate Flow Specimen", type="primary",
                       key="run_flow"):
+            run_dir = _fresh_output_dir(custom_output_dir)
             args = build_flow_namespace(
                 filament_type=filament_type,
                 start_speed=start_speed,
@@ -534,7 +543,7 @@ def _app() -> None:  # pragma: no cover
                 extrusion_width=flow_extrusion_width,
                 printer=printer,
                 ascii_gcode=ascii_gcode,
-                output_dir=output_dir,
+                output_dir=run_dir,
                 config_ini=config_ini,
                 prusaslicer_path=prusaslicer_path,
                 printer_url=printer_url if enable_upload else None,
@@ -544,7 +553,7 @@ def _app() -> None:  # pragma: no cover
             )
             with st.spinner("Running volumetric flow pipeline..."):
                 success, log = run_pipeline(flow_run, args)
-            _show_results(st, output_dir, ascii_gcode, success, log)
+            _show_results(st, run_dir, ascii_gcode, success, log)
 
     # === Tab 3: Pressure Advance ===
     with tab_pa:
@@ -647,6 +656,7 @@ def _app() -> None:  # pragma: no cover
 
         if st.button("Generate PA Tower", type="primary",
                       key="run_pa"):
+            run_dir = _fresh_output_dir(custom_output_dir)
             args = build_pa_namespace(
                 filament_type=filament_type,
                 start_pa=start_pa,
@@ -662,7 +672,7 @@ def _app() -> None:  # pragma: no cover
                 extrusion_width=pa_extrusion_width,
                 printer=printer,
                 ascii_gcode=ascii_gcode,
-                output_dir=output_dir,
+                output_dir=run_dir,
                 config_ini=config_ini,
                 prusaslicer_path=prusaslicer_path,
                 printer_url=printer_url if enable_upload else None,
@@ -672,7 +682,7 @@ def _app() -> None:  # pragma: no cover
             )
             with st.spinner("Running pressure advance pipeline..."):
                 success, log = run_pipeline(pa_run, args)
-            _show_results(st, output_dir, ascii_gcode, success, log)
+            _show_results(st, run_dir, ascii_gcode, success, log)
 
 
 def _show_results(
