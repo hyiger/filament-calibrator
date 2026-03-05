@@ -20,8 +20,13 @@ import gcode_lib as gl
 # bgcode block constants (matching gcode_lib internals)
 # ---------------------------------------------------------------------------
 
+_BLK_FILE_METADATA: int = 0
+_BLK_SLICER_METADATA: int = 2
+_BLK_PRINTER_METADATA: int = 3
+_BLK_PRINT_METADATA: int = 4
 _BLK_THUMBNAIL: int = 5
 _COMP_NONE: int = 0
+_COMP_DEFLATE: int = 1
 _IMG_PNG: int = 0
 
 # ---------------------------------------------------------------------------
@@ -134,9 +139,12 @@ def build_thumbnail_block(png_data: bytes, width: int, height: int) -> bytes:
 
     The returned bytes are suitable for inserting into
     ``GCodeFile._bgcode_nongcode_blocks``.
+
+    The 6-byte params field follows the libbgcode spec order:
+    ``format (u16) | width (u16) | height (u16)``.
     """
     hdr = struct.pack("<HHI", _BLK_THUMBNAIL, _COMP_NONE, len(png_data))
-    params = struct.pack("<HHH", width, height, _IMG_PNG)
+    params = struct.pack("<HHH", _IMG_PNG, width, height)
     cksum = zlib.crc32(hdr) & 0xFFFFFFFF
     cksum = zlib.crc32(params, cksum) & 0xFFFFFFFF
     cksum = zlib.crc32(png_data, cksum) & 0xFFFFFFFF
@@ -179,16 +187,23 @@ def inject_thumbnails(
                 )
             png_data = render_stl_to_png(stl_path, spec.width, spec.height)
             block = build_thumbnail_block(png_data, spec.width, spec.height)
-            params = struct.pack("<HHH", spec.width, spec.height, _IMG_PNG)
+            # gcode_lib's Thumbnail.params uses width,height,format order
+            # for .width/.height properties (differs from the bgcode spec's
+            # format,width,height in the raw block).
+            gl_params = struct.pack("<HHH", spec.width, spec.height, _IMG_PNG)
             new_blocks.append(block)
             new_thumbs.append(
-                gl.Thumbnail(params=params, data=png_data, _raw_block=block)
+                gl.Thumbnail(params=gl_params, data=png_data, _raw_block=block)
             )
 
-        # Prepend thumbnail blocks (convention: thumbnails before metadata).
+        # Insert thumbnail blocks after PRINTER_METADATA (type 3) and
+        # before PRINT_METADATA (type 4), matching PrusaSlicer's native
+        # block order.
         if gf._bgcode_nongcode_blocks is None:
             gf._bgcode_nongcode_blocks = []  # pragma: no cover
-        gf._bgcode_nongcode_blocks[:0] = new_blocks
+        insert_pos = _find_thumbnail_insert_pos(gf._bgcode_nongcode_blocks)
+        for i, blk in enumerate(new_blocks):
+            gf._bgcode_nongcode_blocks.insert(insert_pos + i, blk)
         gf.thumbnails.extend(new_thumbs)
 
         if verbose:
@@ -196,6 +211,158 @@ def inject_thumbnails(
 
     except Exception as exc:
         warnings.warn(f"Thumbnail injection failed: {exc}")
+
+
+# ---------------------------------------------------------------------------
+# Slicer metadata patching
+# ---------------------------------------------------------------------------
+
+# PrusaSlicer G-code Viewer uses ``printer_settings_id`` from the slicer
+# metadata block to look up the bed model from its bundled vendor profiles.
+# PrusaSlicer CLI leaves this field empty, so we patch it post-slicing.
+# Map: (printer_model, nozzle_diameter_str) → printer_settings_id.
+_PRINTER_SETTINGS_IDS: dict[tuple[str, str], str] = {
+    ("COREONE", "0.25"): "Prusa CORE One 0.25 nozzle",
+    ("COREONE", "0.3"):  "Prusa CORE One 0.3 nozzle",
+    ("COREONE", "0.4"):  "Prusa CORE One HF0.4 nozzle",
+    ("COREONE", "0.5"):  "Prusa CORE One HF0.5 nozzle",
+    ("COREONE", "0.6"):  "Prusa CORE One HF0.6 nozzle",
+    ("COREONE", "0.8"):  "Prusa CORE One HF0.8 nozzle",
+}
+
+
+def patch_slicer_metadata(
+    gf: gl.GCodeFile,
+    printer_model: str,
+    nozzle_diameter: float,
+    *,
+    verbose: bool = False,
+) -> None:
+    """Patch the SLICER_METADATA block to set ``printer_settings_id``.
+
+    PrusaSlicer CLI leaves ``printer_settings_id`` empty in the slicer
+    metadata block.  The G-code Viewer needs this field to look up the
+    printer bed model from its bundled vendor profiles.  This function
+    patches the existing SLICER_METADATA block in-place.
+
+    Does nothing for ASCII G-code or if no matching profile is found.
+    Failures are non-fatal.
+    """
+    if gf.source_format != "bgcode":
+        return
+
+    nozzle_str = f"{nozzle_diameter:g}"
+    settings_id = _PRINTER_SETTINGS_IDS.get((printer_model, nozzle_str))
+    if settings_id is None:
+        if verbose:
+            print(
+                f"[DEBUG] No printer_settings_id mapping for "
+                f"({printer_model}, {nozzle_str})"
+            )
+        return
+
+    blocks = gf._bgcode_nongcode_blocks
+    if not blocks:
+        return
+
+    try:
+        idx = _find_slicer_meta_index(blocks)
+        if idx is None:
+            return
+
+        old_block = blocks[idx]
+        new_block = _rebuild_slicer_meta_block(
+            old_block,
+            {"printer_settings_id": settings_id},
+        )
+        blocks[idx] = new_block
+
+        if verbose:
+            print(f"[DEBUG] Patched printer_settings_id={settings_id}")
+
+    except Exception as exc:
+        warnings.warn(f"Slicer metadata patch failed: {exc}")
+
+
+def _find_slicer_meta_index(blocks: list[bytes]) -> int | None:
+    """Return the index of the SLICER_METADATA block, or ``None``."""
+    for i, blk in enumerate(blocks):
+        btype = struct.unpack_from("<H", blk, 0)[0]
+        if btype == _BLK_SLICER_METADATA:
+            return i
+    return None
+
+
+def _rebuild_slicer_meta_block(
+    raw_block: bytes,
+    updates: dict[str, str],
+) -> bytes:
+    """Rebuild a SLICER_METADATA block with updated key=value pairs.
+
+    Handles both uncompressed and deflate-compressed blocks.
+    """
+    btype, comp, usize = struct.unpack_from("<HHI", raw_block, 0)
+    assert btype == _BLK_SLICER_METADATA
+
+    if comp == _COMP_NONE:
+        # header(8) + params(2) + payload(usize) + crc(4)
+        params = raw_block[8:10]
+        payload = raw_block[10 : 10 + usize]
+    elif comp == _COMP_DEFLATE:
+        # header(8) + compressed_size(4) + params(2) + payload(cs) + crc(4)
+        cs = struct.unpack_from("<I", raw_block, 8)[0]
+        params = raw_block[12:14]
+        compressed = raw_block[14 : 14 + cs]
+        payload = zlib.decompress(compressed)
+    else:
+        # Heatshrink or unknown — can't patch, return as-is.
+        return raw_block
+
+    # Apply updates to the INI-style text (line-anchored to avoid
+    # partial matches like physical_printer_settings_id).
+    import re
+
+    text = payload.decode("utf-8")
+    for key, value in updates.items():
+        pattern = rf"^{re.escape(key)}=.*$"
+        if re.search(pattern, text, flags=re.MULTILINE):
+            text = re.sub(pattern, f"{key}={value}", text, flags=re.MULTILINE)
+        else:
+            text = text.rstrip("\n") + f"\n{key}={value}\n"
+
+    new_payload = text.encode("utf-8")
+
+    # Rebuild the block.
+    new_hdr = struct.pack("<HHI", btype, comp, len(new_payload))
+    if comp == _COMP_DEFLATE:
+        new_compressed = zlib.compress(new_payload)
+        cs_bytes = struct.pack("<I", len(new_compressed))
+        block_body = new_hdr + cs_bytes + params + new_compressed
+    else:
+        block_body = new_hdr + params + new_payload
+
+    crc = struct.pack("<I", zlib.crc32(block_body) & 0xFFFFFFFF)
+    return block_body + crc
+
+
+# ---------------------------------------------------------------------------
+# Private — block ordering
+# ---------------------------------------------------------------------------
+
+
+def _find_thumbnail_insert_pos(blocks: list[bytes]) -> int:
+    """Return the index at which thumbnail blocks should be inserted.
+
+    PrusaSlicer orders blocks as FILE_METADATA → PRINTER_METADATA →
+    THUMBNAIL(s) → PRINT_METADATA → SLICER_METADATA.  We insert after
+    the last FILE_METADATA or PRINTER_METADATA block (types 0 and 3).
+    """
+    pos = 0
+    for i, blk in enumerate(blocks):
+        btype = struct.unpack_from("<H", blk, 0)[0]
+        if btype in (_BLK_FILE_METADATA, _BLK_PRINTER_METADATA):
+            pos = i + 1
+    return pos
 
 
 # ---------------------------------------------------------------------------

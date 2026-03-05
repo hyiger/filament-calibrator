@@ -15,14 +15,23 @@ import gcode_lib as gl
 
 from filament_calibrator.thumbnail import (
     ThumbnailSpec,
+    _BLK_FILE_METADATA,
+    _BLK_PRINTER_METADATA,
+    _BLK_PRINT_METADATA,
+    _BLK_SLICER_METADATA,
     _BLK_THUMBNAIL,
+    _COMP_DEFLATE,
     _COMP_NONE,
     _IMG_PNG,
     _SUPERSAMPLE_FACTOR,
     _SUPERSAMPLE_THRESHOLD,
+    _find_slicer_meta_index,
+    _find_thumbnail_insert_pos,
+    _rebuild_slicer_meta_block,
     build_thumbnail_block,
     inject_thumbnails,
     parse_thumbnail_specs,
+    patch_slicer_metadata,
     render_stl_to_png,
 )
 
@@ -145,11 +154,11 @@ class TestBuildThumbnailBlock:
         assert comp == _COMP_NONE
         assert size == len(png)
 
-        # Params: width(2) + height(2) + format(2) = 6 bytes
-        w, h, fmt = struct.unpack_from("<HHH", block, 8)
+        # Params per bgcode spec: format(2) + width(2) + height(2) = 6 bytes
+        fmt, w, h = struct.unpack_from("<HHH", block, 8)
+        assert fmt == _IMG_PNG
         assert w == 16
         assert h == 16
-        assert fmt == _IMG_PNG
 
         # Payload
         payload = block[14 : 14 + len(png)]
@@ -171,8 +180,8 @@ class TestBuildThumbnailBlock:
         png = _make_png_bytes(100, 80)
         block = build_thumbnail_block(png, 100, 80)
 
-        w, h, fmt = struct.unpack_from("<HHH", block, 8)
-        assert (w, h, fmt) == (100, 80, _IMG_PNG)
+        fmt, w, h = struct.unpack_from("<HHH", block, 8)
+        assert (fmt, w, h) == (_IMG_PNG, 100, 80)
 
 
 # ---------------------------------------------------------------------------
@@ -331,20 +340,57 @@ class TestInjectThumbnails:
         assert len(gf.thumbnails) == 0
 
     @patch("filament_calibrator.thumbnail.render_stl_to_png")
-    def test_prepends_before_existing_blocks(self, mock_render, tmp_path):
+    def test_inserts_after_metadata_blocks(self, mock_render, tmp_path):
         mock_render.return_value = _make_png_bytes(16, 16)
         stl = _make_stl_file(tmp_path)
 
         gf = self._make_gf("bgcode")
-        existing_block = b"existing_metadata_block"
-        gf._bgcode_nongcode_blocks.append(existing_block)
+        # Simulate PrusaSlicer block order: FILE_META, PRINTER_META,
+        # PRINT_META, SLICER_META.
+        file_meta = struct.pack("<HHI", _BLK_FILE_METADATA, 0, 4) + b"test" + b"\x00" * 4
+        printer_meta = struct.pack("<HHI", _BLK_PRINTER_METADATA, 0, 4) + b"meta" + b"\x00" * 4
+        print_meta = struct.pack("<HHI", _BLK_PRINT_METADATA, 0, 4) + b"prnt" + b"\x00" * 4
+        gf._bgcode_nongcode_blocks = [file_meta, printer_meta, print_meta]
 
         inject_thumbnails(gf, stl, "16x16/PNG")
 
-        assert len(gf._bgcode_nongcode_blocks) == 2
-        # Thumbnail block should come BEFORE the existing block.
-        assert gf._bgcode_nongcode_blocks[1] == existing_block
-        assert gf._bgcode_nongcode_blocks[0] != existing_block
+        assert len(gf._bgcode_nongcode_blocks) == 4
+        # Block order should be: FILE_META, PRINTER_META, THUMBNAIL, PRINT_META
+        types = [
+            struct.unpack_from("<H", b, 0)[0]
+            for b in gf._bgcode_nongcode_blocks
+        ]
+        assert types == [
+            _BLK_FILE_METADATA,
+            _BLK_PRINTER_METADATA,
+            _BLK_THUMBNAIL,
+            _BLK_PRINT_METADATA,
+        ]
+
+
+# ---------------------------------------------------------------------------
+# _find_thumbnail_insert_pos
+# ---------------------------------------------------------------------------
+
+
+class TestFindThumbnailInsertPos:
+    def _blk(self, btype: int) -> bytes:
+        return struct.pack("<HHI", btype, 0, 4) + b"data" + b"\x00" * 4
+
+    def test_empty_list(self):
+        assert _find_thumbnail_insert_pos([]) == 0
+
+    def test_after_file_and_printer_meta(self):
+        blocks = [self._blk(0), self._blk(3), self._blk(4), self._blk(2)]
+        assert _find_thumbnail_insert_pos(blocks) == 2
+
+    def test_only_print_meta(self):
+        blocks = [self._blk(4)]
+        assert _find_thumbnail_insert_pos(blocks) == 0
+
+    def test_only_file_meta(self):
+        blocks = [self._blk(0)]
+        assert _find_thumbnail_insert_pos(blocks) == 1
 
 
 # ---------------------------------------------------------------------------
@@ -380,9 +426,250 @@ class TestRoundTrip:
         gf2 = gl.load(out_path)
         assert gf2.source_format == "bgcode"
         assert len(gf2.thumbnails) == 2
-        assert gf2.thumbnails[0].width == 16
-        assert gf2.thumbnails[0].height == 16
-        assert gf2.thumbnails[1].width == 220
-        assert gf2.thumbnails[1].height == 124
+        # After round-trip, verify raw params bytes match bgcode spec
+        # order (format, width, height).  gcode_lib's .width/.height
+        # properties interpret these in a different order, so we check
+        # the raw params directly.
+        fmt0, w0, h0 = struct.unpack_from("<HHH", gf2.thumbnails[0].params)
+        assert (fmt0, w0, h0) == (_IMG_PNG, 16, 16)
+        fmt1, w1, h1 = struct.unpack_from("<HHH", gf2.thumbnails[1].params)
+        assert (fmt1, w1, h1) == (_IMG_PNG, 220, 124)
         assert gf2.thumbnails[0].data == png16
         assert gf2.thumbnails[1].data == png220
+
+
+# ---------------------------------------------------------------------------
+# Helpers for slicer metadata tests
+# ---------------------------------------------------------------------------
+
+
+def _build_slicer_meta_block(text: str, *, compressed: bool = False) -> bytes:
+    """Build a SLICER_METADATA block from INI-style text."""
+    payload = text.encode("utf-8")
+    params = struct.pack("<H", 0)  # encoding = raw/utf8
+    if compressed:
+        comp_payload = zlib.compress(payload)
+        hdr = struct.pack("<HHI", _BLK_SLICER_METADATA, _COMP_DEFLATE, len(payload))
+        cs = struct.pack("<I", len(comp_payload))
+        body = hdr + cs + params + comp_payload
+    else:
+        hdr = struct.pack("<HHI", _BLK_SLICER_METADATA, _COMP_NONE, len(payload))
+        body = hdr + params + payload
+    crc = struct.pack("<I", zlib.crc32(body) & 0xFFFFFFFF)
+    return body + crc
+
+
+def _build_meta_block(btype: int, text: str = "data") -> bytes:
+    """Build a simple uncompressed metadata block of the given type."""
+    payload = text.encode("utf-8")
+    params = struct.pack("<H", 0)
+    hdr = struct.pack("<HHI", btype, _COMP_NONE, len(payload))
+    body = hdr + params + payload
+    crc = struct.pack("<I", zlib.crc32(body) & 0xFFFFFFFF)
+    return body + crc
+
+
+# ---------------------------------------------------------------------------
+# _find_slicer_meta_index
+# ---------------------------------------------------------------------------
+
+
+class TestFindSlicerMetaIndex:
+    def test_finds_slicer_meta(self):
+        blocks = [
+            _build_meta_block(_BLK_FILE_METADATA),
+            _build_meta_block(_BLK_PRINTER_METADATA),
+            _build_slicer_meta_block("key=val"),
+        ]
+        assert _find_slicer_meta_index(blocks) == 2
+
+    def test_no_slicer_meta(self):
+        blocks = [
+            _build_meta_block(_BLK_FILE_METADATA),
+            _build_meta_block(_BLK_PRINTER_METADATA),
+        ]
+        assert _find_slicer_meta_index(blocks) is None
+
+    def test_empty_blocks(self):
+        assert _find_slicer_meta_index([]) is None
+
+
+# ---------------------------------------------------------------------------
+# _rebuild_slicer_meta_block
+# ---------------------------------------------------------------------------
+
+
+class TestRebuildSlicerMetaBlock:
+    def test_update_existing_key(self):
+        block = _build_slicer_meta_block("printer_settings_id=\nother=123\n")
+        new_block = _rebuild_slicer_meta_block(
+            block, {"printer_settings_id": "Prusa CORE One HF0.4 nozzle"}
+        )
+        # Decode the new payload.
+        _, comp, usize = struct.unpack_from("<HHI", new_block, 0)
+        assert comp == _COMP_NONE
+        text = new_block[10 : 10 + usize].decode("utf-8")
+        assert "printer_settings_id=Prusa CORE One HF0.4 nozzle" in text
+        assert "other=123" in text
+
+    def test_add_missing_key(self):
+        block = _build_slicer_meta_block("existing=value\n")
+        new_block = _rebuild_slicer_meta_block(
+            block, {"printer_settings_id": "Test Printer"}
+        )
+        _, _, usize = struct.unpack_from("<HHI", new_block, 0)
+        text = new_block[10 : 10 + usize].decode("utf-8")
+        assert "printer_settings_id=Test Printer" in text
+        assert "existing=value" in text
+
+    def test_does_not_match_substring_key(self):
+        block = _build_slicer_meta_block(
+            "physical_printer_settings_id=orig\nprinter_settings_id=\n"
+        )
+        new_block = _rebuild_slicer_meta_block(
+            block, {"printer_settings_id": "Patched"}
+        )
+        _, _, usize = struct.unpack_from("<HHI", new_block, 0)
+        text = new_block[10 : 10 + usize].decode("utf-8")
+        assert "physical_printer_settings_id=orig" in text
+        assert "printer_settings_id=Patched" in text
+
+    def test_deflate_compressed_block(self):
+        block = _build_slicer_meta_block(
+            "printer_settings_id=\n", compressed=True
+        )
+        new_block = _rebuild_slicer_meta_block(
+            block, {"printer_settings_id": "Compressed Printer"}
+        )
+        # Verify it's still deflate.
+        _, comp, usize = struct.unpack_from("<HHI", new_block, 0)
+        assert comp == _COMP_DEFLATE
+        cs = struct.unpack_from("<I", new_block, 8)[0]
+        compressed = new_block[14 : 14 + cs]
+        text = zlib.decompress(compressed).decode("utf-8")
+        assert "printer_settings_id=Compressed Printer" in text
+
+    def test_unknown_compression_returns_unchanged(self):
+        # Build a block with comp=2 (heatshrink — unsupported).
+        payload = b"printer_settings_id=\n"
+        params = struct.pack("<H", 0)
+        hdr = struct.pack("<HHI", _BLK_SLICER_METADATA, 2, len(payload))
+        body = hdr + params + payload
+        crc = struct.pack("<I", zlib.crc32(body) & 0xFFFFFFFF)
+        block = body + crc
+        result = _rebuild_slicer_meta_block(block, {"printer_settings_id": "X"})
+        assert result == block
+
+    def test_crc_valid_after_rebuild(self):
+        block = _build_slicer_meta_block("printer_settings_id=\n")
+        new_block = _rebuild_slicer_meta_block(
+            block, {"printer_settings_id": "CRC Test"}
+        )
+        stored_crc = struct.unpack_from("<I", new_block, len(new_block) - 4)[0]
+        computed_crc = zlib.crc32(new_block[:-4]) & 0xFFFFFFFF
+        assert stored_crc == computed_crc
+
+
+# ---------------------------------------------------------------------------
+# patch_slicer_metadata
+# ---------------------------------------------------------------------------
+
+
+class TestPatchSlicerMetadata:
+    def _make_gf(self, source_format="bgcode", slicer_text="printer_settings_id=\n"):
+        gf = gl.GCodeFile(
+            lines=[],
+            thumbnails=[],
+            source_format=source_format,
+        )
+        if source_format == "bgcode":
+            gf._bgcode_file_hdr = b"GCDE" + struct.pack("<I", 1) + struct.pack("<H", 1)
+            gf._bgcode_nongcode_blocks = [
+                _build_meta_block(_BLK_FILE_METADATA),
+                _build_meta_block(_BLK_PRINTER_METADATA),
+                _build_slicer_meta_block(slicer_text),
+            ]
+        return gf
+
+    def test_patches_coreone_04(self):
+        gf = self._make_gf()
+        patch_slicer_metadata(gf, "COREONE", 0.4)
+        block = gf._bgcode_nongcode_blocks[2]
+        _, _, usize = struct.unpack_from("<HHI", block, 0)
+        text = block[10 : 10 + usize].decode("utf-8")
+        assert "printer_settings_id=Prusa CORE One HF0.4 nozzle" in text
+
+    def test_patches_coreone_025(self):
+        gf = self._make_gf()
+        patch_slicer_metadata(gf, "COREONE", 0.25)
+        block = gf._bgcode_nongcode_blocks[2]
+        _, _, usize = struct.unpack_from("<HHI", block, 0)
+        text = block[10 : 10 + usize].decode("utf-8")
+        assert "printer_settings_id=Prusa CORE One 0.25 nozzle" in text
+
+    def test_skips_ascii_gcode(self):
+        gf = self._make_gf("text")
+        patch_slicer_metadata(gf, "COREONE", 0.4)
+        # No crash — just returns silently.
+
+    def test_skips_unknown_printer(self, capsys):
+        gf = self._make_gf()
+        patch_slicer_metadata(gf, "UNKNOWN", 0.4, verbose=True)
+        captured = capsys.readouterr()
+        assert "No printer_settings_id mapping" in captured.out
+
+    def test_skips_unknown_nozzle(self, capsys):
+        gf = self._make_gf()
+        patch_slicer_metadata(gf, "COREONE", 0.35, verbose=True)
+        captured = capsys.readouterr()
+        assert "No printer_settings_id mapping" in captured.out
+
+    def test_skips_empty_blocks(self):
+        gf = self._make_gf()
+        gf._bgcode_nongcode_blocks = []
+        patch_slicer_metadata(gf, "COREONE", 0.4)
+        # No crash — just returns.
+
+    def test_skips_no_slicer_meta_block(self):
+        gf = self._make_gf()
+        gf._bgcode_nongcode_blocks = [
+            _build_meta_block(_BLK_FILE_METADATA),
+        ]
+        patch_slicer_metadata(gf, "COREONE", 0.4)
+        # No crash — returns when _find_slicer_meta_index returns None.
+
+    def test_verbose_output(self, capsys):
+        gf = self._make_gf()
+        patch_slicer_metadata(gf, "COREONE", 0.4, verbose=True)
+        captured = capsys.readouterr()
+        assert "Patched printer_settings_id=" in captured.out
+
+    def test_failure_warns(self):
+        gf = self._make_gf()
+        # Corrupt the slicer block: declare deflate compression but provide
+        # invalid compressed data to trigger a zlib.error inside _rebuild.
+        gf._bgcode_nongcode_blocks[2] = (
+            struct.pack("<HHI", _BLK_SLICER_METADATA, _COMP_DEFLATE, 10)
+            + struct.pack("<I", 3)          # compressed_size = 3
+            + struct.pack("<H", 0)          # params
+            + b"\xff\xff\xff"               # invalid compressed data
+        )
+        with warnings.catch_warnings(record=True) as w:
+            warnings.simplefilter("always")
+            patch_slicer_metadata(gf, "COREONE", 0.4)
+            assert len(w) == 1
+            assert "Slicer metadata patch failed" in str(w[0].message)
+
+    def test_does_not_corrupt_physical_printer_settings_id(self):
+        gf = self._make_gf(
+            slicer_text=(
+                "physical_printer_settings_id=My Printer\n"
+                "printer_settings_id=\n"
+            )
+        )
+        patch_slicer_metadata(gf, "COREONE", 0.6)
+        block = gf._bgcode_nongcode_blocks[2]
+        _, _, usize = struct.unpack_from("<HHI", block, 0)
+        text = block[10 : 10 + usize].decode("utf-8")
+        assert "physical_printer_settings_id=My Printer" in text
+        assert "printer_settings_id=Prusa CORE One HF0.6 nozzle" in text

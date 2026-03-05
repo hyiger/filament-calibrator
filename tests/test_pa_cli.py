@@ -258,6 +258,8 @@ class TestRun:
         defaults.update(overrides)
         return argparse.Namespace(**defaults)
 
+    @patch("filament_calibrator.pa_cli.patch_slicer_metadata")
+    @patch("filament_calibrator.pa_cli.inject_thumbnails")
     @patch("filament_calibrator.pa_cli.gl.save")
     @patch("filament_calibrator.pa_cli.gl.load")
     @patch("filament_calibrator.pa_cli.insert_pa_commands")
@@ -266,7 +268,7 @@ class TestRun:
     @patch("filament_calibrator.pa_cli.generate_pa_tower_stl")
     def test_full_pipeline_no_upload(
         self, mock_gen, mock_slice, mock_levels,
-        mock_insert, mock_load, mock_save, tmp_path
+        mock_insert, mock_load, mock_save, mock_inject, mock_patch_meta, tmp_path
     ):
         mock_gen.return_value = str(tmp_path / "tower.stl")
         mock_slice.return_value = MagicMock(ok=True)
@@ -284,6 +286,8 @@ class TestRun:
         mock_insert.assert_called_once()
         mock_save.assert_called_once()
 
+    @patch("filament_calibrator.pa_cli.patch_slicer_metadata")
+    @patch("filament_calibrator.pa_cli.inject_thumbnails")
     @patch("filament_calibrator.pa_cli.gl.save")
     @patch("filament_calibrator.pa_cli.gl.load")
     @patch("filament_calibrator.pa_cli.insert_pa_commands")
@@ -292,7 +296,7 @@ class TestRun:
     @patch("filament_calibrator.pa_cli.generate_pa_tower_stl")
     def test_slicer_failure_exits(
         self, mock_gen, mock_slice, mock_levels,
-        mock_insert, mock_load, mock_save, tmp_path
+        mock_insert, mock_load, mock_save, mock_inject, mock_patch_meta, tmp_path
     ):
         mock_gen.return_value = str(tmp_path / "tower.stl")
         mock_slice.return_value = MagicMock(
@@ -304,6 +308,8 @@ class TestRun:
             run(args)
         assert exc_info.value.code == 1
 
+    @patch("filament_calibrator.pa_cli.patch_slicer_metadata")
+    @patch("filament_calibrator.pa_cli.inject_thumbnails")
     @patch("filament_calibrator.pa_cli.gl.prusalink_upload")
     @patch("filament_calibrator.pa_cli.gl.save")
     @patch("filament_calibrator.pa_cli.gl.load")
@@ -313,7 +319,7 @@ class TestRun:
     @patch("filament_calibrator.pa_cli.generate_pa_tower_stl")
     def test_upload(
         self, mock_gen, mock_slice, mock_levels,
-        mock_insert, mock_load, mock_save, mock_upload, tmp_path
+        mock_insert, mock_load, mock_save, mock_upload, mock_inject, mock_patch_meta, tmp_path
     ):
         mock_gen.return_value = str(tmp_path / "tower.stl")
         mock_slice.return_value = MagicMock(ok=True)
@@ -337,6 +343,8 @@ class TestRun:
         assert call_kwargs["api_key"] == "key123"
         assert call_kwargs["print_after_upload"] is True
 
+    @patch("filament_calibrator.pa_cli.patch_slicer_metadata")
+    @patch("filament_calibrator.pa_cli.inject_thumbnails")
     @patch("filament_calibrator.pa_cli.gl.save")
     @patch("filament_calibrator.pa_cli.gl.load")
     @patch("filament_calibrator.pa_cli.insert_pa_commands")
@@ -345,7 +353,7 @@ class TestRun:
     @patch("filament_calibrator.pa_cli.generate_pa_tower_stl")
     def test_upload_missing_url_exits(
         self, mock_gen, mock_slice, mock_levels,
-        mock_insert, mock_load, mock_save, tmp_path
+        mock_insert, mock_load, mock_save, mock_inject, mock_patch_meta, tmp_path
     ):
         args = self._make_args(
             tmp_path,
@@ -357,6 +365,8 @@ class TestRun:
             run(args)
         assert exc_info.value.code == 1
 
+    @patch("filament_calibrator.pa_cli.patch_slicer_metadata")
+    @patch("filament_calibrator.pa_cli.inject_thumbnails")
     @patch("filament_calibrator.pa_cli.gl.save")
     @patch("filament_calibrator.pa_cli.gl.load")
     @patch("filament_calibrator.pa_cli.insert_pa_commands")
@@ -365,7 +375,7 @@ class TestRun:
     @patch("filament_calibrator.pa_cli.generate_pa_tower_stl")
     def test_keep_files(
         self, mock_gen, mock_slice, mock_levels,
-        mock_insert, mock_load, mock_save, tmp_path
+        mock_insert, mock_load, mock_save, mock_inject, mock_patch_meta, tmp_path
     ):
         stl = tmp_path / "pa_tower_PLA_0.0_0.1x2.stl"
         raw_gcode = tmp_path / "pa_tower_PLA_0.0_0.1x2_raw.bgcode"
@@ -384,6 +394,8 @@ class TestRun:
         assert stl.exists()
         assert raw_gcode.exists()
 
+    @patch("filament_calibrator.pa_cli.patch_slicer_metadata")
+    @patch("filament_calibrator.pa_cli.inject_thumbnails")
     @patch("filament_calibrator.pa_cli.gl.save")
     @patch("filament_calibrator.pa_cli.gl.load")
     @patch("filament_calibrator.pa_cli.insert_pa_commands")
@@ -392,7 +404,7 @@ class TestRun:
     @patch("filament_calibrator.pa_cli.generate_pa_tower_stl")
     def test_no_keep_files_cleans_up(
         self, mock_gen, mock_slice, mock_levels,
-        mock_insert, mock_load, mock_save, tmp_path
+        mock_insert, mock_load, mock_save, mock_inject, mock_patch_meta, tmp_path
     ):
         stl = tmp_path / "pa_tower_PLA_0.0_0.1x2.stl"
         raw_gcode = tmp_path / "pa_tower_PLA_0.0_0.1x2_raw.bgcode"
@@ -411,6 +423,8 @@ class TestRun:
         assert not stl.exists()
         assert not raw_gcode.exists()
 
+    @patch("filament_calibrator.pa_cli.patch_slicer_metadata")
+    @patch("filament_calibrator.pa_cli.inject_thumbnails")
     @patch("filament_calibrator.pa_cli.gl.save")
     @patch("filament_calibrator.pa_cli.gl.load")
     @patch("filament_calibrator.pa_cli.insert_pa_commands")
@@ -419,7 +433,7 @@ class TestRun:
     @patch("filament_calibrator.pa_cli.generate_pa_tower_stl")
     def test_verbose_output(
         self, mock_gen, mock_slice, mock_levels,
-        mock_insert, mock_load, mock_save, tmp_path, capsys
+        mock_insert, mock_load, mock_save, mock_inject, mock_patch_meta, tmp_path, capsys
     ):
         mock_gen.return_value = str(tmp_path / "tower.stl")
         mock_slice.return_value = MagicMock(
@@ -442,6 +456,8 @@ class TestRun:
         assert "PrusaSlicer command:" in captured.out
         assert "PA levels:" in captured.out
 
+    @patch("filament_calibrator.pa_cli.patch_slicer_metadata")
+    @patch("filament_calibrator.pa_cli.inject_thumbnails")
     @patch("filament_calibrator.pa_cli.gl.save")
     @patch("filament_calibrator.pa_cli.gl.load")
     @patch("filament_calibrator.pa_cli.insert_pa_commands")
@@ -450,7 +466,7 @@ class TestRun:
     @patch("filament_calibrator.pa_cli.generate_pa_tower_stl")
     def test_no_verbose_no_debug(
         self, mock_gen, mock_slice, mock_levels,
-        mock_insert, mock_load, mock_save, tmp_path, capsys
+        mock_insert, mock_load, mock_save, mock_inject, mock_patch_meta, tmp_path, capsys
     ):
         mock_gen.return_value = str(tmp_path / "tower.stl")
         mock_slice.return_value = MagicMock(ok=True)
@@ -464,6 +480,8 @@ class TestRun:
         captured = capsys.readouterr()
         assert "[DEBUG]" not in captured.out
 
+    @patch("filament_calibrator.pa_cli.patch_slicer_metadata")
+    @patch("filament_calibrator.pa_cli.inject_thumbnails")
     @patch("filament_calibrator.pa_cli.gl.save")
     @patch("filament_calibrator.pa_cli.gl.load")
     @patch("filament_calibrator.pa_cli.insert_pa_commands")
@@ -472,7 +490,7 @@ class TestRun:
     @patch("filament_calibrator.pa_cli.generate_pa_tower_stl")
     def test_verbose_shows_slicer_stdout(
         self, mock_gen, mock_slice, mock_levels,
-        mock_insert, mock_load, mock_save, tmp_path, capsys
+        mock_insert, mock_load, mock_save, mock_inject, mock_patch_meta, tmp_path, capsys
     ):
         mock_gen.return_value = str(tmp_path / "tower.stl")
         mock_slice.return_value = MagicMock(
@@ -489,6 +507,8 @@ class TestRun:
         captured = capsys.readouterr()
         assert "PrusaSlicer stdout: Slicing complete in 2.1s" in captured.out
 
+    @patch("filament_calibrator.pa_cli.patch_slicer_metadata")
+    @patch("filament_calibrator.pa_cli.inject_thumbnails")
     @patch("filament_calibrator.pa_cli.gl.save")
     @patch("filament_calibrator.pa_cli.gl.load")
     @patch("filament_calibrator.pa_cli.insert_pa_commands")
@@ -497,7 +517,7 @@ class TestRun:
     @patch("filament_calibrator.pa_cli.generate_pa_tower_stl")
     def test_verbose_unknown_filament(
         self, mock_gen, mock_slice, mock_levels,
-        mock_insert, mock_load, mock_save, tmp_path, capsys
+        mock_insert, mock_load, mock_save, mock_inject, mock_patch_meta, tmp_path, capsys
     ):
         mock_gen.return_value = str(tmp_path / "tower.stl")
         mock_slice.return_value = MagicMock(
@@ -514,6 +534,8 @@ class TestRun:
         assert "not in presets" in captured.out
         assert "fallback defaults" in captured.out
 
+    @patch("filament_calibrator.pa_cli.patch_slicer_metadata")
+    @patch("filament_calibrator.pa_cli.inject_thumbnails")
     @patch("filament_calibrator.pa_cli.gl.save")
     @patch("filament_calibrator.pa_cli.gl.load")
     @patch("filament_calibrator.pa_cli.insert_pa_commands")
@@ -522,7 +544,7 @@ class TestRun:
     @patch("filament_calibrator.pa_cli.generate_pa_tower_stl")
     def test_verbose_shows_config_file(
         self, mock_gen, mock_slice, mock_levels,
-        mock_insert, mock_load, mock_save, tmp_path, capsys
+        mock_insert, mock_load, mock_save, mock_inject, mock_patch_meta, tmp_path, capsys
     ):
         cfg = tmp_path / "test.toml"
         cfg.write_text('filament-type = "PLA"\n')
@@ -542,6 +564,8 @@ class TestRun:
         assert "Config file:" in captured.out
         assert str(cfg) in captured.out
 
+    @patch("filament_calibrator.pa_cli.patch_slicer_metadata")
+    @patch("filament_calibrator.pa_cli.inject_thumbnails")
     @patch("filament_calibrator.pa_cli.gl.prusalink_upload")
     @patch("filament_calibrator.pa_cli.gl.save")
     @patch("filament_calibrator.pa_cli.gl.load")
@@ -551,7 +575,7 @@ class TestRun:
     @patch("filament_calibrator.pa_cli.generate_pa_tower_stl")
     def test_verbose_upload(
         self, mock_gen, mock_slice, mock_levels,
-        mock_insert, mock_load, mock_save, mock_upload, tmp_path, capsys
+        mock_insert, mock_load, mock_save, mock_upload, mock_inject, mock_patch_meta, tmp_path, capsys
     ):
         mock_gen.return_value = str(tmp_path / "tower.stl")
         mock_slice.return_value = MagicMock(
@@ -575,6 +599,8 @@ class TestRun:
         assert "Upload target: http://192.168.1.100" in captured.out
         assert "Print after upload: True" in captured.out
 
+    @patch("filament_calibrator.pa_cli.patch_slicer_metadata")
+    @patch("filament_calibrator.pa_cli.inject_thumbnails")
     @patch("filament_calibrator.pa_cli.gl.save")
     @patch("filament_calibrator.pa_cli.gl.load")
     @patch("filament_calibrator.pa_cli.insert_pa_commands")
@@ -583,7 +609,7 @@ class TestRun:
     @patch("filament_calibrator.pa_cli.generate_pa_tower_stl")
     def test_slicer_receives_correct_args(
         self, mock_gen, mock_slice, mock_levels,
-        mock_insert, mock_load, mock_save, tmp_path
+        mock_insert, mock_load, mock_save, mock_inject, mock_patch_meta, tmp_path
     ):
         mock_gen.return_value = str(tmp_path / "tower.stl")
         mock_slice.return_value = MagicMock(ok=True)
@@ -604,6 +630,8 @@ class TestRun:
         assert slice_kwargs["extrusion_width"] == 0.6
         assert slice_kwargs["bed_center"] == "90,90"
 
+    @patch("filament_calibrator.pa_cli.patch_slicer_metadata")
+    @patch("filament_calibrator.pa_cli.inject_thumbnails")
     @patch("filament_calibrator.pa_cli.gl.save")
     @patch("filament_calibrator.pa_cli.gl.load")
     @patch("filament_calibrator.pa_cli.insert_pa_commands")
@@ -612,7 +640,7 @@ class TestRun:
     @patch("filament_calibrator.pa_cli.generate_pa_tower_stl")
     def test_preset_temps_passed_to_slicer(
         self, mock_gen, mock_slice, mock_levels,
-        mock_insert, mock_load, mock_save, tmp_path
+        mock_insert, mock_load, mock_save, mock_inject, mock_patch_meta, tmp_path
     ):
         """Filament preset nozzle/bed/fan are forwarded to slice_pa_specimen."""
         mock_gen.return_value = str(tmp_path / "tower.stl")
@@ -630,6 +658,8 @@ class TestRun:
         assert slice_kwargs["bed_temp"] == int(pla["bed"])
         assert slice_kwargs["fan_speed"] == int(pla["fan"])
 
+    @patch("filament_calibrator.pa_cli.patch_slicer_metadata")
+    @patch("filament_calibrator.pa_cli.inject_thumbnails")
     @patch("filament_calibrator.pa_cli.gl.save")
     @patch("filament_calibrator.pa_cli.gl.load")
     @patch("filament_calibrator.pa_cli.insert_pa_commands")
@@ -638,7 +668,7 @@ class TestRun:
     @patch("filament_calibrator.pa_cli.generate_pa_tower_stl")
     def test_explicit_temps_override_preset(
         self, mock_gen, mock_slice, mock_levels,
-        mock_insert, mock_load, mock_save, tmp_path
+        mock_insert, mock_load, mock_save, mock_inject, mock_patch_meta, tmp_path
     ):
         """Explicit --nozzle-temp/--bed-temp/--fan-speed override preset."""
         mock_gen.return_value = str(tmp_path / "tower.stl")
@@ -661,6 +691,8 @@ class TestRun:
         assert slice_kwargs["bed_temp"] == 90
         assert slice_kwargs["fan_speed"] == 50
 
+    @patch("filament_calibrator.pa_cli.patch_slicer_metadata")
+    @patch("filament_calibrator.pa_cli.inject_thumbnails")
     @patch("filament_calibrator.pa_cli.gl.save")
     @patch("filament_calibrator.pa_cli.gl.load")
     @patch("filament_calibrator.pa_cli.insert_pa_commands")
@@ -669,7 +701,7 @@ class TestRun:
     @patch("filament_calibrator.pa_cli.generate_pa_tower_stl")
     def test_config_file_applies_defaults(
         self, mock_gen, mock_slice, mock_levels,
-        mock_insert, mock_load, mock_save, tmp_path
+        mock_insert, mock_load, mock_save, mock_inject, mock_patch_meta, tmp_path
     ):
         cfg = tmp_path / "test.toml"
         cfg.write_text('filament-type = "PETG"\n')
@@ -687,6 +719,8 @@ class TestRun:
         tower_config = gen_call[0][0]
         assert tower_config.filament_type == "PETG"
 
+    @patch("filament_calibrator.pa_cli.patch_slicer_metadata")
+    @patch("filament_calibrator.pa_cli.inject_thumbnails")
     @patch("filament_calibrator.pa_cli.gl.save")
     @patch("filament_calibrator.pa_cli.gl.load")
     @patch("filament_calibrator.pa_cli.insert_pa_commands")
@@ -695,7 +729,7 @@ class TestRun:
     @patch("filament_calibrator.pa_cli.generate_pa_tower_stl")
     def test_firmware_passed_to_insert(
         self, mock_gen, mock_slice, mock_levels,
-        mock_insert, mock_load, mock_save, tmp_path
+        mock_insert, mock_load, mock_save, mock_inject, mock_patch_meta, tmp_path
     ):
         """--firmware is forwarded to insert_pa_commands."""
         mock_gen.return_value = str(tmp_path / "tower.stl")
@@ -712,6 +746,8 @@ class TestRun:
 
     # --- --printer tests ---
 
+    @patch("filament_calibrator.pa_cli.patch_slicer_metadata")
+    @patch("filament_calibrator.pa_cli.inject_thumbnails")
     @patch("filament_calibrator.pa_cli.render_end_gcode")
     @patch("filament_calibrator.pa_cli.render_start_gcode")
     @patch("filament_calibrator.pa_cli.gl.save")
@@ -723,7 +759,7 @@ class TestRun:
     def test_printer_resolves_and_sets_bed_center(
         self, mock_gen, mock_slice, mock_levels,
         mock_insert, mock_load, mock_save,
-        mock_render_start, mock_render_end, tmp_path
+        mock_render_start, mock_render_end, mock_inject, mock_patch_meta, tmp_path
     ):
         """--printer resolves printer name and auto-sets bed center."""
         mock_gen.return_value = str(tmp_path / "tower.stl")
@@ -741,6 +777,8 @@ class TestRun:
         slice_kwargs = mock_slice.call_args[1]
         assert slice_kwargs["bed_center"] == "125,110"
 
+    @patch("filament_calibrator.pa_cli.patch_slicer_metadata")
+    @patch("filament_calibrator.pa_cli.inject_thumbnails")
     @patch("filament_calibrator.pa_cli.render_end_gcode")
     @patch("filament_calibrator.pa_cli.render_start_gcode")
     @patch("filament_calibrator.pa_cli.gl.save")
@@ -752,7 +790,7 @@ class TestRun:
     def test_printer_explicit_bed_center_not_overridden(
         self, mock_gen, mock_slice, mock_levels,
         mock_insert, mock_load, mock_save,
-        mock_render_start, mock_render_end, tmp_path
+        mock_render_start, mock_render_end, mock_inject, mock_patch_meta, tmp_path
     ):
         """Explicit --bed-center is NOT overridden by --printer."""
         mock_gen.return_value = str(tmp_path / "tower.stl")
@@ -771,6 +809,8 @@ class TestRun:
         slice_kwargs = mock_slice.call_args[1]
         assert slice_kwargs["bed_center"] == "100,100"
 
+    @patch("filament_calibrator.pa_cli.patch_slicer_metadata")
+    @patch("filament_calibrator.pa_cli.inject_thumbnails")
     @patch("filament_calibrator.pa_cli.render_end_gcode")
     @patch("filament_calibrator.pa_cli.render_start_gcode")
     @patch("filament_calibrator.pa_cli.gl.save")
@@ -782,7 +822,7 @@ class TestRun:
     def test_printer_renders_start_end_gcode(
         self, mock_gen, mock_slice, mock_levels,
         mock_insert, mock_load, mock_save,
-        mock_render_start, mock_render_end, tmp_path
+        mock_render_start, mock_render_end, mock_inject, mock_patch_meta, tmp_path
     ):
         """--printer renders start/end G-code and passes to slicer."""
         mock_gen.return_value = str(tmp_path / "tower.stl")
@@ -802,6 +842,8 @@ class TestRun:
         assert slice_kwargs["start_gcode"] == "G28\nG29\n"
         assert slice_kwargs["end_gcode"] == "M104 S0\nG28 X\n"
 
+    @patch("filament_calibrator.pa_cli.patch_slicer_metadata")
+    @patch("filament_calibrator.pa_cli.inject_thumbnails")
     @patch("filament_calibrator.pa_cli.render_end_gcode")
     @patch("filament_calibrator.pa_cli.render_start_gcode")
     @patch("filament_calibrator.pa_cli.gl.save")
@@ -813,7 +855,7 @@ class TestRun:
     def test_printer_with_config_ini_skips_gcode_render(
         self, mock_gen, mock_slice, mock_levels,
         mock_insert, mock_load, mock_save,
-        mock_render_start, mock_render_end, tmp_path
+        mock_render_start, mock_render_end, mock_inject, mock_patch_meta, tmp_path
     ):
         """--printer with --config-ini does NOT render start/end G-code."""
         mock_gen.return_value = str(tmp_path / "tower.stl")
@@ -833,6 +875,8 @@ class TestRun:
         assert slice_kwargs["start_gcode"] is None
         assert slice_kwargs["end_gcode"] is None
 
+    @patch("filament_calibrator.pa_cli.patch_slicer_metadata")
+    @patch("filament_calibrator.pa_cli.inject_thumbnails")
     @patch("filament_calibrator.pa_cli.render_end_gcode")
     @patch("filament_calibrator.pa_cli.render_start_gcode")
     @patch("filament_calibrator.pa_cli.gl.save")
@@ -844,7 +888,7 @@ class TestRun:
     def test_printer_cool_fan_disabled_for_enclosure_filament(
         self, mock_gen, mock_slice, mock_levels,
         mock_insert, mock_load, mock_save,
-        mock_render_start, mock_render_end, tmp_path
+        mock_render_start, mock_render_end, mock_inject, mock_patch_meta, tmp_path
     ):
         """cool_fan=False for filaments requiring enclosure (e.g. ABS)."""
         mock_gen.return_value = str(tmp_path / "tower.stl")
@@ -863,6 +907,8 @@ class TestRun:
         render_kwargs = mock_render_start.call_args[1]
         assert render_kwargs["cool_fan"] is False
 
+    @patch("filament_calibrator.pa_cli.patch_slicer_metadata")
+    @patch("filament_calibrator.pa_cli.inject_thumbnails")
     @patch("filament_calibrator.pa_cli.render_end_gcode")
     @patch("filament_calibrator.pa_cli.render_start_gcode")
     @patch("filament_calibrator.pa_cli.gl.save")
@@ -874,7 +920,7 @@ class TestRun:
     def test_printer_cool_fan_enabled_for_pla(
         self, mock_gen, mock_slice, mock_levels,
         mock_insert, mock_load, mock_save,
-        mock_render_start, mock_render_end, tmp_path
+        mock_render_start, mock_render_end, mock_inject, mock_patch_meta, tmp_path
     ):
         """cool_fan=True for PLA (no enclosure required)."""
         mock_gen.return_value = str(tmp_path / "tower.stl")
@@ -893,6 +939,8 @@ class TestRun:
         render_kwargs = mock_render_start.call_args[1]
         assert render_kwargs["cool_fan"] is True
 
+    @patch("filament_calibrator.pa_cli.patch_slicer_metadata")
+    @patch("filament_calibrator.pa_cli.inject_thumbnails")
     @patch("filament_calibrator.pa_cli.render_end_gcode")
     @patch("filament_calibrator.pa_cli.render_start_gcode")
     @patch("filament_calibrator.pa_cli.gl.save")
@@ -904,7 +952,7 @@ class TestRun:
     def test_printer_cool_fan_true_for_unknown_filament(
         self, mock_gen, mock_slice, mock_levels,
         mock_insert, mock_load, mock_save,
-        mock_render_start, mock_render_end, tmp_path
+        mock_render_start, mock_render_end, mock_inject, mock_patch_meta, tmp_path
     ):
         """cool_fan defaults to True for unknown filament types."""
         mock_gen.return_value = str(tmp_path / "tower.stl")
@@ -923,6 +971,8 @@ class TestRun:
         render_kwargs = mock_render_start.call_args[1]
         assert render_kwargs["cool_fan"] is True
 
+    @patch("filament_calibrator.pa_cli.patch_slicer_metadata")
+    @patch("filament_calibrator.pa_cli.inject_thumbnails")
     @patch("filament_calibrator.pa_cli.render_end_gcode")
     @patch("filament_calibrator.pa_cli.render_start_gcode")
     @patch("filament_calibrator.pa_cli.gl.save")
@@ -934,7 +984,7 @@ class TestRun:
     def test_verbose_printer_debug(
         self, mock_gen, mock_slice, mock_levels,
         mock_insert, mock_load, mock_save,
-        mock_render_start, mock_render_end, tmp_path, capsys
+        mock_render_start, mock_render_end, mock_inject, mock_patch_meta, tmp_path, capsys
     ):
         """Verbose mode shows printer debug info and gcode render message."""
         mock_gen.return_value = str(tmp_path / "tower.stl")
@@ -957,6 +1007,8 @@ class TestRun:
         assert "bed center: 125,110" in captured.out
         assert "Rendered COREONE start/end G-code" in captured.out
 
+    @patch("filament_calibrator.pa_cli.patch_slicer_metadata")
+    @patch("filament_calibrator.pa_cli.inject_thumbnails")
     @patch("filament_calibrator.pa_cli.gl.save")
     @patch("filament_calibrator.pa_cli.gl.load")
     @patch("filament_calibrator.pa_cli.insert_pa_commands")
@@ -965,7 +1017,7 @@ class TestRun:
     @patch("filament_calibrator.pa_cli.generate_pa_tower_stl")
     def test_pa_lookup_table_printed(
         self, mock_gen, mock_slice, mock_levels,
-        mock_insert, mock_load, mock_save, tmp_path, capsys
+        mock_insert, mock_load, mock_save, mock_inject, mock_patch_meta, tmp_path, capsys
     ):
         """PA lookup table is always printed."""
         mock_gen.return_value = str(tmp_path / "tower.stl")
@@ -984,6 +1036,8 @@ class TestRun:
         assert "PA value by height:" in captured.out
         assert "sharpest corners" in captured.out
 
+    @patch("filament_calibrator.pa_cli.patch_slicer_metadata")
+    @patch("filament_calibrator.pa_cli.inject_thumbnails")
     @patch("filament_calibrator.pa_cli.gl.save")
     @patch("filament_calibrator.pa_cli.gl.load")
     @patch("filament_calibrator.pa_cli.insert_pa_commands")
@@ -992,7 +1046,7 @@ class TestRun:
     @patch("filament_calibrator.pa_cli.generate_pa_tower_stl")
     def test_binary_gcode_passed_to_slicer(
         self, mock_gen, mock_slice, mock_levels,
-        mock_insert, mock_load, mock_save, tmp_path
+        mock_insert, mock_load, mock_save, mock_inject, mock_patch_meta, tmp_path
     ):
         """binary_gcode=True is passed to slice_pa_specimen by default."""
         mock_gen.return_value = str(tmp_path / "tower.stl")
@@ -1007,6 +1061,8 @@ class TestRun:
         slice_kwargs = mock_slice.call_args[1]
         assert slice_kwargs["binary_gcode"] is True
 
+    @patch("filament_calibrator.pa_cli.patch_slicer_metadata")
+    @patch("filament_calibrator.pa_cli.inject_thumbnails")
     @patch("filament_calibrator.pa_cli.gl.save")
     @patch("filament_calibrator.pa_cli.gl.load")
     @patch("filament_calibrator.pa_cli.insert_pa_commands")
@@ -1015,7 +1071,7 @@ class TestRun:
     @patch("filament_calibrator.pa_cli.generate_pa_tower_stl")
     def test_ascii_gcode_passes_false_to_slicer(
         self, mock_gen, mock_slice, mock_levels,
-        mock_insert, mock_load, mock_save, tmp_path
+        mock_insert, mock_load, mock_save, mock_inject, mock_patch_meta, tmp_path
     ):
         """--ascii-gcode sets binary_gcode=False in slice_pa_specimen call."""
         mock_gen.return_value = str(tmp_path / "tower.stl")
@@ -1030,6 +1086,8 @@ class TestRun:
         slice_kwargs = mock_slice.call_args[1]
         assert slice_kwargs["binary_gcode"] is False
 
+    @patch("filament_calibrator.pa_cli.patch_slicer_metadata")
+    @patch("filament_calibrator.pa_cli.inject_thumbnails")
     @patch("filament_calibrator.pa_cli.gl.save")
     @patch("filament_calibrator.pa_cli.gl.load")
     @patch("filament_calibrator.pa_cli.insert_pa_commands")
@@ -1038,7 +1096,7 @@ class TestRun:
     @patch("filament_calibrator.pa_cli.generate_pa_tower_stl")
     def test_ascii_gcode_uses_gcode_extension(
         self, mock_gen, mock_slice, mock_levels,
-        mock_insert, mock_load, mock_save, tmp_path
+        mock_insert, mock_load, mock_save, mock_inject, mock_patch_meta, tmp_path
     ):
         """--ascii-gcode uses .gcode extension for filenames."""
         stl = tmp_path / "pa_tower_PLA_0.0_0.1x2.stl"

@@ -28,7 +28,7 @@ from filament_calibrator.slicer import (
     slice_tower,
 )
 from filament_calibrator.tempinsert import compute_temp_tiers, insert_temperatures
-from filament_calibrator.thumbnail import inject_thumbnails
+from filament_calibrator.thumbnail import inject_thumbnails, patch_slicer_metadata
 
 # Sentinel used to detect whether the user explicitly supplied a value.
 _UNSET = object()
@@ -461,6 +461,10 @@ def run(args: argparse.Namespace) -> None:
     print(f"Inserting temperatures → {final_gcode_path}")
     gf = gl.load(raw_gcode_path)
     inject_thumbnails(gf, stl_path, DEFAULT_THUMBNAILS, verbose=args.verbose)
+    if printer_name is not None:
+        patch_slicer_metadata(
+            gf, printer_name, nozzle_size, verbose=args.verbose
+        )
     tiers = compute_temp_tiers(
         start_temp=config.start_temp,
         temp_step=config.temp_step,

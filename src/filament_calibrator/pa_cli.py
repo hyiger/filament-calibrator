@@ -40,7 +40,7 @@ from filament_calibrator.slicer import (
     DEFAULT_THUMBNAILS,
     slice_pa_specimen,
 )
-from filament_calibrator.thumbnail import inject_thumbnails
+from filament_calibrator.thumbnail import inject_thumbnails, patch_slicer_metadata
 
 
 # Maximum number of PA levels to prevent excessively tall prints.
@@ -480,6 +480,10 @@ def run(args: argparse.Namespace) -> None:
     print(f"Inserting PA commands → {final_gcode_path}")
     gf = gl.load(raw_gcode_path)
     inject_thumbnails(gf, stl_path, DEFAULT_THUMBNAILS, verbose=args.verbose)
+    if printer_name is not None:
+        patch_slicer_metadata(
+            gf, printer_name, nozzle_size, verbose=args.verbose
+        )
     levels = compute_pa_levels(
         start_pa=args.start_pa,
         pa_step=args.pa_step,

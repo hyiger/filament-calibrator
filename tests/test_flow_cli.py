@@ -266,6 +266,7 @@ class TestRun:
         return argparse.Namespace(**defaults)
 
 
+    @patch("filament_calibrator.flow_cli.patch_slicer_metadata")
     @patch("filament_calibrator.flow_cli.inject_thumbnails")
     @patch("filament_calibrator.flow_cli.compute_bed_shape", return_value="0x0,250x0,250x220,0x220")
     @patch("filament_calibrator.flow_cli.compute_bed_center", return_value="125,110")
@@ -280,7 +281,7 @@ class TestRun:
         self, mock_gen, mock_slice, mock_levels,
         mock_insert, mock_load, mock_save,
         mock_resolve, mock_center, mock_shape,
-        mock_inject, tmp_path
+        mock_inject, mock_patch_meta, tmp_path
     ):
         mock_gen.return_value = str(tmp_path / "specimen.stl")
         mock_slice.return_value = MagicMock(ok=True)
@@ -299,6 +300,7 @@ class TestRun:
         mock_save.assert_called_once()
 
 
+    @patch("filament_calibrator.flow_cli.patch_slicer_metadata")
     @patch("filament_calibrator.flow_cli.inject_thumbnails")
     @patch("filament_calibrator.flow_cli.compute_bed_shape", return_value="0x0,250x0,250x220,0x220")
     @patch("filament_calibrator.flow_cli.compute_bed_center", return_value="125,110")
@@ -313,7 +315,7 @@ class TestRun:
         self, mock_gen, mock_slice, mock_levels,
         mock_insert, mock_load, mock_save,
         mock_resolve, mock_center, mock_shape,
-        mock_inject, tmp_path
+        mock_inject, mock_patch_meta, tmp_path
     ):
         mock_gen.return_value = str(tmp_path / "specimen.stl")
         mock_slice.return_value = MagicMock(
@@ -326,6 +328,7 @@ class TestRun:
         assert exc_info.value.code == 1
 
 
+    @patch("filament_calibrator.flow_cli.patch_slicer_metadata")
     @patch("filament_calibrator.flow_cli.inject_thumbnails")
     @patch("filament_calibrator.flow_cli.compute_bed_shape", return_value="0x0,250x0,250x220,0x220")
     @patch("filament_calibrator.flow_cli.compute_bed_center", return_value="125,110")
@@ -341,7 +344,7 @@ class TestRun:
         self, mock_gen, mock_slice, mock_levels,
         mock_insert, mock_load, mock_save, mock_upload,
         mock_resolve, mock_center, mock_shape,
-        mock_inject, tmp_path
+        mock_inject, mock_patch_meta, tmp_path
     ):
         mock_gen.return_value = str(tmp_path / "specimen.stl")
         mock_slice.return_value = MagicMock(ok=True)
@@ -366,6 +369,7 @@ class TestRun:
         assert call_kwargs["print_after_upload"] is True
 
 
+    @patch("filament_calibrator.flow_cli.patch_slicer_metadata")
     @patch("filament_calibrator.flow_cli.inject_thumbnails")
     @patch("filament_calibrator.flow_cli.compute_bed_shape", return_value="0x0,250x0,250x220,0x220")
     @patch("filament_calibrator.flow_cli.compute_bed_center", return_value="125,110")
@@ -380,7 +384,7 @@ class TestRun:
         self, mock_gen, mock_slice, mock_levels,
         mock_insert, mock_load, mock_save,
         mock_resolve, mock_center, mock_shape,
-        mock_inject, tmp_path
+        mock_inject, mock_patch_meta, tmp_path
     ):
         args = self._make_args(
             tmp_path,
@@ -393,6 +397,7 @@ class TestRun:
         assert exc_info.value.code == 1
 
 
+    @patch("filament_calibrator.flow_cli.patch_slicer_metadata")
     @patch("filament_calibrator.flow_cli.inject_thumbnails")
     @patch("filament_calibrator.flow_cli.compute_bed_shape", return_value="0x0,250x0,250x220,0x220")
     @patch("filament_calibrator.flow_cli.compute_bed_center", return_value="125,110")
@@ -407,7 +412,7 @@ class TestRun:
         self, mock_gen, mock_slice, mock_levels,
         mock_insert, mock_load, mock_save,
         mock_resolve, mock_center, mock_shape,
-        mock_inject, tmp_path
+        mock_inject, mock_patch_meta, tmp_path
     ):
         stl = tmp_path / "flow_specimen_PLA_5.0_5.0x2.stl"
         raw_gcode = tmp_path / "flow_specimen_PLA_5.0_5.0x2_raw.bgcode"
@@ -427,6 +432,7 @@ class TestRun:
         assert raw_gcode.exists()
 
 
+    @patch("filament_calibrator.flow_cli.patch_slicer_metadata")
     @patch("filament_calibrator.flow_cli.inject_thumbnails")
     @patch("filament_calibrator.flow_cli.compute_bed_shape", return_value="0x0,250x0,250x220,0x220")
     @patch("filament_calibrator.flow_cli.compute_bed_center", return_value="125,110")
@@ -441,7 +447,7 @@ class TestRun:
         self, mock_gen, mock_slice, mock_levels,
         mock_insert, mock_load, mock_save,
         mock_resolve, mock_center, mock_shape,
-        mock_inject, tmp_path
+        mock_inject, mock_patch_meta, tmp_path
     ):
         stl = tmp_path / "flow_specimen_PLA_5.0_5.0x2.stl"
         raw_gcode = tmp_path / "flow_specimen_PLA_5.0_5.0x2_raw.bgcode"
@@ -461,6 +467,7 @@ class TestRun:
         assert not raw_gcode.exists()
 
 
+    @patch("filament_calibrator.flow_cli.patch_slicer_metadata")
     @patch("filament_calibrator.flow_cli.inject_thumbnails")
     @patch("filament_calibrator.flow_cli.compute_bed_shape", return_value="0x0,250x0,250x220,0x220")
     @patch("filament_calibrator.flow_cli.compute_bed_center", return_value="125,110")
@@ -475,7 +482,7 @@ class TestRun:
         self, mock_gen, mock_slice, mock_levels,
         mock_insert, mock_load, mock_save,
         mock_resolve, mock_center, mock_shape,
-        mock_inject, tmp_path, capsys
+        mock_inject, mock_patch_meta, tmp_path, capsys
     ):
         mock_gen.return_value = str(tmp_path / "specimen.stl")
         mock_slice.return_value = MagicMock(
@@ -499,6 +506,7 @@ class TestRun:
         assert "Flow levels:" in captured.out
 
 
+    @patch("filament_calibrator.flow_cli.patch_slicer_metadata")
     @patch("filament_calibrator.flow_cli.inject_thumbnails")
     @patch("filament_calibrator.flow_cli.compute_bed_shape", return_value="0x0,250x0,250x220,0x220")
     @patch("filament_calibrator.flow_cli.compute_bed_center", return_value="125,110")
@@ -513,7 +521,7 @@ class TestRun:
         self, mock_gen, mock_slice, mock_levels,
         mock_insert, mock_load, mock_save,
         mock_resolve, mock_center, mock_shape,
-        mock_inject, tmp_path, capsys
+        mock_inject, mock_patch_meta, tmp_path, capsys
     ):
         mock_gen.return_value = str(tmp_path / "specimen.stl")
         mock_slice.return_value = MagicMock(ok=True)
@@ -528,6 +536,7 @@ class TestRun:
         assert "[DEBUG]" not in captured.out
 
 
+    @patch("filament_calibrator.flow_cli.patch_slicer_metadata")
     @patch("filament_calibrator.flow_cli.inject_thumbnails")
     @patch("filament_calibrator.flow_cli.compute_bed_shape", return_value="0x0,250x0,250x220,0x220")
     @patch("filament_calibrator.flow_cli.compute_bed_center", return_value="125,110")
@@ -542,7 +551,7 @@ class TestRun:
         self, mock_gen, mock_slice, mock_levels,
         mock_insert, mock_load, mock_save,
         mock_resolve, mock_center, mock_shape,
-        mock_inject, tmp_path, capsys
+        mock_inject, mock_patch_meta, tmp_path, capsys
     ):
         mock_gen.return_value = str(tmp_path / "specimen.stl")
         mock_slice.return_value = MagicMock(
@@ -560,6 +569,7 @@ class TestRun:
         assert "PrusaSlicer stdout: Slicing complete in 2.1s" in captured.out
 
 
+    @patch("filament_calibrator.flow_cli.patch_slicer_metadata")
     @patch("filament_calibrator.flow_cli.inject_thumbnails")
     @patch("filament_calibrator.flow_cli.compute_bed_shape", return_value="0x0,250x0,250x220,0x220")
     @patch("filament_calibrator.flow_cli.compute_bed_center", return_value="125,110")
@@ -574,7 +584,7 @@ class TestRun:
         self, mock_gen, mock_slice, mock_levels,
         mock_insert, mock_load, mock_save,
         mock_resolve, mock_center, mock_shape,
-        mock_inject, tmp_path, capsys
+        mock_inject, mock_patch_meta, tmp_path, capsys
     ):
         mock_gen.return_value = str(tmp_path / "specimen.stl")
         mock_slice.return_value = MagicMock(
@@ -592,6 +602,7 @@ class TestRun:
         assert "fallback defaults" in captured.out
 
 
+    @patch("filament_calibrator.flow_cli.patch_slicer_metadata")
     @patch("filament_calibrator.flow_cli.inject_thumbnails")
     @patch("filament_calibrator.flow_cli.compute_bed_shape", return_value="0x0,250x0,250x220,0x220")
     @patch("filament_calibrator.flow_cli.compute_bed_center", return_value="125,110")
@@ -606,7 +617,7 @@ class TestRun:
         self, mock_gen, mock_slice, mock_levels,
         mock_insert, mock_load, mock_save,
         mock_resolve, mock_center, mock_shape,
-        mock_inject, tmp_path, capsys
+        mock_inject, mock_patch_meta, tmp_path, capsys
     ):
         cfg = tmp_path / "test.toml"
         cfg.write_text('filament-type = "PLA"\n')
@@ -627,6 +638,7 @@ class TestRun:
         assert str(cfg) in captured.out
 
 
+    @patch("filament_calibrator.flow_cli.patch_slicer_metadata")
     @patch("filament_calibrator.flow_cli.inject_thumbnails")
     @patch("filament_calibrator.flow_cli.compute_bed_shape", return_value="0x0,250x0,250x220,0x220")
     @patch("filament_calibrator.flow_cli.compute_bed_center", return_value="125,110")
@@ -642,7 +654,7 @@ class TestRun:
         self, mock_gen, mock_slice, mock_levels,
         mock_insert, mock_load, mock_save, mock_upload,
         mock_resolve, mock_center, mock_shape,
-        mock_inject, tmp_path, capsys
+        mock_inject, mock_patch_meta, tmp_path, capsys
     ):
         mock_gen.return_value = str(tmp_path / "specimen.stl")
         mock_slice.return_value = MagicMock(
@@ -667,6 +679,7 @@ class TestRun:
         assert "Print after upload: True" in captured.out
 
 
+    @patch("filament_calibrator.flow_cli.patch_slicer_metadata")
     @patch("filament_calibrator.flow_cli.inject_thumbnails")
     @patch("filament_calibrator.flow_cli.compute_bed_shape", return_value="0x0,250x0,250x220,0x220")
     @patch("filament_calibrator.flow_cli.compute_bed_center", return_value="125,110")
@@ -681,7 +694,7 @@ class TestRun:
         self, mock_gen, mock_slice, mock_levels,
         mock_insert, mock_load, mock_save,
         mock_resolve, mock_center, mock_shape,
-        mock_inject, tmp_path
+        mock_inject, mock_patch_meta, tmp_path
     ):
         mock_gen.return_value = str(tmp_path / "specimen.stl")
         mock_slice.return_value = MagicMock(ok=True)
@@ -703,6 +716,7 @@ class TestRun:
         assert slice_kwargs["bed_center"] == "90,90"
 
 
+    @patch("filament_calibrator.flow_cli.patch_slicer_metadata")
     @patch("filament_calibrator.flow_cli.inject_thumbnails")
     @patch("filament_calibrator.flow_cli.compute_bed_shape", return_value="0x0,250x0,250x220,0x220")
     @patch("filament_calibrator.flow_cli.compute_bed_center", return_value="125,110")
@@ -717,7 +731,7 @@ class TestRun:
         self, mock_gen, mock_slice, mock_levels,
         mock_insert, mock_load, mock_save,
         mock_resolve, mock_center, mock_shape,
-        mock_inject, tmp_path
+        mock_inject, mock_patch_meta, tmp_path
     ):
         """Filament preset nozzle/bed/fan are forwarded to slice_flow_specimen."""
         mock_gen.return_value = str(tmp_path / "specimen.stl")
@@ -736,6 +750,7 @@ class TestRun:
         assert slice_kwargs["fan_speed"] == int(pla["fan"])
 
 
+    @patch("filament_calibrator.flow_cli.patch_slicer_metadata")
     @patch("filament_calibrator.flow_cli.inject_thumbnails")
     @patch("filament_calibrator.flow_cli.compute_bed_shape", return_value="0x0,250x0,250x220,0x220")
     @patch("filament_calibrator.flow_cli.compute_bed_center", return_value="125,110")
@@ -750,7 +765,7 @@ class TestRun:
         self, mock_gen, mock_slice, mock_levels,
         mock_insert, mock_load, mock_save,
         mock_resolve, mock_center, mock_shape,
-        mock_inject, tmp_path
+        mock_inject, mock_patch_meta, tmp_path
     ):
         """Explicit --nozzle-temp/--bed-temp/--fan-speed override preset in slicer call."""
         mock_gen.return_value = str(tmp_path / "specimen.stl")
@@ -774,6 +789,7 @@ class TestRun:
         assert slice_kwargs["fan_speed"] == 50
 
 
+    @patch("filament_calibrator.flow_cli.patch_slicer_metadata")
     @patch("filament_calibrator.flow_cli.inject_thumbnails")
     @patch("filament_calibrator.flow_cli.compute_bed_shape", return_value="0x0,250x0,250x220,0x220")
     @patch("filament_calibrator.flow_cli.compute_bed_center", return_value="125,110")
@@ -788,7 +804,7 @@ class TestRun:
         self, mock_gen, mock_slice, mock_levels,
         mock_insert, mock_load, mock_save,
         mock_resolve, mock_center, mock_shape,
-        mock_inject, tmp_path
+        mock_inject, mock_patch_meta, tmp_path
     ):
         cfg = tmp_path / "test.toml"
         cfg.write_text('filament-type = "PETG"\n')
@@ -807,6 +823,7 @@ class TestRun:
         assert specimen_config.filament_type == "PETG"
 
 
+    @patch("filament_calibrator.flow_cli.patch_slicer_metadata")
     @patch("filament_calibrator.flow_cli.inject_thumbnails")
     @patch("filament_calibrator.flow_cli.compute_bed_shape", return_value="0x0,250x0,250x220,0x220")
     @patch("filament_calibrator.flow_cli.compute_bed_center", return_value="125,110")
@@ -821,7 +838,7 @@ class TestRun:
         self, mock_gen, mock_slice, mock_levels,
         mock_insert, mock_load, mock_save,
         mock_resolve, mock_center, mock_shape,
-        mock_inject, tmp_path
+        mock_inject, mock_patch_meta, tmp_path
     ):
         """binary_gcode=True is passed to slice_flow_specimen by default."""
         mock_gen.return_value = str(tmp_path / "specimen.stl")
@@ -837,6 +854,7 @@ class TestRun:
         assert slice_kwargs["binary_gcode"] is True
 
 
+    @patch("filament_calibrator.flow_cli.patch_slicer_metadata")
     @patch("filament_calibrator.flow_cli.inject_thumbnails")
     @patch("filament_calibrator.flow_cli.compute_bed_shape", return_value="0x0,250x0,250x220,0x220")
     @patch("filament_calibrator.flow_cli.compute_bed_center", return_value="125,110")
@@ -851,7 +869,7 @@ class TestRun:
         self, mock_gen, mock_slice, mock_levels,
         mock_insert, mock_load, mock_save,
         mock_resolve, mock_center, mock_shape,
-        mock_inject, tmp_path
+        mock_inject, mock_patch_meta, tmp_path
     ):
         """--ascii-gcode sets binary_gcode=False in slice_flow_specimen call."""
         mock_gen.return_value = str(tmp_path / "specimen.stl")
@@ -867,6 +885,7 @@ class TestRun:
         assert slice_kwargs["binary_gcode"] is False
 
 
+    @patch("filament_calibrator.flow_cli.patch_slicer_metadata")
     @patch("filament_calibrator.flow_cli.inject_thumbnails")
     @patch("filament_calibrator.flow_cli.compute_bed_shape", return_value="0x0,250x0,250x220,0x220")
     @patch("filament_calibrator.flow_cli.compute_bed_center", return_value="125,110")
@@ -881,7 +900,7 @@ class TestRun:
         self, mock_gen, mock_slice, mock_levels,
         mock_insert, mock_load, mock_save,
         mock_resolve, mock_center, mock_shape,
-        mock_inject, tmp_path
+        mock_inject, mock_patch_meta, tmp_path
     ):
         """--ascii-gcode uses .gcode extension for filenames."""
         stl = tmp_path / "flow_specimen_PLA_5.0_5.0x2.stl"

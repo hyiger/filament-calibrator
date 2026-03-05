@@ -34,7 +34,7 @@ from filament_calibrator.slicer import (
     DEFAULT_THUMBNAILS,
     slice_flow_specimen,
 )
-from filament_calibrator.thumbnail import inject_thumbnails
+from filament_calibrator.thumbnail import inject_thumbnails, patch_slicer_metadata
 
 
 # Maximum number of flow levels to prevent excessively tall prints.
@@ -424,6 +424,10 @@ def run(args: argparse.Namespace) -> None:
     print(f"Inserting flow rates → {final_gcode_path}")
     gf = gl.load(raw_gcode_path)
     inject_thumbnails(gf, stl_path, DEFAULT_THUMBNAILS, verbose=args.verbose)
+    if printer_name is not None:
+        patch_slicer_metadata(
+            gf, printer_name, nozzle_size, verbose=args.verbose
+        )
     levels = compute_flow_levels(
         start_flow=args.start_speed,
         flow_step=args.step,
