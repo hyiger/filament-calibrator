@@ -35,7 +35,8 @@ src/filament_calibrator/
   pa_model.py       # CadQuery parametric hollow rectangular tower model
   pa_insert.py      # G-code pressure advance command insertion
   printer_gcode.py  # Printer-specific start/end G-code templates and rendering
-  thumbnail.py      # STL → PNG rendering (VTK) and bgcode thumbnail injection
+  thumbnail.py      # STL → PNG rendering (VTK), bgcode thumbnail injection,
+                    #   and slicer metadata patching (printer_settings_id)
 ```
 
 ### Key Dependencies
@@ -52,20 +53,20 @@ src/filament_calibrator/
 
 **temperature-tower** (`cli.run()`):
 load_config → apply_config → resolve_preset → generate_tower_stl →
-slice_tower → load G-code → inject_thumbnails → insert_temperatures →
-save → optional upload.
+slice_tower → load G-code → inject_thumbnails → patch_slicer_metadata →
+insert_temperatures → save → optional upload.
 
 **volumetric-flow** (`flow_cli.run()`):
 load_config → apply_config → validate_flow_args → resolve_preset →
 generate_flow_specimen_stl → slice_flow_specimen (vase mode) → load G-code →
-inject_thumbnails → compute_flow_levels → insert_flow_rates → save →
-optional upload.
+inject_thumbnails → patch_slicer_metadata → compute_flow_levels →
+insert_flow_rates → save → optional upload.
 
 **pressure-advance** (`pa_cli.run()`):
 load_config → apply_config → validate_pa_args → resolve_preset →
 generate_pa_tower_stl → slice_pa_specimen → load G-code →
-inject_thumbnails → compute_pa_levels → insert_pa_commands → save →
-optional upload.
+inject_thumbnails → patch_slicer_metadata → compute_pa_levels →
+insert_pa_commands → save → optional upload.
 
 ### Filament Preset System
 

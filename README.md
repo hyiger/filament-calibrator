@@ -219,8 +219,12 @@ must be evenly divisible by `--temp-step`.
 | `--fan-speed` | from preset | Fan speed (0--100%) |
 | `--config-ini` | | PrusaSlicer `.ini` config file |
 | `--prusaslicer-path` | auto-detect | Path to PrusaSlicer executable |
-| `--bed-center` | `125,105` | Bed centre as X,Y in mm |
+| `--printer` | `COREONE` | Printer model — auto-sets bed center/shape, generates start/end G-code, and embeds printer metadata in bgcode |
+| `--bed-center` | from `--printer` | Bed centre as X,Y in mm (auto-set by `--printer`) |
 | `--extra-slicer-args` | | Additional PrusaSlicer CLI args (must be last) |
+
+Supported printers for `--printer`: **COREONE**, **COREONEL**, **MK4S**
+(alias: MK4), **MINI**, **XL**.
 
 #### Printer Options
 
@@ -360,8 +364,12 @@ of levels cannot exceed 50.
 | `--extrusion-width` | from `--nozzle-size` | Slicer extrusion width in mm (default: nozzle × 1.125) |
 | `--config-ini` | | PrusaSlicer `.ini` config file |
 | `--prusaslicer-path` | auto-detect | Path to PrusaSlicer executable |
-| `--bed-center` | `125,105` | Bed centre as X,Y in mm |
+| `--printer` | `COREONE` | Printer model — auto-sets bed center/shape and embeds printer metadata in bgcode |
+| `--bed-center` | from `--printer` | Bed centre as X,Y in mm (auto-set by `--printer`) |
 | `--extra-slicer-args` | | Additional PrusaSlicer CLI args (must be last) |
+
+Supported printers for `--printer`: **COREONE**, **COREONEL**, **MK4S**
+(alias: MK4), **MINI**, **XL**.
 
 #### Printer Options
 
@@ -506,8 +514,8 @@ of levels cannot exceed 50. `--start-pa` must be non-negative.
 | `--extrusion-width` | from `--nozzle-size` | Slicer extrusion width in mm (default: nozzle × 1.125) |
 | `--config-ini` | | PrusaSlicer `.ini` config file |
 | `--prusaslicer-path` | auto-detect | Path to PrusaSlicer executable |
-| `--printer` | `COREONE` | Printer model for start/end G-code (see below) |
-| `--bed-center` | `125,105` | Bed centre as X,Y in mm (auto-set by `--printer`) |
+| `--printer` | `COREONE` | Printer model — generates start/end G-code, auto-sets bed center/shape, and embeds printer metadata in bgcode (see below) |
+| `--bed-center` | from `--printer` | Bed centre as X,Y in mm (auto-set by `--printer`) |
 | `--extra-slicer-args` | | Additional PrusaSlicer CLI args (must be last) |
 
 #### Printer-Specific Start/End G-code
