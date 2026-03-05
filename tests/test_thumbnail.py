@@ -27,7 +27,10 @@ from filament_calibrator.thumbnail import (
     _SUPERSAMPLE_THRESHOLD,
     _find_slicer_meta_index,
     _find_thumbnail_insert_pos,
+    _needs_subprocess_render,
     _rebuild_slicer_meta_block,
+    _render_in_subprocess,
+    _subprocess_render_worker,
     build_thumbnail_block,
     inject_thumbnails,
     parse_thumbnail_specs,
@@ -673,3 +676,155 @@ class TestPatchSlicerMetadata:
         text = block[10 : 10 + usize].decode("utf-8")
         assert "physical_printer_settings_id=My Printer" in text
         assert "printer_settings_id=Prusa CORE One HF0.6 nozzle" in text
+
+
+# ---------------------------------------------------------------------------
+# _needs_subprocess_render
+# ---------------------------------------------------------------------------
+
+
+class TestNeedsSubprocessRender:
+    @patch("filament_calibrator.thumbnail.platform")
+    @patch("filament_calibrator.thumbnail.threading")
+    def test_true_on_darwin_non_main_thread(self, mock_threading, mock_platform):
+        mock_platform.system.return_value = "Darwin"
+        mock_threading.current_thread.return_value = MagicMock()
+        mock_threading.main_thread.return_value = MagicMock()
+        assert _needs_subprocess_render() is True
+
+    @patch("filament_calibrator.thumbnail.platform")
+    @patch("filament_calibrator.thumbnail.threading")
+    def test_false_on_darwin_main_thread(self, mock_threading, mock_platform):
+        mock_platform.system.return_value = "Darwin"
+        sentinel = MagicMock()
+        mock_threading.current_thread.return_value = sentinel
+        mock_threading.main_thread.return_value = sentinel
+        assert _needs_subprocess_render() is False
+
+    @patch("filament_calibrator.thumbnail.platform")
+    def test_false_on_linux(self, mock_platform):
+        mock_platform.system.return_value = "Linux"
+        assert _needs_subprocess_render() is False
+
+
+# ---------------------------------------------------------------------------
+# _subprocess_render_worker
+# ---------------------------------------------------------------------------
+
+
+class TestSubprocessRenderWorker:
+    @patch("filament_calibrator.thumbnail._render_vtk")
+    def test_success(self, mock_render):
+        mock_render.return_value = b"PNG_DATA"
+        queue = MagicMock()
+        _subprocess_render_worker(queue, "/tmp/t.stl", 64, 64, 64, 64, False)
+        queue.put.assert_called_once_with(("ok", b"PNG_DATA"))
+
+    @patch("filament_calibrator.thumbnail._render_vtk")
+    def test_error(self, mock_render):
+        mock_render.side_effect = RuntimeError("vtk exploded")
+        queue = MagicMock()
+        _subprocess_render_worker(queue, "/tmp/t.stl", 64, 64, 64, 64, False)
+        queue.put.assert_called_once()
+        status, msg = queue.put.call_args[0][0]
+        assert status == "error"
+        assert "vtk exploded" in msg
+
+
+# ---------------------------------------------------------------------------
+# _render_in_subprocess
+# ---------------------------------------------------------------------------
+
+
+class TestRenderInSubprocess:
+    @patch("filament_calibrator.thumbnail.mp")
+    def test_success(self, mock_mp_mod):
+        ctx = MagicMock()
+        mock_mp_mod.get_context.return_value = ctx
+
+        mock_queue = MagicMock()
+        mock_queue.get_nowait.return_value = ("ok", b"PNG_BYTES")
+        ctx.Queue.return_value = mock_queue
+
+        mock_proc = MagicMock()
+        mock_proc.exitcode = 0
+        ctx.Process.return_value = mock_proc
+
+        result = _render_in_subprocess("/t.stl", 64, 64, 64, 64, False)
+        assert result == b"PNG_BYTES"
+        mock_proc.start.assert_called_once()
+        mock_proc.join.assert_called_once_with(timeout=120)
+
+    @patch("filament_calibrator.thumbnail.mp")
+    def test_nonzero_exit(self, mock_mp_mod):
+        ctx = MagicMock()
+        mock_mp_mod.get_context.return_value = ctx
+        ctx.Queue.return_value = MagicMock()
+
+        mock_proc = MagicMock()
+        mock_proc.exitcode = 1
+        ctx.Process.return_value = mock_proc
+
+        with pytest.raises(RuntimeError, match="exit code 1"):
+            _render_in_subprocess("/t.stl", 64, 64, 64, 64, False)
+
+    @patch("filament_calibrator.thumbnail.mp")
+    def test_timeout(self, mock_mp_mod):
+        ctx = MagicMock()
+        mock_mp_mod.get_context.return_value = ctx
+        ctx.Queue.return_value = MagicMock()
+
+        mock_proc = MagicMock()
+        mock_proc.exitcode = None  # still running
+        ctx.Process.return_value = mock_proc
+
+        with pytest.raises(RuntimeError, match="timed out"):
+            _render_in_subprocess("/t.stl", 64, 64, 64, 64, False)
+        mock_proc.kill.assert_called_once()
+
+    @patch("filament_calibrator.thumbnail.mp")
+    def test_worker_error(self, mock_mp_mod):
+        ctx = MagicMock()
+        mock_mp_mod.get_context.return_value = ctx
+
+        mock_queue = MagicMock()
+        mock_queue.get_nowait.return_value = ("error", "render broke")
+        ctx.Queue.return_value = mock_queue
+
+        mock_proc = MagicMock()
+        mock_proc.exitcode = 0
+        ctx.Process.return_value = mock_proc
+
+        with pytest.raises(RuntimeError, match="render broke"):
+            _render_in_subprocess("/t.stl", 64, 64, 64, 64, False)
+
+
+# ---------------------------------------------------------------------------
+# render_stl_to_png — subprocess path
+# ---------------------------------------------------------------------------
+
+
+class TestRenderStlToPngSubprocess:
+    @patch("filament_calibrator.thumbnail._render_in_subprocess")
+    @patch("filament_calibrator.thumbnail._needs_subprocess_render", return_value=True)
+    def test_delegates_to_subprocess(self, _mock_needs, mock_sub, tmp_path):
+        stl = _make_stl_file(tmp_path)
+        mock_sub.return_value = b"PNG"
+        result = render_stl_to_png(stl, 100, 80)
+        assert result == b"PNG"
+        mock_sub.assert_called_once_with(stl, 100, 80, 100, 80, False)
+
+    @patch("filament_calibrator.thumbnail._render_in_subprocess")
+    @patch("filament_calibrator.thumbnail._needs_subprocess_render", return_value=True)
+    def test_subprocess_with_supersample(self, _mock_needs, mock_sub, tmp_path):
+        stl = _make_stl_file(tmp_path)
+        mock_sub.return_value = b"PNG"
+        render_stl_to_png(stl, 16, 16)
+        mock_sub.assert_called_once_with(
+            stl,
+            16 * _SUPERSAMPLE_FACTOR,
+            16 * _SUPERSAMPLE_FACTOR,
+            16,
+            16,
+            True,
+        )

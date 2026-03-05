@@ -8,7 +8,10 @@ thumbnails.
 from __future__ import annotations
 
 import io
+import multiprocessing as mp
+import platform
 import struct
+import threading
 import warnings
 import zlib
 from dataclasses import dataclass
@@ -106,6 +109,10 @@ def render_stl_to_png(stl_path: str, width: int, height: int) -> bytes:
     Uses VTK off-screen rendering with an isometric-ish camera view and
     PrusaSlicer-orange model colouring.
 
+    On macOS, VTK's Cocoa render window must be created on the main
+    thread.  When called from a non-main thread (e.g. a Streamlit worker),
+    this function transparently offloads rendering to a subprocess.
+
     Raises
     ------
     RuntimeError
@@ -131,6 +138,10 @@ def render_stl_to_png(stl_path: str, width: int, height: int) -> bytes:
         render_h = height
         needs_downscale = False
 
+    if _needs_subprocess_render():
+        return _render_in_subprocess(
+            stl_path, render_w, render_h, width, height, needs_downscale,
+        )
     return _render_vtk(stl_path, render_w, render_h, width, height, needs_downscale)
 
 
@@ -363,6 +374,79 @@ def _find_thumbnail_insert_pos(blocks: list[bytes]) -> int:
         if btype in (_BLK_FILE_METADATA, _BLK_PRINTER_METADATA):
             pos = i + 1
     return pos
+
+
+# ---------------------------------------------------------------------------
+# Private — macOS thread-safety helpers
+# ---------------------------------------------------------------------------
+
+
+def _needs_subprocess_render() -> bool:
+    """Return ``True`` if VTK rendering must be offloaded to a subprocess.
+
+    On macOS, VTK creates a ``vtkCocoaRenderWindow`` which calls into
+    AppKit (``NSWindow``).  AppKit requires all UI operations on the main
+    thread; calling from a background thread triggers ``SIGABRT``.
+
+    When running under Streamlit (or any framework that dispatches user
+    callbacks on worker threads), this function returns ``True`` so the
+    caller can spawn a subprocess whose *main* thread performs the render.
+    """
+    return (
+        platform.system() == "Darwin"
+        and threading.current_thread() is not threading.main_thread()
+    )
+
+
+def _subprocess_render_worker(
+    result_queue: object,
+    stl_path: str,
+    render_w: int,
+    render_h: int,
+    final_w: int,
+    final_h: int,
+    needs_downscale: bool,
+) -> None:
+    """Multiprocessing worker that runs ``_render_vtk`` on the main thread."""
+    try:
+        png = _render_vtk(stl_path, render_w, render_h, final_w, final_h, needs_downscale)
+        result_queue.put(("ok", png))
+    except Exception as exc:
+        result_queue.put(("error", str(exc)))
+
+
+def _render_in_subprocess(
+    stl_path: str,
+    render_w: int,
+    render_h: int,
+    final_w: int,
+    final_h: int,
+    needs_downscale: bool,
+) -> bytes:
+    """Spawn a subprocess to perform VTK rendering on its main thread."""
+    ctx = mp.get_context("spawn")
+    result_queue: mp.Queue[tuple[str, bytes | str]] = ctx.Queue()
+
+    proc = ctx.Process(
+        target=_subprocess_render_worker,
+        args=(result_queue, stl_path, render_w, render_h, final_w, final_h, needs_downscale),
+    )
+    proc.start()
+    proc.join(timeout=120)
+
+    if proc.exitcode is None:
+        proc.kill()
+        raise RuntimeError("VTK render subprocess timed out")
+
+    if proc.exitcode != 0:
+        raise RuntimeError(
+            f"VTK render subprocess failed (exit code {proc.exitcode})"
+        )
+
+    status, data = result_queue.get_nowait()
+    if status == "error":
+        raise RuntimeError(f"VTK render failed in subprocess: {data}")
+    return data  # type: ignore[return-value]
 
 
 # ---------------------------------------------------------------------------
