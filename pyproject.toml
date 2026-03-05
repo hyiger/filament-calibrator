@@ -19,6 +19,9 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
+gui = [
+    "streamlit>=1.28",
+]
 dev = [
     "pytest>=8.0",
     "pytest-cov>=6.0",
@@ -28,6 +31,7 @@ dev = [
 temperature-tower = "filament_calibrator.cli:main"
 volumetric-flow = "filament_calibrator.flow_cli:main"
 pressure-advance = "filament_calibrator.pa_cli:main"
+filament-calibrator-gui = "filament_calibrator.gui:main"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/filament_calibrator"]

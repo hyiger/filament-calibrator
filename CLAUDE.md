@@ -37,6 +37,7 @@ src/filament_calibrator/
   printer_gcode.py  # Printer-specific start/end G-code templates and rendering
   thumbnail.py      # STL → PNG rendering (VTK), bgcode thumbnail injection,
                     #   and slicer metadata patching (printer_settings_id)
+  gui.py            # Streamlit browser GUI wrapping all three CLIs
 ```
 
 ### Key Dependencies
@@ -47,6 +48,8 @@ src/filament_calibrator/
 - **vtk** (>= 9.0): Off-screen STL rendering for bgcode thumbnail
   generation. Transitive dependency; optional at runtime (thumbnails
   skipped if absent).
+- **streamlit** (>= 1.28): Browser-based GUI. Optional; install via
+  `pip install -e ".[gui]"`.
 - **tomli** (>= 2.0, Python < 3.11 only): TOML parsing fallback
 
 ### Pipeline Flows
@@ -132,6 +135,7 @@ pytest tests/ --cov=src/filament_calibrator --cov-report=term-missing --cov-fail
 
 ```bash
 pip install -e .                    # editable install
+pip install -e ".[gui]"             # with Streamlit GUI
 ```
 
 Entry points:
@@ -139,6 +143,7 @@ Entry points:
 - `temperature-tower` → `filament_calibrator.cli:main`
 - `volumetric-flow` → `filament_calibrator.flow_cli:main`
 - `pressure-advance` → `filament_calibrator.pa_cli:main`
+- `filament-calibrator-gui` → `filament_calibrator.gui:main` (requires `[gui]` extra)
 
 ## Common Tasks
 
