@@ -24,15 +24,15 @@ DEFAULT_SLICER_ARGS: Dict[str, str] = {
     "skirts": "1",
 }
 
-# Default bed centre for Prusa MK-series printers (250 × 210 mm bed).
+# Default bed centre for Prusa printers (250 × 220 mm bed).
 # Used with PrusaSlicer's --center flag to place the model on the bed.
-DEFAULT_BED_CENTER: str = "125,105"
+DEFAULT_BED_CENTER: str = "125,110"
 
 # Thumbnail sizes embedded in G-code for LCD preview on Prusa printers.
 # 16×16 provides a small icon; 220×124 matches the MK3S LCD resolution.
 # PrusaSlicer 2.9+ requires the format suffix (e.g. /PNG) in each size spec.
 DEFAULT_THUMBNAILS: str = "16x16/PNG,220x124/PNG"
-DEFAULT_BED_SHAPE: str = "0x0,250x0,250x210,0x210"
+DEFAULT_BED_SHAPE: str = "0x0,250x0,250x220,0x220"
 """Slicer defaults applied when no ``--config-ini`` is supplied.
 
 These produce a reasonable temp tower slice with 0.2mm layers, 2 perimeters,
@@ -90,9 +90,12 @@ def slice_tower(
     fan_speed: Optional[int] = None,
     nozzle_temp: Optional[int] = None,
     bed_center: Optional[str] = None,
+    bed_shape: Optional[str] = None,
     nozzle_diameter: Optional[float] = None,
     layer_height: Optional[float] = None,
     extrusion_width: Optional[float] = None,
+    printer_model: Optional[str] = None,
+    binary_gcode: bool = True,
 ) -> gl.RunResult:
     """Slice the temperature tower STL into G-code.
 
@@ -119,10 +122,13 @@ def slice_tower(
                        ``--temperature`` and ``--first-layer-temperature``).
                        Should be the tower's *start_temp* so PrusaSlicer's
                        start G-code heats to the correct initial temperature.
-    bed_center:        Bed centre as ``"X,Y"`` (e.g. ``"125,105"``).
+    bed_center:        Bed centre as ``"X,Y"`` (e.g. ``"125,110"``).
                        Passed as ``--center`` so PrusaSlicer places the
                        model in the middle of the bed.  Defaults to
                        :data:`DEFAULT_BED_CENTER` when ``None``.
+    bed_shape:         Bed shape as PrusaSlicer ``--bed-shape`` string
+                       (e.g. ``"0x0,250x0,250x220,0x220"``).  Defaults to
+                       :data:`DEFAULT_BED_SHAPE` when ``None``.
     nozzle_diameter:   Nozzle diameter in mm (passed as
                        ``--nozzle-diameter``).
     layer_height:      Layer height in mm.  When provided and *config_ini*
@@ -130,6 +136,9 @@ def slice_tower(
                        :data:`DEFAULT_SLICER_ARGS`.
     extrusion_width:   Extrusion width in mm (passed as
                        ``--extrusion-width``).
+    printer_model:     Printer model identifier (e.g. ``"COREONE"``)
+                       passed as ``--printer-model`` so PrusaSlicer embeds
+                       it in bgcode metadata for G-code Viewer bed display.
 
     Returns
     -------
@@ -145,9 +154,11 @@ def slice_tower(
 
     cli_extra: List[str] = [
         f"--center={bed_center or DEFAULT_BED_CENTER}",
-        f"--bed-shape={DEFAULT_BED_SHAPE}",
+        f"--bed-shape={bed_shape or DEFAULT_BED_SHAPE}",
         f"--thumbnails={DEFAULT_THUMBNAILS}",
     ]
+    if binary_gcode:
+        cli_extra.append("--binary-gcode")
     if config_ini is None:
         # When caller provides layer_height, skip the dict defaults for
         # layer-height and first-layer-height so they aren't duplicated.
@@ -174,6 +185,9 @@ def slice_tower(
         cli_extra.append(f"--max-fan-speed={fan_speed}")
         cli_extra.append(f"--min-fan-speed={fan_speed}")
 
+    if printer_model is not None:
+        cli_extra.append(f"--printer-model={printer_model}")
+
     if extra_args:
         cli_extra.extend(extra_args)
 
@@ -198,7 +212,10 @@ def slice_flow_specimen(
     bed_temp: Optional[int] = None,
     fan_speed: Optional[int] = None,
     bed_center: Optional[str] = None,
+    bed_shape: Optional[str] = None,
     nozzle_diameter: Optional[float] = None,
+    printer_model: Optional[str] = None,
+    binary_gcode: bool = True,
 ) -> gl.RunResult:
     """Slice a flow-rate specimen STL in spiral-vase mode.
 
@@ -221,8 +238,12 @@ def slice_flow_specimen(
     fan_speed:         Fan speed 0–100 %.
     bed_center:        Bed centre as ``"X,Y"`` (defaults to
                        :data:`DEFAULT_BED_CENTER`).
+    bed_shape:         Bed shape as PrusaSlicer ``--bed-shape`` string.
+                       Defaults to :data:`DEFAULT_BED_SHAPE`.
     nozzle_diameter:   Nozzle diameter in mm (passed as
                        ``--nozzle-diameter``).
+    printer_model:     Printer model identifier (e.g. ``"COREONE"``)
+                       passed as ``--printer-model``.
 
     Returns
     -------
@@ -238,10 +259,12 @@ def slice_flow_specimen(
 
     cli_extra: List[str] = [
         f"--center={bed_center or DEFAULT_BED_CENTER}",
-        f"--bed-shape={DEFAULT_BED_SHAPE}",
+        f"--bed-shape={bed_shape or DEFAULT_BED_SHAPE}",
         f"--thumbnails={DEFAULT_THUMBNAILS}",
         "--spiral-vase",
     ]
+    if binary_gcode:
+        cli_extra.append("--binary-gcode")
 
     if config_ini is None:
         for key, val in VASE_MODE_SLICER_ARGS.items():
@@ -260,6 +283,9 @@ def slice_flow_specimen(
     if fan_speed is not None:
         cli_extra.append(f"--max-fan-speed={fan_speed}")
         cli_extra.append(f"--min-fan-speed={fan_speed}")
+
+    if printer_model is not None:
+        cli_extra.append(f"--printer-model={printer_model}")
 
     if extra_args:
         cli_extra.extend(extra_args)
@@ -285,9 +311,12 @@ def slice_pa_specimen(
     bed_temp: Optional[int] = None,
     fan_speed: Optional[int] = None,
     bed_center: Optional[str] = None,
+    bed_shape: Optional[str] = None,
     nozzle_diameter: Optional[float] = None,
     start_gcode: Optional[str] = None,
     end_gcode: Optional[str] = None,
+    printer_model: Optional[str] = None,
+    binary_gcode: bool = True,
 ) -> gl.RunResult:
     """Slice a pressure advance calibration tower STL.
 
@@ -309,12 +338,16 @@ def slice_pa_specimen(
     fan_speed:         Fan speed 0–100 %.
     bed_center:        Bed centre as ``"X,Y"`` (defaults to
                        :data:`DEFAULT_BED_CENTER`).
+    bed_shape:         Bed shape as PrusaSlicer ``--bed-shape`` string.
+                       Defaults to :data:`DEFAULT_BED_SHAPE`.
     nozzle_diameter:   Nozzle diameter in mm (passed as
                        ``--nozzle-diameter``).
     start_gcode:       Rendered start G-code string.  When provided,
                        passed to PrusaSlicer via ``--start-gcode``.
     end_gcode:         Rendered end G-code string.  When provided,
                        passed to PrusaSlicer via ``--end-gcode``.
+    printer_model:     Printer model identifier (e.g. ``"COREONE"``)
+                       passed as ``--printer-model``.
 
     Returns
     -------
@@ -329,9 +362,11 @@ def slice_pa_specimen(
 
     cli_extra: List[str] = [
         f"--center={bed_center or DEFAULT_BED_CENTER}",
-        f"--bed-shape={DEFAULT_BED_SHAPE}",
+        f"--bed-shape={bed_shape or DEFAULT_BED_SHAPE}",
         f"--thumbnails={DEFAULT_THUMBNAILS}",
     ]
+    if binary_gcode:
+        cli_extra.append("--binary-gcode")
 
     if config_ini is None:
         for key, val in PA_SLICER_ARGS.items():
@@ -350,6 +385,9 @@ def slice_pa_specimen(
     if fan_speed is not None:
         cli_extra.append(f"--max-fan-speed={fan_speed}")
         cli_extra.append(f"--min-fan-speed={fan_speed}")
+
+    if printer_model is not None:
+        cli_extra.append(f"--printer-model={printer_model}")
 
     if start_gcode is not None:
         escaped = start_gcode.replace("\n", "\\n")

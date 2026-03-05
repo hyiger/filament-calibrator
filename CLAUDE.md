@@ -35,6 +35,7 @@ src/filament_calibrator/
   pa_model.py       # CadQuery parametric hollow rectangular tower model
   pa_insert.py      # G-code pressure advance command insertion
   printer_gcode.py  # Printer-specific start/end G-code templates and rendering
+  thumbnail.py      # STL → PNG rendering (VTK) and bgcode thumbnail injection
 ```
 
 ### Key Dependencies
@@ -42,23 +43,29 @@ src/filament_calibrator/
 - **cadquery** (>= 2.4): Parametric CAD model generation (OCCT kernel)
 - **gcode-lib** (>= 1.0.0): G-code parsing, PrusaSlicer integration,
   PrusaLink API, filament presets. Published on PyPI.
+- **vtk** (>= 9.0): Off-screen STL rendering for bgcode thumbnail
+  generation. Transitive dependency; optional at runtime (thumbnails
+  skipped if absent).
 - **tomli** (>= 2.0, Python < 3.11 only): TOML parsing fallback
 
 ### Pipeline Flows
 
 **temperature-tower** (`cli.run()`):
 load_config → apply_config → resolve_preset → generate_tower_stl →
-slice_tower → load G-code → insert_temperatures → save → optional upload.
+slice_tower → load G-code → inject_thumbnails → insert_temperatures →
+save → optional upload.
 
 **volumetric-flow** (`flow_cli.run()`):
 load_config → apply_config → validate_flow_args → resolve_preset →
 generate_flow_specimen_stl → slice_flow_specimen (vase mode) → load G-code →
-compute_flow_levels → insert_flow_rates → save → optional upload.
+inject_thumbnails → compute_flow_levels → insert_flow_rates → save →
+optional upload.
 
 **pressure-advance** (`pa_cli.run()`):
 load_config → apply_config → validate_pa_args → resolve_preset →
 generate_pa_tower_stl → slice_pa_specimen → load G-code →
-compute_pa_levels → insert_pa_commands → save → optional upload.
+inject_thumbnails → compute_pa_levels → insert_pa_commands → save →
+optional upload.
 
 ### Filament Preset System
 
@@ -86,7 +93,10 @@ override the preset.  Unknown filament names fall back to safe defaults
 
 All three functions accept `nozzle_diameter` to pass `--nozzle-diameter` to
 PrusaSlicer, and pass `--center` and `--bed-shape` for Prusa MK-series bed
-geometry (250×210mm).
+geometry (250×210mm).  All three default to `binary_gcode=True` which passes
+`--binary-gcode` to PrusaSlicer, producing `.bgcode` output with embedded
+thumbnail previews.  Use `--ascii-gcode` on the CLI to switch to text
+`.gcode` output.
 
 **Nozzle-size derivation formulas** (matching PrusaSlicer auto-width):
 - `layer_height = nozzle_size × 0.5` → 0.4→0.2, 0.6→0.3, 0.8→0.4
@@ -101,9 +111,9 @@ geometry (250×210mm).
 - `_UNSET = object()` sentinel for distinguishing "user didn't set" from None
   in argparse
 - Filament preset lookup is case-insensitive (`.upper()`)
-- Shared CLI helpers (`_apply_config`, `_resolve_output_dir`, `_UNSET`,
-  `_KNOWN_TYPES`, `_ARGPARSE_DEFAULTS`) live in `cli.py` and are imported
-  by `flow_cli.py` and `pa_cli.py`
+- Shared CLI helpers (`_apply_config`, `_resolve_output_dir`, `_gcode_ext`,
+  `_UNSET`, `_KNOWN_TYPES`, `_ARGPARSE_DEFAULTS`) live in `cli.py` and are
+  imported by `flow_cli.py` and `pa_cli.py`
 
 ## Testing
 

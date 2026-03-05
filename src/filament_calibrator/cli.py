@@ -14,8 +14,21 @@ import gcode_lib as gl
 
 from filament_calibrator.config import _find_config_path, load_config
 from filament_calibrator.model import TowerConfig, generate_tower_stl
-from filament_calibrator.slicer import DEFAULT_BED_CENTER, slice_tower
+from filament_calibrator.printer_gcode import (
+    KNOWN_PRINTERS,
+    compute_bed_center,
+    compute_bed_shape,
+    render_end_gcode,
+    render_start_gcode,
+    resolve_printer,
+)
+from filament_calibrator.slicer import (
+    DEFAULT_BED_CENTER,
+    DEFAULT_THUMBNAILS,
+    slice_tower,
+)
 from filament_calibrator.tempinsert import compute_temp_tiers, insert_temperatures
+from filament_calibrator.thumbnail import inject_thumbnails
 
 # Sentinel used to detect whether the user explicitly supplied a value.
 _UNSET = object()
@@ -107,13 +120,24 @@ def build_parser() -> argparse.ArgumentParser:
     slicer.add_argument(
         "--bed-center", type=str, default=None,
         help=(
-            "Bed centre as X,Y in mm (e.g. 125,105). Used to position the "
-            "model on the print bed. Default: 125,105 (Prusa MK-series)."
+            "Bed centre as X,Y in mm (e.g. 125,110). Used to position the "
+            "model on the print bed. Default: 125,110 (Prusa 250×220 bed)."
         ),
     )
     slicer.add_argument(
         "--extra-slicer-args", type=str, nargs=argparse.REMAINDER, default=None,
         help="Additional raw CLI arguments for PrusaSlicer (must be last).",
+    )
+
+    # --- Printer model ---
+    printer_names = ", ".join(sorted(KNOWN_PRINTERS))
+    p.add_argument(
+        "--printer", type=str, default="COREONE",
+        help=(
+            f"Printer model for start/end G-code and bed dimensions. "
+            f"Available: {printer_names} (also accepts mk4 as alias for mk4s). "
+            "Auto-sets --bed-center and bed shape from the printer's preset."
+        ),
     )
 
     # --- Printer / upload options ---
@@ -154,6 +178,14 @@ def build_parser() -> argparse.ArgumentParser:
     output.add_argument(
         "--keep-files", action="store_true", default=False,
         help="Keep intermediate files (STL, raw G-code).",
+    )
+    output.add_argument(
+        "--ascii-gcode", action="store_true", default=False,
+        help=(
+            "Output ASCII (.gcode) instead of binary (.bgcode). "
+            "Binary is the default; it supports thumbnail previews "
+            "on the printer LCD."
+        ),
     )
 
     # --- Verbosity ---
@@ -200,6 +232,14 @@ def _resolve_output_dir(output_dir: Optional[str]) -> Path:
         p.mkdir(parents=True, exist_ok=True)
         return p
     return Path(tempfile.mkdtemp(prefix="temperature-tower-"))
+
+
+def _gcode_ext(ascii_gcode: bool) -> str:
+    """Return the G-code file extension based on format selection.
+
+    Returns ``".gcode"`` for ASCII mode, ``".bgcode"`` for binary (default).
+    """
+    return ".gcode" if ascii_gcode else ".bgcode"
 
 
 def resolve_preset(args: argparse.Namespace) -> Dict[str, object]:
@@ -344,6 +384,15 @@ def run(args: argparse.Namespace) -> None:
               f"{start_temp}→{end_temp}°C, step={config.temp_step}°C")
         print(f"[DEBUG] Output directory: {out_dir}")
 
+    # Resolve printer model for bed dimensions and metadata.
+    printer_name: Optional[str] = None
+    bed_shape: Optional[str] = None
+    if args.printer is not None:
+        printer_name = resolve_printer(args.printer)
+        if args.bed_center is None:
+            args.bed_center = compute_bed_center(printer_name)
+        bed_shape = compute_bed_shape(printer_name)
+
     # Derive layer height and extrusion width from nozzle size.
     nozzle_size: float = args.nozzle_size
     layer_height = round(nozzle_size * 0.5, 2)
@@ -352,6 +401,9 @@ def run(args: argparse.Namespace) -> None:
     if args.verbose:
         print(f"[DEBUG] Nozzle: {nozzle_size} mm → "
               f"layer_height={layer_height} extrusion_width={extrusion_width}")
+        if printer_name is not None:
+            print(f"[DEBUG] Printer: {printer_name} "
+                  f"(bed center: {args.bed_center})")
 
     print(
         f"Filament: {config.filament_type}  "
@@ -370,7 +422,8 @@ def run(args: argparse.Namespace) -> None:
     generate_tower_stl(config, stl_path)
 
     # --- Step 2: Slice ---
-    raw_gcode_path = str(out_dir / stl_name.replace(".stl", "_raw.gcode"))
+    gcode_ext = _gcode_ext(args.ascii_gcode)
+    raw_gcode_path = str(out_dir / stl_name.replace(".stl", f"_raw{gcode_ext}"))
     print(f"Slicing → {raw_gcode_path}")
     if args.verbose:
         effective_center = args.bed_center or f"{DEFAULT_BED_CENTER} (default)"
@@ -386,9 +439,12 @@ def run(args: argparse.Namespace) -> None:
         fan_speed=fan_speed,
         nozzle_temp=start_temp,
         bed_center=args.bed_center,
+        bed_shape=bed_shape,
         nozzle_diameter=nozzle_size,
         layer_height=layer_height,
         extrusion_width=extrusion_width,
+        printer_model=printer_name,
+        binary_gcode=not args.ascii_gcode,
     )
     if args.verbose:
         print(f"[DEBUG] PrusaSlicer command: {' '.join(result.cmd)}")
@@ -401,9 +457,10 @@ def run(args: argparse.Namespace) -> None:
         sys.exit(1)
 
     # --- Step 3: Insert temperatures ---
-    final_gcode_path = str(out_dir / stl_name.replace(".stl", ".gcode"))
+    final_gcode_path = str(out_dir / stl_name.replace(".stl", gcode_ext))
     print(f"Inserting temperatures → {final_gcode_path}")
     gf = gl.load(raw_gcode_path)
+    inject_thumbnails(gf, stl_path, DEFAULT_THUMBNAILS, verbose=args.verbose)
     tiers = compute_temp_tiers(
         start_temp=config.start_temp,
         temp_step=config.temp_step,

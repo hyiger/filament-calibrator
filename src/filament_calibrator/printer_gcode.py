@@ -26,6 +26,9 @@ _PRINTER_ALIASES: Dict[str, str] = {
     "MK4": "MK4S",
 }
 
+#: Reverse map: template names → gcode-lib preset names (for bed lookups).
+_PRESET_ALIASES: Dict[str, str] = {v: k for k, v in _PRINTER_ALIASES.items()}
+
 #: Default MBL (mesh bed leveling) nozzle temperature.
 MBL_TEMP: int = 170
 
@@ -407,21 +410,41 @@ def resolve_printer(name: str) -> str:
     return resolved
 
 
+def _lookup_preset(printer: str) -> dict | None:
+    """Look up a printer preset, trying direct name and alias."""
+    preset = gl.PRINTER_PRESETS.get(printer)
+    if preset is None:
+        preset = gl.PRINTER_PRESETS.get(
+            _PRESET_ALIASES.get(printer, printer)
+        )
+    return preset
+
+
 def compute_bed_center(printer: str) -> str:
     """Return ``"X,Y"`` bed centre string from ``PRINTER_PRESETS``.
 
-    Falls back to ``"125,105"`` if the printer is not in presets.
+    Falls back to ``"125,110"`` if the printer is not in presets.
     """
-    preset = gl.PRINTER_PRESETS.get(
-        _PRINTER_ALIASES.get(printer, printer)
-    )
+    preset = _lookup_preset(printer)
     if preset is None:
-        preset = gl.PRINTER_PRESETS.get(printer)
-    if preset is None:
-        return "125,105"
+        return "125,110"
     cx = int(preset["bed_x"] / 2)
     cy = int(preset["bed_y"] / 2)
     return f"{cx},{cy}"
+
+
+def compute_bed_shape(printer: str) -> str:
+    """Return PrusaSlicer ``--bed-shape`` string from ``PRINTER_PRESETS``.
+
+    Falls back to ``"0x0,250x0,250x220,0x220"`` if the printer is not
+    in presets.
+    """
+    preset = _lookup_preset(printer)
+    if preset is None:
+        return "0x0,250x0,250x220,0x220"
+    bx = int(preset["bed_x"])
+    by = int(preset["bed_y"])
+    return f"0x0,{bx}x0,{bx}x{by},0x{by}"
 
 
 def compute_m555(

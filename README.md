@@ -237,6 +237,7 @@ must be evenly divisible by `--temp-step`.
 |------|---------|-------------|
 | `--output-dir` | temp dir | Directory for output files |
 | `--keep-files` | `false` | Keep intermediate STL and raw G-code |
+| `--ascii-gcode` | `false` | Output ASCII `.gcode` instead of binary `.bgcode` |
 | `--config` | auto-detect | Path to a TOML config file |
 | `-v`, `--verbose` | `false` | Show detailed debug output |
 
@@ -377,6 +378,7 @@ of levels cannot exceed 50.
 |------|---------|-------------|
 | `--output-dir` | temp dir | Directory for output files |
 | `--keep-files` | `false` | Keep intermediate STL and raw G-code |
+| `--ascii-gcode` | `false` | Output ASCII `.gcode` instead of binary `.bgcode` |
 | `--config` | auto-detect | Path to a TOML config file |
 | `-v`, `--verbose` | `false` | Show detailed debug output |
 
@@ -540,6 +542,7 @@ PLA-like filaments (disabled for filaments requiring an enclosure like ABS/ASA).
 |------|---------|-------------|
 | `--output-dir` | temp dir | Directory for output files |
 | `--keep-files` | `false` | Keep intermediate STL and raw G-code |
+| `--ascii-gcode` | `false` | Output ASCII `.gcode` instead of binary `.bgcode` |
 | `--config` | auto-detect | Path to a TOML config file |
 | `-v`, `--verbose` | `false` | Show detailed debug output |
 

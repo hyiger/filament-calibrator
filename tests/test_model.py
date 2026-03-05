@@ -309,7 +309,11 @@ class TestGenerateTowerStl:
 
         assert result == out
         mock_make.assert_called_once_with(config)
-        mock_export.assert_called_once_with(mock_make.return_value, out)
+        rotated = mock_make.return_value.rotate.return_value
+        mock_export.assert_called_once_with(rotated, out)
+        mock_make.return_value.rotate.assert_called_once_with(
+            (0, 0, 0), (0, 0, 1), 180,
+        )
 
     @patch("filament_calibrator.model.export_stl")
     @patch("filament_calibrator.model.make_tower")

@@ -10,6 +10,7 @@ from filament_calibrator.printer_gcode import (
     _PRINTER_ALIASES,
     _TEMPLATES,
     compute_bed_center,
+    compute_bed_shape,
     compute_m555,
     render_end_gcode,
     render_start_gcode,
@@ -98,7 +99,24 @@ class TestComputeBedCenter:
         assert compute_bed_center("XL") == "180,180"
 
     def test_unknown_returns_default(self):
-        assert compute_bed_center("NONEXISTENT") == "125,105"
+        assert compute_bed_center("NONEXISTENT") == "125,110"
+
+
+# ---------------------------------------------------------------------------
+# compute_bed_shape
+# ---------------------------------------------------------------------------
+
+
+class TestComputeBedShape:
+    def test_coreone(self):
+        assert compute_bed_shape("COREONE") == "0x0,250x0,250x220,0x220"
+
+    def test_mk4s(self):
+        # MK4S → MK4 preset: 250x210
+        assert compute_bed_shape("MK4S") == "0x0,250x0,250x210,0x210"
+
+    def test_unknown_returns_default(self):
+        assert compute_bed_shape("NONEXISTENT") == "0x0,250x0,250x220,0x220"
 
 
 # ---------------------------------------------------------------------------

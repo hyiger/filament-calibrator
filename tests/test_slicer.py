@@ -64,7 +64,7 @@ class TestDefaultBedCenter:
         assert int(y) > 0
 
     def test_default_is_mk_series(self):
-        assert DEFAULT_BED_CENTER == "125,105"
+        assert DEFAULT_BED_CENTER == "125,110"
 
 
 # ---------------------------------------------------------------------------
@@ -446,6 +446,82 @@ class TestSliceTower:
         assert not any(a.startswith("--nozzle-diameter") for a in req.extra_args)
         assert not any(a.startswith("--extrusion-width") for a in req.extra_args)
 
+    # --- binary_gcode ---
+
+    @patch("filament_calibrator.slicer.gl.slice_model")
+    @patch("filament_calibrator.slicer.gl.find_prusaslicer_executable")
+    def test_binary_gcode_default(self, mock_find, mock_slice):
+        """binary_gcode defaults to True → --binary-gcode present."""
+        mock_find.return_value = "/usr/bin/prusa-slicer"
+        mock_slice.return_value = gl.RunResult(
+            cmd=[], returncode=0, stdout="", stderr=""
+        )
+
+        slice_tower("/tmp/tower.stl", "/tmp/tower.gcode")
+
+        req = mock_slice.call_args[0][1]
+        assert "--binary-gcode" in req.extra_args
+
+    @patch("filament_calibrator.slicer.gl.slice_model")
+    @patch("filament_calibrator.slicer.gl.find_prusaslicer_executable")
+    def test_binary_gcode_true(self, mock_find, mock_slice):
+        """Explicit binary_gcode=True → --binary-gcode present."""
+        mock_find.return_value = "/usr/bin/prusa-slicer"
+        mock_slice.return_value = gl.RunResult(
+            cmd=[], returncode=0, stdout="", stderr=""
+        )
+
+        slice_tower("/tmp/tower.stl", "/tmp/tower.gcode",
+                     binary_gcode=True)
+
+        req = mock_slice.call_args[0][1]
+        assert "--binary-gcode" in req.extra_args
+
+    @patch("filament_calibrator.slicer.gl.slice_model")
+    @patch("filament_calibrator.slicer.gl.find_prusaslicer_executable")
+    def test_binary_gcode_false(self, mock_find, mock_slice):
+        """binary_gcode=False → --binary-gcode NOT present."""
+        mock_find.return_value = "/usr/bin/prusa-slicer"
+        mock_slice.return_value = gl.RunResult(
+            cmd=[], returncode=0, stdout="", stderr=""
+        )
+
+        slice_tower("/tmp/tower.stl", "/tmp/tower.gcode",
+                     binary_gcode=False)
+
+        req = mock_slice.call_args[0][1]
+        assert "--binary-gcode" not in req.extra_args
+
+    @patch("filament_calibrator.slicer.gl.slice_model")
+    @patch("filament_calibrator.slicer.gl.find_prusaslicer_executable")
+    def test_printer_model_passed(self, mock_find, mock_slice):
+        """printer_model adds --printer-model to CLI args."""
+        mock_find.return_value = "/usr/bin/prusa-slicer"
+        mock_slice.return_value = gl.RunResult(
+            cmd=[], returncode=0, stdout="", stderr=""
+        )
+
+        slice_tower("/tmp/tower.stl", "/tmp/tower.gcode",
+                     printer_model="COREONE")
+
+        req = mock_slice.call_args[0][1]
+        assert "--printer-model=COREONE" in req.extra_args
+
+    @patch("filament_calibrator.slicer.gl.slice_model")
+    @patch("filament_calibrator.slicer.gl.find_prusaslicer_executable")
+    def test_printer_model_none_omitted(self, mock_find, mock_slice):
+        """printer_model=None does not add --printer-model."""
+        mock_find.return_value = "/usr/bin/prusa-slicer"
+        mock_slice.return_value = gl.RunResult(
+            cmd=[], returncode=0, stdout="", stderr=""
+        )
+
+        slice_tower("/tmp/tower.stl", "/tmp/tower.gcode")
+
+        req = mock_slice.call_args[0][1]
+        for arg in req.extra_args:
+            assert not arg.startswith("--printer-model")
+
 
 # ---------------------------------------------------------------------------
 # VASE_MODE_SLICER_ARGS
@@ -714,6 +790,67 @@ class TestSliceFlowSpecimen:
 
         req = mock_slice.call_args[0][1]
         assert not any(a.startswith("--nozzle-diameter") for a in req.extra_args)
+
+    # --- binary_gcode ---
+
+    @patch("filament_calibrator.slicer.gl.slice_model")
+    @patch("filament_calibrator.slicer.gl.find_prusaslicer_executable")
+    def test_binary_gcode_default(self, mock_find, mock_slice):
+        """binary_gcode defaults to True → --binary-gcode present."""
+        mock_find.return_value = "/usr/bin/prusa-slicer"
+        mock_slice.return_value = gl.RunResult(
+            cmd=[], returncode=0, stdout="", stderr=""
+        )
+
+        slice_flow_specimen("/tmp/specimen.stl", "/tmp/specimen.gcode")
+
+        req = mock_slice.call_args[0][1]
+        assert "--binary-gcode" in req.extra_args
+
+    @patch("filament_calibrator.slicer.gl.slice_model")
+    @patch("filament_calibrator.slicer.gl.find_prusaslicer_executable")
+    def test_binary_gcode_true(self, mock_find, mock_slice):
+        """Explicit binary_gcode=True → --binary-gcode present."""
+        mock_find.return_value = "/usr/bin/prusa-slicer"
+        mock_slice.return_value = gl.RunResult(
+            cmd=[], returncode=0, stdout="", stderr=""
+        )
+
+        slice_flow_specimen("/tmp/specimen.stl", "/tmp/specimen.gcode",
+                            binary_gcode=True)
+
+        req = mock_slice.call_args[0][1]
+        assert "--binary-gcode" in req.extra_args
+
+    @patch("filament_calibrator.slicer.gl.slice_model")
+    @patch("filament_calibrator.slicer.gl.find_prusaslicer_executable")
+    def test_binary_gcode_false(self, mock_find, mock_slice):
+        """binary_gcode=False → --binary-gcode NOT present."""
+        mock_find.return_value = "/usr/bin/prusa-slicer"
+        mock_slice.return_value = gl.RunResult(
+            cmd=[], returncode=0, stdout="", stderr=""
+        )
+
+        slice_flow_specimen("/tmp/specimen.stl", "/tmp/specimen.gcode",
+                            binary_gcode=False)
+
+        req = mock_slice.call_args[0][1]
+        assert "--binary-gcode" not in req.extra_args
+
+    @patch("filament_calibrator.slicer.gl.slice_model")
+    @patch("filament_calibrator.slicer.gl.find_prusaslicer_executable")
+    def test_printer_model_passed(self, mock_find, mock_slice):
+        """printer_model adds --printer-model to CLI args."""
+        mock_find.return_value = "/usr/bin/prusa-slicer"
+        mock_slice.return_value = gl.RunResult(
+            cmd=[], returncode=0, stdout="", stderr=""
+        )
+
+        slice_flow_specimen("/tmp/specimen.stl", "/tmp/specimen.gcode",
+                            printer_model="COREONE")
+
+        req = mock_slice.call_args[0][1]
+        assert "--printer-model=COREONE" in req.extra_args
 
 
 # ---------------------------------------------------------------------------
@@ -1056,3 +1193,64 @@ class TestSlicePASpecimen:
         req = mock_slice.call_args[0][1]
         assert not any(a.startswith("--start-gcode") for a in req.extra_args)
         assert not any(a.startswith("--end-gcode") for a in req.extra_args)
+
+    # --- binary_gcode ---
+
+    @patch("filament_calibrator.slicer.gl.slice_model")
+    @patch("filament_calibrator.slicer.gl.find_prusaslicer_executable")
+    def test_binary_gcode_default(self, mock_find, mock_slice):
+        """binary_gcode defaults to True → --binary-gcode present."""
+        mock_find.return_value = "/usr/bin/prusa-slicer"
+        mock_slice.return_value = gl.RunResult(
+            cmd=[], returncode=0, stdout="", stderr=""
+        )
+
+        slice_pa_specimen("/tmp/pa.stl", "/tmp/pa.gcode")
+
+        req = mock_slice.call_args[0][1]
+        assert "--binary-gcode" in req.extra_args
+
+    @patch("filament_calibrator.slicer.gl.slice_model")
+    @patch("filament_calibrator.slicer.gl.find_prusaslicer_executable")
+    def test_binary_gcode_true(self, mock_find, mock_slice):
+        """Explicit binary_gcode=True → --binary-gcode present."""
+        mock_find.return_value = "/usr/bin/prusa-slicer"
+        mock_slice.return_value = gl.RunResult(
+            cmd=[], returncode=0, stdout="", stderr=""
+        )
+
+        slice_pa_specimen("/tmp/pa.stl", "/tmp/pa.gcode",
+                          binary_gcode=True)
+
+        req = mock_slice.call_args[0][1]
+        assert "--binary-gcode" in req.extra_args
+
+    @patch("filament_calibrator.slicer.gl.slice_model")
+    @patch("filament_calibrator.slicer.gl.find_prusaslicer_executable")
+    def test_binary_gcode_false(self, mock_find, mock_slice):
+        """binary_gcode=False → --binary-gcode NOT present."""
+        mock_find.return_value = "/usr/bin/prusa-slicer"
+        mock_slice.return_value = gl.RunResult(
+            cmd=[], returncode=0, stdout="", stderr=""
+        )
+
+        slice_pa_specimen("/tmp/pa.stl", "/tmp/pa.gcode",
+                          binary_gcode=False)
+
+        req = mock_slice.call_args[0][1]
+        assert "--binary-gcode" not in req.extra_args
+
+    @patch("filament_calibrator.slicer.gl.slice_model")
+    @patch("filament_calibrator.slicer.gl.find_prusaslicer_executable")
+    def test_printer_model_passed(self, mock_find, mock_slice):
+        """printer_model adds --printer-model to CLI args."""
+        mock_find.return_value = "/usr/bin/prusa-slicer"
+        mock_slice.return_value = gl.RunResult(
+            cmd=[], returncode=0, stdout="", stderr=""
+        )
+
+        slice_pa_specimen("/tmp/pa.stl", "/tmp/pa.gcode",
+                          printer_model="COREONE")
+
+        req = mock_slice.call_args[0][1]
+        assert "--printer-model=COREONE" in req.extra_args

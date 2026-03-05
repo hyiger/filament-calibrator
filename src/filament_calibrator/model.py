@@ -482,5 +482,7 @@ def generate_tower_stl(config: TowerConfig, output_path: str) -> str:
     """
     Path(output_path).parent.mkdir(parents=True, exist_ok=True)
     tower = make_tower(config)
+    # Rotate 180° around Z so temperature labels face front (-Y direction).
+    tower = tower.rotate((0, 0, 0), (0, 0, 1), 180)
     export_stl(tower, output_path)
     return output_path

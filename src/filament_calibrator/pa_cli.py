@@ -16,6 +16,7 @@ from filament_calibrator.cli import (
     _KNOWN_TYPES,
     _UNSET,
     _apply_config,
+    _gcode_ext,
     _resolve_output_dir,
 )
 from filament_calibrator.config import _find_config_path, load_config
@@ -29,11 +30,17 @@ from filament_calibrator.pa_model import (
 from filament_calibrator.printer_gcode import (
     KNOWN_PRINTERS,
     compute_bed_center,
+    compute_bed_shape,
     render_end_gcode,
     render_start_gcode,
     resolve_printer,
 )
-from filament_calibrator.slicer import DEFAULT_BED_CENTER, slice_pa_specimen
+from filament_calibrator.slicer import (
+    DEFAULT_BED_CENTER,
+    DEFAULT_THUMBNAILS,
+    slice_pa_specimen,
+)
+from filament_calibrator.thumbnail import inject_thumbnails
 
 
 # Maximum number of PA levels to prevent excessively tall prints.
@@ -156,7 +163,7 @@ def build_parser() -> argparse.ArgumentParser:
     slicer.add_argument(
         "--bed-center", type=str, default=None,
         help=(
-            "Bed centre as X,Y in mm (e.g. 125,105). Default: 125,105 "
+            "Bed centre as X,Y in mm (e.g. 125,110). Default: 125,110 "
             "(Prusa MK-series)."
         ),
     )
@@ -216,6 +223,14 @@ def build_parser() -> argparse.ArgumentParser:
     output.add_argument(
         "--keep-files", action="store_true", default=False,
         help="Keep intermediate files (STL, raw G-code).",
+    )
+    output.add_argument(
+        "--ascii-gcode", action="store_true", default=False,
+        help=(
+            "Output ASCII (.gcode) instead of binary (.bgcode). "
+            "Binary is the default; it supports thumbnail previews "
+            "on the printer LCD."
+        ),
     )
 
     # --- Verbosity ---
@@ -338,11 +353,13 @@ def run(args: argparse.Namespace) -> None:
 
     # Resolve printer model for start/end G-code.
     printer_name: Optional[str] = None
+    bed_shape: Optional[str] = None
     if args.printer is not None:
         printer_name = resolve_printer(args.printer)
-        # Auto-set bed center from printer presets if not explicitly given.
+        # Auto-set bed center and shape from printer presets if not explicit.
         if args.bed_center is None:
             args.bed_center = compute_bed_center(printer_name)
+        bed_shape = compute_bed_shape(printer_name)
 
     if args.verbose:
         filament_key = args.filament_type.upper()
@@ -391,7 +408,8 @@ def run(args: argparse.Namespace) -> None:
     generate_pa_tower_stl(config, stl_path)
 
     # --- Step 2: Slice ---
-    raw_gcode_path = str(out_dir / stl_name.replace(".stl", "_raw.gcode"))
+    gcode_ext = _gcode_ext(args.ascii_gcode)
+    raw_gcode_path = str(out_dir / stl_name.replace(".stl", f"_raw{gcode_ext}"))
     print(f"Slicing → {raw_gcode_path}")
     if args.verbose:
         effective_center = args.bed_center or f"{DEFAULT_BED_CENTER} (default)"
@@ -440,9 +458,12 @@ def run(args: argparse.Namespace) -> None:
         bed_temp=bed_temp,
         fan_speed=fan_speed,
         bed_center=args.bed_center,
+        bed_shape=bed_shape,
         nozzle_diameter=nozzle_size,
         start_gcode=start_gcode,
         end_gcode=end_gcode,
+        printer_model=printer_name,
+        binary_gcode=not args.ascii_gcode,
     )
     if args.verbose:
         print(f"[DEBUG] PrusaSlicer command: {' '.join(result.cmd)}")
@@ -455,9 +476,10 @@ def run(args: argparse.Namespace) -> None:
         sys.exit(1)
 
     # --- Step 3: Insert PA commands ---
-    final_gcode_path = str(out_dir / stl_name.replace(".stl", ".gcode"))
+    final_gcode_path = str(out_dir / stl_name.replace(".stl", gcode_ext))
     print(f"Inserting PA commands → {final_gcode_path}")
     gf = gl.load(raw_gcode_path)
+    inject_thumbnails(gf, stl_path, DEFAULT_THUMBNAILS, verbose=args.verbose)
     levels = compute_pa_levels(
         start_pa=args.start_pa,
         pa_step=args.pa_step,

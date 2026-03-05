@@ -64,6 +64,7 @@ class TestBuildParser:
         assert args.config is None
         assert args.output_dir is None
         assert args.keep_files is False
+        assert args.ascii_gcode is False
         assert args.verbose is False
 
     def test_all_options(self):
@@ -251,6 +252,7 @@ class TestRun:
             printer_url=None, api_key=None,
             no_upload=True, print_after_upload=False,
             output_dir=str(tmp_path), keep_files=False,
+            ascii_gcode=False,
             config=None, verbose=False,
         )
         defaults.update(overrides)
@@ -366,7 +368,7 @@ class TestRun:
         mock_insert, mock_load, mock_save, tmp_path
     ):
         stl = tmp_path / "pa_tower_PLA_0.0_0.1x2.stl"
-        raw_gcode = tmp_path / "pa_tower_PLA_0.0_0.1x2_raw.gcode"
+        raw_gcode = tmp_path / "pa_tower_PLA_0.0_0.1x2_raw.bgcode"
         stl.write_text("dummy")
         raw_gcode.write_text("dummy")
 
@@ -393,7 +395,7 @@ class TestRun:
         mock_insert, mock_load, mock_save, tmp_path
     ):
         stl = tmp_path / "pa_tower_PLA_0.0_0.1x2.stl"
-        raw_gcode = tmp_path / "pa_tower_PLA_0.0_0.1x2_raw.gcode"
+        raw_gcode = tmp_path / "pa_tower_PLA_0.0_0.1x2_raw.bgcode"
         stl.write_text("dummy")
         raw_gcode.write_text("dummy")
 
@@ -981,6 +983,83 @@ class TestRun:
         captured = capsys.readouterr()
         assert "PA value by height:" in captured.out
         assert "sharpest corners" in captured.out
+
+    @patch("filament_calibrator.pa_cli.gl.save")
+    @patch("filament_calibrator.pa_cli.gl.load")
+    @patch("filament_calibrator.pa_cli.insert_pa_commands")
+    @patch("filament_calibrator.pa_cli.compute_pa_levels")
+    @patch("filament_calibrator.pa_cli.slice_pa_specimen")
+    @patch("filament_calibrator.pa_cli.generate_pa_tower_stl")
+    def test_binary_gcode_passed_to_slicer(
+        self, mock_gen, mock_slice, mock_levels,
+        mock_insert, mock_load, mock_save, tmp_path
+    ):
+        """binary_gcode=True is passed to slice_pa_specimen by default."""
+        mock_gen.return_value = str(tmp_path / "tower.stl")
+        mock_slice.return_value = MagicMock(ok=True)
+        mock_levels.return_value = []
+        mock_load.return_value = MagicMock(lines=[])
+        mock_insert.return_value = []
+
+        args = self._make_args(tmp_path)
+        run(args)
+
+        slice_kwargs = mock_slice.call_args[1]
+        assert slice_kwargs["binary_gcode"] is True
+
+    @patch("filament_calibrator.pa_cli.gl.save")
+    @patch("filament_calibrator.pa_cli.gl.load")
+    @patch("filament_calibrator.pa_cli.insert_pa_commands")
+    @patch("filament_calibrator.pa_cli.compute_pa_levels")
+    @patch("filament_calibrator.pa_cli.slice_pa_specimen")
+    @patch("filament_calibrator.pa_cli.generate_pa_tower_stl")
+    def test_ascii_gcode_passes_false_to_slicer(
+        self, mock_gen, mock_slice, mock_levels,
+        mock_insert, mock_load, mock_save, tmp_path
+    ):
+        """--ascii-gcode sets binary_gcode=False in slice_pa_specimen call."""
+        mock_gen.return_value = str(tmp_path / "tower.stl")
+        mock_slice.return_value = MagicMock(ok=True)
+        mock_levels.return_value = []
+        mock_load.return_value = MagicMock(lines=[])
+        mock_insert.return_value = []
+
+        args = self._make_args(tmp_path, ascii_gcode=True)
+        run(args)
+
+        slice_kwargs = mock_slice.call_args[1]
+        assert slice_kwargs["binary_gcode"] is False
+
+    @patch("filament_calibrator.pa_cli.gl.save")
+    @patch("filament_calibrator.pa_cli.gl.load")
+    @patch("filament_calibrator.pa_cli.insert_pa_commands")
+    @patch("filament_calibrator.pa_cli.compute_pa_levels")
+    @patch("filament_calibrator.pa_cli.slice_pa_specimen")
+    @patch("filament_calibrator.pa_cli.generate_pa_tower_stl")
+    def test_ascii_gcode_uses_gcode_extension(
+        self, mock_gen, mock_slice, mock_levels,
+        mock_insert, mock_load, mock_save, tmp_path
+    ):
+        """--ascii-gcode uses .gcode extension for filenames."""
+        stl = tmp_path / "pa_tower_PLA_0.0_0.1x2.stl"
+        raw_gcode = tmp_path / "pa_tower_PLA_0.0_0.1x2_raw.gcode"
+        stl.write_text("dummy")
+        raw_gcode.write_text("dummy")
+
+        mock_gen.return_value = str(stl)
+        mock_slice.return_value = MagicMock(ok=True)
+        mock_levels.return_value = []
+        mock_load.return_value = MagicMock(lines=[])
+        mock_insert.return_value = []
+
+        args = self._make_args(tmp_path, ascii_gcode=True, keep_files=True)
+        run(args)
+
+        raw_path = mock_load.call_args[0][0]
+        assert raw_path.endswith("_raw.gcode")
+        save_path = mock_save.call_args[0][1]
+        assert save_path.endswith(".gcode")
+        assert not save_path.endswith(".bgcode")
 
 
 # ---------------------------------------------------------------------------
