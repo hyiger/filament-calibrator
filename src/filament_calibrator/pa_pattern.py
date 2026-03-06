@@ -297,15 +297,19 @@ def _make_labels(
     )
 
     # Emboss rotated labels on top of bar (90° CCW so they read bottom-to-top).
+    # Position each label at the upper arm endpoint X (where the arm meets
+    # the top of the frame), not at the tip X.
+    arm_end_dx = config.arm_length * math.cos(half)
     label_depth = config.layer_height  # one layer raised
     font_size = min(3.0, label_strip_height * 0.35)
     result = bar
     for tx, pa in zip(x_tips, pa_values):
+        label_x = tx - arm_end_dx
         label_text = f"{pa:.2f}"
         text_solid = (
             cq.Workplane("XY")
             .workplane(offset=height)
-            .center(tx, bar_cy)
+            .center(label_x, bar_cy)
             .transformed(rotate=(0, 0, 90))
             .text(label_text, font_size, label_depth, combine=False)
         )
