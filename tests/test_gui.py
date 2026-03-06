@@ -766,3 +766,13 @@ class TestApplyIniToSession:
         state: dict = {}
         apply_ini_to_session(state, {"bed_center": "100,100"})
         assert state["_ini_bed_center"] == "100,100"
+
+    def test_known_filament_type_stored(self) -> None:
+        state: dict = {}
+        apply_ini_to_session(state, {"filament_type": "petg"})
+        assert state["_ini_filament_type"] == "PETG"
+
+    def test_unknown_filament_type_not_stored(self) -> None:
+        state: dict = {}
+        apply_ini_to_session(state, {"filament_type": "EXOTIC123"})
+        assert "_ini_filament_type" not in state

@@ -466,6 +466,11 @@ def apply_ini_to_session(
     if "bed_center" in ini_vals:
         state["_ini_bed_center"] = ini_vals["bed_center"]
 
+    if "filament_type" in ini_vals:
+        ft = ini_vals["filament_type"].upper()
+        if ft in _KNOWN_TYPES:
+            state["_ini_filament_type"] = ft
+
 
 # ---------------------------------------------------------------------------
 # Streamlit app (only imported when actually running the GUI)
@@ -508,10 +513,16 @@ def _app() -> None:  # pragma: no cover
     with st.sidebar:
         st.header("Common Settings")
 
+        _ini_ft = st.session_state.get("_ini_filament_type")
+        _ft_idx = (
+            _KNOWN_TYPES.index(_ini_ft)
+            if _ini_ft in _KNOWN_TYPES
+            else _KNOWN_TYPES.index("PLA")
+        )
         filament_type = st.selectbox(
             "Filament Type",
             options=_KNOWN_TYPES,
-            index=_KNOWN_TYPES.index("PLA"),
+            index=_ft_idx,
         )
         preset = get_preset(filament_type)
 
@@ -624,6 +635,28 @@ def _app() -> None:  # pragma: no cover
     derived_lh = round(nozzle_size * 0.5, 2)
     derived_ew = round(nozzle_size * 1.125, 2)
 
+    # Set default session-state values for keyed widgets.  Only sets the
+    # value when the key is NEW (first render).  This avoids the Streamlit
+    # warning that fires when both ``value=`` and a session-state key
+    # are provided to the same widget.
+    _widget_defaults = {
+        "tt_bed_temp": preset["bed"],
+        "tt_fan": preset["fan"],
+        "flow_nozzle_temp": preset["hotend"],
+        "flow_bed_temp": preset["bed"],
+        "flow_fan": preset["fan"],
+        "flow_lh": derived_lh,
+        "flow_ew": derived_ew,
+        "pa_nozzle_temp": preset["hotend"],
+        "pa_bed_temp": preset["bed"],
+        "pa_fan": preset["fan"],
+        "pa_lh": derived_lh,
+        "pa_ew": derived_ew,
+    }
+    for _wk, _wv in _widget_defaults.items():
+        if _wk not in st.session_state:
+            st.session_state[_wk] = _wv
+
     # --- Tabs ---
     tab_temp, tab_flow, tab_pa = st.tabs([
         "Temperature Tower", "Volumetric Flow", "Pressure Advance",
@@ -667,7 +700,6 @@ def _app() -> None:  # pragma: no cover
         with col4:
             tt_bed_temp = st.number_input(
                 "Bed Temp (\u00b0C)",
-                value=preset["bed"],
                 min_value=0,
                 max_value=150,
                 key="tt_bed_temp",
@@ -675,7 +707,6 @@ def _app() -> None:  # pragma: no cover
         with col5:
             tt_fan_speed = st.number_input(
                 "Fan Speed (%)",
-                value=preset["fan"],
                 min_value=0,
                 max_value=100,
                 key="tt_fan",
@@ -760,7 +791,6 @@ def _app() -> None:  # pragma: no cover
         with col4:
             flow_nozzle_temp = st.number_input(
                 "Nozzle Temp (\u00b0C)",
-                value=preset["hotend"],
                 min_value=150,
                 max_value=350,
                 key="flow_nozzle_temp",
@@ -768,7 +798,6 @@ def _app() -> None:  # pragma: no cover
         with col5:
             flow_bed_temp = st.number_input(
                 "Bed Temp (\u00b0C)",
-                value=preset["bed"],
                 min_value=0,
                 max_value=150,
                 key="flow_bed_temp",
@@ -776,7 +805,6 @@ def _app() -> None:  # pragma: no cover
         with col6:
             flow_fan = st.number_input(
                 "Fan Speed (%)",
-                value=preset["fan"],
                 min_value=0,
                 max_value=100,
                 key="flow_fan",
@@ -792,7 +820,6 @@ def _app() -> None:  # pragma: no cover
             )
             flow_layer_height = st.number_input(
                 "Layer Height (mm)",
-                value=derived_lh,
                 min_value=0.05,
                 max_value=1.0,
                 format="%.2f",
@@ -800,7 +827,6 @@ def _app() -> None:  # pragma: no cover
             )
             flow_extrusion_width = st.number_input(
                 "Extrusion Width (mm)",
-                value=derived_ew,
                 min_value=0.1,
                 max_value=2.0,
                 format="%.2f",
@@ -906,7 +932,6 @@ def _app() -> None:  # pragma: no cover
         with col4:
             pa_nozzle_temp = st.number_input(
                 "Nozzle Temp (\u00b0C)",
-                value=preset["hotend"],
                 min_value=150,
                 max_value=350,
                 key="pa_nozzle_temp",
@@ -914,7 +939,6 @@ def _app() -> None:  # pragma: no cover
         with col5:
             pa_bed_temp = st.number_input(
                 "Bed Temp (\u00b0C)",
-                value=preset["bed"],
                 min_value=0,
                 max_value=150,
                 key="pa_bed_temp",
@@ -922,7 +946,6 @@ def _app() -> None:  # pragma: no cover
         with col6:
             pa_fan = st.number_input(
                 "Fan Speed (%)",
-                value=preset["fan"],
                 min_value=0,
                 max_value=100,
                 key="pa_fan",
@@ -993,7 +1016,6 @@ def _app() -> None:  # pragma: no cover
                 )
             pa_layer_height = st.number_input(
                 "Layer Height (mm)",
-                value=derived_lh,
                 min_value=0.05,
                 max_value=1.0,
                 format="%.2f",
@@ -1001,7 +1023,6 @@ def _app() -> None:  # pragma: no cover
             )
             pa_extrusion_width = st.number_input(
                 "Extrusion Width (mm)",
-                value=derived_ew,
                 min_value=0.1,
                 max_value=2.0,
                 format="%.2f",
