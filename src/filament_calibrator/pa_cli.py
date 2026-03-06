@@ -23,6 +23,7 @@ from filament_calibrator.cli import (
     _apply_config,
     _gcode_ext,
     _resolve_output_dir,
+    _unique_suffix,
 )
 from filament_calibrator.config import _find_config_path, load_config
 from filament_calibrator.pa_insert import (
@@ -494,9 +495,11 @@ def _run_tower_pipeline(args: argparse.Namespace) -> None:
     )
 
     # --- Step 1: Generate STL ---
+    suffix = _unique_suffix()
     stl_name = (
         f"pa_tower_{config.filament_type}"
-        f"_{args.start_pa}_{args.pa_step}x{num_levels}.stl"
+        f"_{args.start_pa}_{args.pa_step}x{num_levels}"
+        f"_{suffix}.stl"
     )
     stl_path = str(out_dir / stl_name)
     print(f"Generating model → {stl_path}")
@@ -640,9 +643,11 @@ def _run_pattern_pipeline(args: argparse.Namespace) -> None:
     )
 
     # --- Step 1: Generate STL ---
+    suffix = _unique_suffix()
     stl_name = (
         f"pa_pattern_{config.filament_type}"
-        f"_{args.start_pa}_{args.pa_step}x{num_levels}.stl"
+        f"_{args.start_pa}_{args.pa_step}x{num_levels}"
+        f"_{suffix}.stl"
     )
     stl_path = str(out_dir / stl_name)
     print(f"Generating model → {stl_path}")

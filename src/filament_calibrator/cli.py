@@ -5,6 +5,7 @@ Orchestrates: model generation → slicing → temp insertion → upload.
 from __future__ import annotations
 
 import argparse
+import secrets
 import sys
 import tempfile
 from pathlib import Path
@@ -242,6 +243,16 @@ def _gcode_ext(ascii_gcode: bool) -> str:
     return ".gcode" if ascii_gcode else ".bgcode"
 
 
+def _unique_suffix() -> str:
+    """Return a 5-character hex string for unique filenames.
+
+    Appended to output filenames so that repeated runs with the same
+    parameters do not collide on the printer (PrusaLink returns HTTP 409
+    when a file with the same name already exists).
+    """
+    return secrets.token_hex(3)[:5]
+
+
 def resolve_preset(args: argparse.Namespace) -> Dict[str, object]:
     """Look up the filament preset and return resolved settings.
 
@@ -413,9 +424,11 @@ def run(args: argparse.Namespace) -> None:
     )
 
     # --- Step 1: Generate STL ---
+    suffix = _unique_suffix()
     stl_name = (
         f"temp_tower_{config.filament_type}"
-        f"_{config.start_temp}_{config.temp_step}x{config.num_tiers}.stl"
+        f"_{config.start_temp}_{config.temp_step}x{config.num_tiers}"
+        f"_{suffix}.stl"
     )
     stl_path = str(out_dir / stl_name)
     print(f"Generating model → {stl_path}")

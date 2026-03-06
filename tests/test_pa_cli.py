@@ -292,6 +292,11 @@ class TestResolvePreset:
 
 
 class TestRun:
+    @pytest.fixture(autouse=True)
+    def _fix_suffix(self):
+        with patch("filament_calibrator.pa_cli._unique_suffix", return_value="abc12"):
+            yield
+
     def _make_args(self, tmp_path, **overrides):
         defaults = dict(
             start_pa=0.0, end_pa=0.1, pa_step=0.1,
@@ -400,6 +405,7 @@ class TestRun:
         assert call_kwargs["api_key"] == "key123"
         assert call_kwargs["print_after_upload"] is True
 
+    @patch("filament_calibrator.pa_cli.load_config", return_value={})
     @patch("filament_calibrator.pa_cli.patch_slicer_metadata")
     @patch("filament_calibrator.pa_cli.inject_thumbnails")
     @patch("filament_calibrator.pa_cli.gl.save")
@@ -410,7 +416,8 @@ class TestRun:
     @patch("filament_calibrator.pa_cli.generate_pa_tower_stl")
     def test_upload_missing_url_exits(
         self, mock_gen, mock_slice, mock_levels,
-        mock_insert, mock_load, mock_save, mock_inject, mock_patch_meta, tmp_path
+        mock_insert, mock_load, mock_save, mock_inject, mock_patch_meta,
+        mock_load_config, tmp_path
     ):
         args = self._make_args(
             tmp_path,
@@ -434,8 +441,8 @@ class TestRun:
         self, mock_gen, mock_slice, mock_levels,
         mock_insert, mock_load, mock_save, mock_inject, mock_patch_meta, tmp_path
     ):
-        stl = tmp_path / "pa_tower_PLA_0.0_0.1x2.stl"
-        raw_gcode = tmp_path / "pa_tower_PLA_0.0_0.1x2_raw.bgcode"
+        stl = tmp_path / "pa_tower_PLA_0.0_0.1x2_abc12.stl"
+        raw_gcode = tmp_path / "pa_tower_PLA_0.0_0.1x2_abc12_raw.bgcode"
         stl.write_text("dummy")
         raw_gcode.write_text("dummy")
 
@@ -463,8 +470,8 @@ class TestRun:
         self, mock_gen, mock_slice, mock_levels,
         mock_insert, mock_load, mock_save, mock_inject, mock_patch_meta, tmp_path
     ):
-        stl = tmp_path / "pa_tower_PLA_0.0_0.1x2.stl"
-        raw_gcode = tmp_path / "pa_tower_PLA_0.0_0.1x2_raw.bgcode"
+        stl = tmp_path / "pa_tower_PLA_0.0_0.1x2_abc12.stl"
+        raw_gcode = tmp_path / "pa_tower_PLA_0.0_0.1x2_abc12_raw.bgcode"
         stl.write_text("dummy")
         raw_gcode.write_text("dummy")
 
@@ -480,6 +487,8 @@ class TestRun:
         assert not stl.exists()
         assert not raw_gcode.exists()
 
+    @patch("filament_calibrator.pa_cli.load_config", return_value={})
+    @patch("filament_calibrator.pa_cli._find_config_path", return_value=None)
     @patch("filament_calibrator.pa_cli.patch_slicer_metadata")
     @patch("filament_calibrator.pa_cli.inject_thumbnails")
     @patch("filament_calibrator.pa_cli.gl.save")
@@ -490,7 +499,8 @@ class TestRun:
     @patch("filament_calibrator.pa_cli.generate_pa_tower_stl")
     def test_verbose_output(
         self, mock_gen, mock_slice, mock_levels,
-        mock_insert, mock_load, mock_save, mock_inject, mock_patch_meta, tmp_path, capsys
+        mock_insert, mock_load, mock_save, mock_inject, mock_patch_meta,
+        mock_find_config, mock_load_config, tmp_path, capsys
     ):
         mock_gen.return_value = str(tmp_path / "tower.stl")
         mock_slice.return_value = MagicMock(
@@ -1156,8 +1166,8 @@ class TestRun:
         mock_insert, mock_load, mock_save, mock_inject, mock_patch_meta, tmp_path
     ):
         """--ascii-gcode uses .gcode extension for filenames."""
-        stl = tmp_path / "pa_tower_PLA_0.0_0.1x2.stl"
-        raw_gcode = tmp_path / "pa_tower_PLA_0.0_0.1x2_raw.gcode"
+        stl = tmp_path / "pa_tower_PLA_0.0_0.1x2_abc12.stl"
+        raw_gcode = tmp_path / "pa_tower_PLA_0.0_0.1x2_abc12_raw.gcode"
         stl.write_text("dummy")
         raw_gcode.write_text("dummy")
 
@@ -1184,6 +1194,11 @@ class TestRun:
 
 class TestRunPattern:
     """Tests for the pattern-method PA calibration pipeline."""
+
+    @pytest.fixture(autouse=True)
+    def _fix_suffix(self):
+        with patch("filament_calibrator.pa_cli._unique_suffix", return_value="abc12"):
+            yield
 
     def _make_args(self, tmp_path, **overrides):
         defaults = dict(
@@ -1462,8 +1477,8 @@ class TestRunPattern:
         self, mock_gen, mock_slice, mock_regions,
         mock_insert, mock_load, mock_save, mock_inject, mock_patch_meta, tmp_path
     ):
-        stl = tmp_path / "pa_pattern_PLA_0.0_0.1x2.stl"
-        raw_gcode = tmp_path / "pa_pattern_PLA_0.0_0.1x2_raw.bgcode"
+        stl = tmp_path / "pa_pattern_PLA_0.0_0.1x2_abc12.stl"
+        raw_gcode = tmp_path / "pa_pattern_PLA_0.0_0.1x2_abc12_raw.bgcode"
         stl.write_text("dummy")
         raw_gcode.write_text("dummy")
 
@@ -1491,8 +1506,8 @@ class TestRunPattern:
         self, mock_gen, mock_slice, mock_regions,
         mock_insert, mock_load, mock_save, mock_inject, mock_patch_meta, tmp_path
     ):
-        stl = tmp_path / "pa_pattern_PLA_0.0_0.1x2.stl"
-        raw_gcode = tmp_path / "pa_pattern_PLA_0.0_0.1x2_raw.bgcode"
+        stl = tmp_path / "pa_pattern_PLA_0.0_0.1x2_abc12.stl"
+        raw_gcode = tmp_path / "pa_pattern_PLA_0.0_0.1x2_abc12_raw.bgcode"
         stl.write_text("dummy")
         raw_gcode.write_text("dummy")
 

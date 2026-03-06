@@ -246,6 +246,11 @@ class TestResolvePreset:
 
 
 class TestRun:
+    @pytest.fixture(autouse=True)
+    def _fix_suffix(self):
+        with patch("filament_calibrator.flow_cli._unique_suffix", return_value="abc12"):
+            yield
+
     def _make_args(self, tmp_path, **overrides):
         defaults = dict(
             start_speed=5.0, end_speed=10.0, step=5.0,
@@ -369,6 +374,7 @@ class TestRun:
         assert call_kwargs["print_after_upload"] is True
 
 
+    @patch("filament_calibrator.flow_cli.load_config", return_value={})
     @patch("filament_calibrator.flow_cli.patch_slicer_metadata")
     @patch("filament_calibrator.flow_cli.inject_thumbnails")
     @patch("filament_calibrator.flow_cli.compute_bed_shape", return_value="0x0,250x0,250x220,0x220")
@@ -384,7 +390,7 @@ class TestRun:
         self, mock_gen, mock_slice, mock_levels,
         mock_insert, mock_load, mock_save,
         mock_resolve, mock_center, mock_shape,
-        mock_inject, mock_patch_meta, tmp_path
+        mock_inject, mock_patch_meta, mock_load_config, tmp_path
     ):
         args = self._make_args(
             tmp_path,
@@ -414,8 +420,8 @@ class TestRun:
         mock_resolve, mock_center, mock_shape,
         mock_inject, mock_patch_meta, tmp_path
     ):
-        stl = tmp_path / "flow_specimen_PLA_5.0_5.0x2.stl"
-        raw_gcode = tmp_path / "flow_specimen_PLA_5.0_5.0x2_raw.bgcode"
+        stl = tmp_path / "flow_specimen_PLA_5.0_5.0x2_abc12.stl"
+        raw_gcode = tmp_path / "flow_specimen_PLA_5.0_5.0x2_abc12_raw.bgcode"
         stl.write_text("dummy")
         raw_gcode.write_text("dummy")
 
@@ -449,8 +455,8 @@ class TestRun:
         mock_resolve, mock_center, mock_shape,
         mock_inject, mock_patch_meta, tmp_path
     ):
-        stl = tmp_path / "flow_specimen_PLA_5.0_5.0x2.stl"
-        raw_gcode = tmp_path / "flow_specimen_PLA_5.0_5.0x2_raw.bgcode"
+        stl = tmp_path / "flow_specimen_PLA_5.0_5.0x2_abc12.stl"
+        raw_gcode = tmp_path / "flow_specimen_PLA_5.0_5.0x2_abc12_raw.bgcode"
         stl.write_text("dummy")
         raw_gcode.write_text("dummy")
 
@@ -467,6 +473,8 @@ class TestRun:
         assert not raw_gcode.exists()
 
 
+    @patch("filament_calibrator.flow_cli.load_config", return_value={})
+    @patch("filament_calibrator.flow_cli._find_config_path", return_value=None)
     @patch("filament_calibrator.flow_cli.patch_slicer_metadata")
     @patch("filament_calibrator.flow_cli.inject_thumbnails")
     @patch("filament_calibrator.flow_cli.compute_bed_shape", return_value="0x0,250x0,250x220,0x220")
@@ -482,7 +490,8 @@ class TestRun:
         self, mock_gen, mock_slice, mock_levels,
         mock_insert, mock_load, mock_save,
         mock_resolve, mock_center, mock_shape,
-        mock_inject, mock_patch_meta, tmp_path, capsys
+        mock_inject, mock_patch_meta,
+        mock_find_config, mock_load_config, tmp_path, capsys
     ):
         mock_gen.return_value = str(tmp_path / "specimen.stl")
         mock_slice.return_value = MagicMock(
@@ -903,8 +912,8 @@ class TestRun:
         mock_inject, mock_patch_meta, tmp_path
     ):
         """--ascii-gcode uses .gcode extension for filenames."""
-        stl = tmp_path / "flow_specimen_PLA_5.0_5.0x2.stl"
-        raw_gcode = tmp_path / "flow_specimen_PLA_5.0_5.0x2_raw.gcode"
+        stl = tmp_path / "flow_specimen_PLA_5.0_5.0x2_abc12.stl"
+        raw_gcode = tmp_path / "flow_specimen_PLA_5.0_5.0x2_abc12_raw.gcode"
         stl.write_text("dummy")
         raw_gcode.write_text("dummy")
 

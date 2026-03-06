@@ -19,6 +19,7 @@ from filament_calibrator.cli import (
     _apply_config,
     _compute_num_tiers,
     _gcode_ext,
+    _unique_suffix,
     build_parser,
     main,
     resolve_preset,
@@ -262,6 +263,23 @@ class TestGcodeExt:
 
 
 # ---------------------------------------------------------------------------
+# _unique_suffix
+# ---------------------------------------------------------------------------
+
+
+class TestUniqueSuffix:
+    def test_returns_5_char_hex(self):
+        result = _unique_suffix()
+        assert len(result) == 5
+        assert all(c in "0123456789abcdef" for c in result)
+
+    def test_different_each_call(self):
+        results = {_unique_suffix() for _ in range(20)}
+        # With 5 hex chars (20 bits) and 20 draws, collisions are vanishingly rare
+        assert len(results) > 1
+
+
+# ---------------------------------------------------------------------------
 # resolve_preset
 # ---------------------------------------------------------------------------
 
@@ -474,6 +492,11 @@ class TestBuildTowerConfig:
 
 
 class TestRun:
+    @pytest.fixture(autouse=True)
+    def _fix_suffix(self):
+        with patch("filament_calibrator.cli._unique_suffix", return_value="abc12"):
+            yield
+
     def _make_args(self, tmp_path, **overrides):
         defaults = dict(
             start_temp=_UNSET, end_temp=_UNSET, temp_step=5,
@@ -598,6 +621,7 @@ class TestRun:
         assert call_kwargs[1]["api_key"] == "key123"
         assert call_kwargs[1]["print_after_upload"] is True
 
+    @patch("filament_calibrator.cli.load_config", return_value={})
     @patch("filament_calibrator.cli.patch_slicer_metadata")
     @patch("filament_calibrator.cli.inject_thumbnails")
     @patch("filament_calibrator.cli.compute_bed_shape", return_value="0x0,250x0,250x220,0x220")
@@ -613,7 +637,7 @@ class TestRun:
         self, mock_gen, mock_slice, mock_tiers,
         mock_insert, mock_load, mock_save,
         mock_resolve, mock_center, mock_shape,
-        mock_inject, mock_patch_meta, tmp_path
+        mock_inject, mock_patch_meta, mock_load_config, tmp_path
     ):
         mock_gen.return_value = str(tmp_path / "tower.stl")
         mock_slice.return_value = MagicMock(ok=True)
@@ -649,8 +673,8 @@ class TestRun:
         mock_inject, mock_patch_meta, tmp_path
     ):
         # PLA preset: high=230, low=190, jump=5 → 9 tiers
-        stl = tmp_path / "temp_tower_PLA_230_5x9.stl"
-        raw_gcode = tmp_path / "temp_tower_PLA_230_5x9_raw.bgcode"
+        stl = tmp_path / "temp_tower_PLA_230_5x9_abc12.stl"
+        raw_gcode = tmp_path / "temp_tower_PLA_230_5x9_abc12_raw.bgcode"
         stl.write_text("dummy")
         raw_gcode.write_text("dummy")
 
@@ -683,8 +707,8 @@ class TestRun:
         mock_resolve, mock_center, mock_shape,
         mock_inject, mock_patch_meta, tmp_path
     ):
-        stl = tmp_path / "temp_tower_PLA_230_5x9.stl"
-        raw_gcode = tmp_path / "temp_tower_PLA_230_5x9_raw.bgcode"
+        stl = tmp_path / "temp_tower_PLA_230_5x9_abc12.stl"
+        raw_gcode = tmp_path / "temp_tower_PLA_230_5x9_abc12_raw.bgcode"
         stl.write_text("dummy")
         raw_gcode.write_text("dummy")
 
@@ -830,6 +854,8 @@ class TestRun:
         slice_kwargs = mock_slice.call_args[1]
         assert slice_kwargs["bed_center"] == "90,90"
 
+    @patch("filament_calibrator.cli.load_config", return_value={})
+    @patch("filament_calibrator.cli._find_config_path", return_value=None)
     @patch("filament_calibrator.cli.patch_slicer_metadata")
     @patch("filament_calibrator.cli.inject_thumbnails")
     @patch("filament_calibrator.cli.compute_bed_shape", return_value="0x0,250x0,250x220,0x220")
@@ -845,7 +871,8 @@ class TestRun:
         self, mock_gen, mock_slice, mock_tiers,
         mock_insert, mock_load, mock_save,
         mock_resolve, mock_center, mock_shape,
-        mock_inject, mock_patch_meta, tmp_path, capsys
+        mock_inject, mock_patch_meta,
+        mock_find_config, mock_load_config, tmp_path, capsys
     ):
         mock_gen.return_value = str(tmp_path / "tower.stl")
         mock_slice.return_value = MagicMock(
@@ -1056,8 +1083,8 @@ class TestRun:
         mock_inject, mock_patch_meta, tmp_path
     ):
         """--ascii-gcode uses .gcode extension for filenames."""
-        stl = tmp_path / "temp_tower_PLA_230_5x9.stl"
-        raw_gcode = tmp_path / "temp_tower_PLA_230_5x9_raw.gcode"
+        stl = tmp_path / "temp_tower_PLA_230_5x9_abc12.stl"
+        raw_gcode = tmp_path / "temp_tower_PLA_230_5x9_abc12_raw.gcode"
         stl.write_text("dummy")
         raw_gcode.write_text("dummy")
 
