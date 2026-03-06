@@ -506,12 +506,12 @@ def apply_ini_to_session(
     if "nozzle_diameter" in ini_vals:
         snapped = snap_nozzle_size(ini_vals["nozzle_diameter"])
         if snapped in _NOZZLE_SIZES:
-            state["_ini_nozzle_size"] = snapped
+            state["sidebar_nozzle_size"] = snapped
 
     if "printer_model" in ini_vals:
         pm = ini_vals["printer_model"].upper()
         if pm in _PRINTER_LIST:
-            state["_ini_printer"] = pm
+            state["sidebar_printer"] = pm
 
     if "bed_center" in ini_vals:
         state["_ini_bed_center"] = ini_vals["bed_center"]
@@ -519,7 +519,7 @@ def apply_ini_to_session(
     if "filament_type" in ini_vals:
         ft = ini_vals["filament_type"].upper()
         if ft in _KNOWN_TYPES:
-            state["_ini_filament_type"] = ft
+            state["sidebar_filament_type"] = ft
 
 
 # ---------------------------------------------------------------------------
@@ -569,54 +569,43 @@ def _app() -> None:  # pragma: no cover
             if ini_vals:
                 apply_ini_to_session(st.session_state, ini_vals)
 
+    # Selectbox defaults (must be set before widgets render).
+    # Uses TOML values as defaults on first load; .ini values are written
+    # directly to these keys by apply_ini_to_session() and take priority.
+    if "sidebar_filament_type" not in st.session_state:
+        st.session_state["sidebar_filament_type"] = (
+            st.session_state.get("_toml_filament_type", "PLA")
+        )
+    if "sidebar_printer" not in st.session_state:
+        st.session_state["sidebar_printer"] = (
+            st.session_state.get("_toml_printer", "COREONE")
+        )
+    if "sidebar_nozzle_size" not in st.session_state:
+        st.session_state["sidebar_nozzle_size"] = (
+            st.session_state.get("_toml_nozzle_size", 0.4)
+        )
+
     # --- Sidebar: shared settings ---
     with st.sidebar:
         st.header("Common Settings")
 
-        _ft = (
-            st.session_state.get("_ini_filament_type")
-            or st.session_state.get("_toml_filament_type")
-        )
-        _ft_idx = (
-            _KNOWN_TYPES.index(_ft)
-            if _ft in _KNOWN_TYPES
-            else _KNOWN_TYPES.index("PLA")
-        )
         filament_type = st.selectbox(
             "Filament Type",
             options=_KNOWN_TYPES,
-            index=_ft_idx,
+            key="sidebar_filament_type",
         )
         preset = get_preset(filament_type)
 
-        _pr = (
-            st.session_state.get("_ini_printer")
-            or st.session_state.get("_toml_printer")
-        )
-        _pr_idx = (
-            _PRINTER_LIST.index(_pr)
-            if _pr in _PRINTER_LIST
-            else _PRINTER_LIST.index("COREONE")
-        )
         printer = st.selectbox(
             "Printer",
             options=_PRINTER_LIST,
-            index=_pr_idx,
+            key="sidebar_printer",
         )
 
-        _ns = (
-            st.session_state.get("_ini_nozzle_size")
-            or st.session_state.get("_toml_nozzle_size")
-        )
-        _ns_idx = (
-            _NOZZLE_SIZES.index(_ns)
-            if _ns in _NOZZLE_SIZES
-            else _NOZZLE_SIZES.index(0.4)
-        )
         nozzle_size = st.selectbox(
             "Nozzle Size (mm)",
             options=_NOZZLE_SIZES,
-            index=_ns_idx,
+            key="sidebar_nozzle_size",
         )
 
         ascii_gcode = st.checkbox(
