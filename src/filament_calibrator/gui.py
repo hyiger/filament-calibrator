@@ -663,7 +663,6 @@ def _app() -> None:  # pragma: no cover
         )
         printer_url = ""
         api_key = ""
-        print_after = False
         if enable_upload:
             printer_url = st.text_input(
                 "Printer URL",
@@ -673,7 +672,6 @@ def _app() -> None:  # pragma: no cover
             api_key = st.text_input(
                 "API Key", type="password", key="api_key",
             )
-            print_after = st.checkbox("Print after upload", value=False)
 
         st.divider()
         st.subheader("Advanced")
@@ -865,10 +863,11 @@ def _app() -> None:  # pragma: no cover
                 "upload_enabled": enable_upload,
                 "printer_url": printer_url,
                 "api_key": api_key,
-                "print_after": print_after,
             }
             st.session_state.pop("_upload_status", None)
             st.session_state.pop("_upload_message", None)
+            st.session_state.pop("_print_after", None)
+            st.session_state.pop("upload_print_after", None)
 
         _run = st.session_state.get("_last_run")
         if _run and _run["tab"] == "temp":
@@ -998,10 +997,11 @@ def _app() -> None:  # pragma: no cover
                 "upload_enabled": enable_upload,
                 "printer_url": printer_url,
                 "api_key": api_key,
-                "print_after": print_after,
             }
             st.session_state.pop("_upload_status", None)
             st.session_state.pop("_upload_message", None)
+            st.session_state.pop("_print_after", None)
+            st.session_state.pop("upload_print_after", None)
 
         _run = st.session_state.get("_last_run")
         if _run and _run["tab"] == "flow":
@@ -1219,10 +1219,11 @@ def _app() -> None:  # pragma: no cover
                 "upload_enabled": enable_upload,
                 "printer_url": printer_url,
                 "api_key": api_key,
-                "print_after": print_after,
             }
             st.session_state.pop("_upload_status", None)
             st.session_state.pop("_upload_message", None)
+            st.session_state.pop("_print_after", None)
+            st.session_state.pop("upload_print_after", None)
 
         _run = st.session_state.get("_last_run")
         if _run and _run["tab"] == "pa":
@@ -1297,15 +1298,18 @@ def _show_upload_section(
             st.markdown(
                 f"**Printer:** `{run_info['printer_url']}`  \n"
                 f"**File:** `{gcode_path.name}`  \n"
-                f"**Size:** {file_size_mb:.1f} MB  \n"
-                f"**Print after upload:** "
-                f"{'Yes' if run_info['print_after'] else 'No'}"
+                f"**Size:** {file_size_mb:.1f} MB"
+            )
+            print_after = st.checkbox(
+                "Print after upload", value=False,
+                key="upload_print_after",
             )
             col_up, col_skip, _pad = st.columns([1, 1, 4])
             with col_up:
                 if st.button(
                     "Upload", type="primary", key="do_upload",
                 ):
+                    st.session_state["_print_after"] = print_after
                     st.session_state["_upload_status"] = "uploading"
                     st.rerun()
             with col_skip:
@@ -1320,7 +1324,9 @@ def _show_upload_section(
                     printer_url=run_info["printer_url"],
                     api_key=run_info["api_key"],
                     gcode_path=str(gcode_path),
-                    print_after_upload=run_info["print_after"],
+                    print_after_upload=st.session_state.get(
+                        "_print_after", False
+                    ),
                 )
             if ok:
                 st.session_state["_upload_status"] = "success"
