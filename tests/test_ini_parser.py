@@ -157,6 +157,7 @@ class TestParsePrusaslicerIni:
             "extrusion_width = 0.45\n"
             "bed_shape = 0x0,250x0,250x210,0x210\n"
             "printer_model = MK4S\n"
+            "filament_type = PETG\n"
         )
         result = parse_prusaslicer_ini(str(ini))
         assert result["nozzle_diameter"] == 0.4
@@ -167,6 +168,7 @@ class TestParsePrusaslicerIni:
         assert result["extrusion_width"] == 0.45
         assert result["bed_center"] == "125,105"
         assert result["printer_model"] == "MK4S"
+        assert result["filament_type"] == "PETG"
 
     def test_sectioned_file(self, tmp_path) -> None:
         """A file with PrusaSlicer-style section headers."""
@@ -351,3 +353,21 @@ class TestParsePrusaslicerIni:
         ini.write_text("layer_height = -0.1\n")
         result = parse_prusaslicer_ini(str(ini))
         assert "layer_height" not in result
+
+    def test_filament_type_extracted(self, tmp_path) -> None:
+        ini = tmp_path / "config.ini"
+        ini.write_text("filament_type = PETG\n")
+        result = parse_prusaslicer_ini(str(ini))
+        assert result["filament_type"] == "PETG"
+
+    def test_filament_type_semicolon(self, tmp_path) -> None:
+        ini = tmp_path / "config.ini"
+        ini.write_text("filament_type = PLA;PETG\n")
+        result = parse_prusaslicer_ini(str(ini))
+        assert result["filament_type"] == "PLA"
+
+    def test_empty_filament_type_skipped(self, tmp_path) -> None:
+        ini = tmp_path / "config.ini"
+        ini.write_text("filament_type = \n")
+        result = parse_prusaslicer_ini(str(ini))
+        assert "filament_type" not in result

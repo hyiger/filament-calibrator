@@ -103,6 +103,7 @@ def parse_prusaslicer_ini(path: str) -> Dict[str, Any]:
     - ``bed_center`` (str): Bed centre as ``"X,Y"`` (computed from
       ``bed_shape``).
     - ``printer_model`` (str): Printer model identifier.
+    - ``filament_type`` (str): Filament type (e.g. ``"PETG"``, ``"PLA"``).
 
     Keys are omitted when the ``.ini`` file does not contain the relevant
     setting or the value cannot be parsed.
@@ -188,5 +189,11 @@ def parse_prusaslicer_ini(path: str) -> Dict[str, Any]:
         val = flat["printer_model"].strip()
         if val:
             result["printer_model"] = val
+
+    # --- Filament type ---
+    if "filament_type" in flat:
+        val = _first_value(flat["filament_type"]).strip()
+        if val:
+            result["filament_type"] = val
 
     return result
