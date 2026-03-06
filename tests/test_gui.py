@@ -18,12 +18,14 @@ from filament_calibrator.gui import (
     _run_osascript,
     _tkinter_directory_dialog,
     _tkinter_file_dialog,
+    apply_ini_to_session,
     build_flow_namespace,
     build_pa_namespace,
     build_temp_tower_namespace,
     find_output_file,
     get_preset,
     run_pipeline,
+    snap_nozzle_size,
 )
 
 
@@ -655,3 +657,112 @@ class TestTkinterDirectoryDialog:
     def test_returns_none_on_os_error(self, mock_run: MagicMock) -> None:
         mock_run.side_effect = OSError()
         assert _tkinter_directory_dialog("Pick") is None
+
+
+# ---------------------------------------------------------------------------
+# snap_nozzle_size
+# ---------------------------------------------------------------------------
+
+class TestSnapNozzleSize:
+    """Test snap_nozzle_size() nearest-match logic."""
+
+    def test_exact_match(self) -> None:
+        assert snap_nozzle_size(0.4) == 0.4
+
+    def test_exact_match_0_6(self) -> None:
+        assert snap_nozzle_size(0.6) == 0.6
+
+    def test_between_snaps_to_nearest(self) -> None:
+        # 0.35 is between 0.3 and 0.4 → 0.35 is equidistant, picks 0.3
+        # (min picks the first match with equal distance)
+        result = snap_nozzle_size(0.35)
+        assert result in (0.3, 0.4)
+
+    def test_below_minimum(self) -> None:
+        assert snap_nozzle_size(0.1) == 0.25
+
+    def test_above_maximum(self) -> None:
+        assert snap_nozzle_size(1.0) == 0.8
+
+    def test_close_to_0_5(self) -> None:
+        assert snap_nozzle_size(0.48) == 0.5
+
+
+# ---------------------------------------------------------------------------
+# apply_ini_to_session
+# ---------------------------------------------------------------------------
+
+class TestApplyIniToSession:
+    """Test apply_ini_to_session() session-state population."""
+
+    def test_full_dict(self) -> None:
+        state: dict = {}
+        ini_vals = {
+            "nozzle_temp": 220,
+            "bed_temp": 65,
+            "fan_speed": 80,
+            "layer_height": 0.15,
+            "extrusion_width": 0.45,
+            "nozzle_diameter": 0.4,
+            "printer_model": "COREONE",
+            "bed_center": "125,110",
+        }
+        apply_ini_to_session(state, ini_vals)
+
+        # Nozzle temp → flow + PA tabs.
+        assert state["flow_nozzle_temp"] == 220
+        assert state["pa_nozzle_temp"] == 220
+
+        # Bed temp → all three tabs.
+        assert state["tt_bed_temp"] == 65
+        assert state["flow_bed_temp"] == 65
+        assert state["pa_bed_temp"] == 65
+
+        # Fan speed → all three tabs.
+        assert state["tt_fan"] == 80
+        assert state["flow_fan"] == 80
+        assert state["pa_fan"] == 80
+
+        # Layer height / extrusion width → flow + PA.
+        assert state["flow_lh"] == 0.15
+        assert state["pa_lh"] == 0.15
+        assert state["flow_ew"] == 0.45
+        assert state["pa_ew"] == 0.45
+
+        # Selectbox helpers.
+        assert state["_ini_nozzle_size"] == 0.4
+        assert state["_ini_printer"] == "COREONE"
+        assert state["_ini_bed_center"] == "125,110"
+
+    def test_partial_dict_only_temp(self) -> None:
+        state: dict = {}
+        apply_ini_to_session(state, {"nozzle_temp": 210})
+        assert state["flow_nozzle_temp"] == 210
+        assert state["pa_nozzle_temp"] == 210
+        assert "tt_bed_temp" not in state
+        assert "flow_lh" not in state
+
+    def test_empty_dict(self) -> None:
+        state: dict = {}
+        apply_ini_to_session(state, {})
+        assert state == {}
+
+    def test_nozzle_diameter_snapped(self) -> None:
+        state: dict = {}
+        apply_ini_to_session(state, {"nozzle_diameter": 0.42})
+        assert state["_ini_nozzle_size"] == 0.4
+
+    def test_unknown_printer_not_stored(self) -> None:
+        state: dict = {}
+        apply_ini_to_session(state, {"printer_model": "UNKNOWNXYZ"})
+        assert "_ini_printer" not in state
+
+    def test_known_printer_uppercased(self) -> None:
+        state: dict = {}
+        apply_ini_to_session(state, {"printer_model": "coreone"})
+        assert state["_ini_printer"] == "COREONE"
+
+    def test_bed_center_stored(self) -> None:
+        state: dict = {}
+        apply_ini_to_session(state, {"bed_center": "100,100"})
+        assert state["_ini_bed_center"] == "100,100"

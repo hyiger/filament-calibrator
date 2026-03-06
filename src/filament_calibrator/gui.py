@@ -20,6 +20,7 @@ from typing import Any, Callable, Dict, List, Optional, Tuple
 import gcode_lib as gl
 
 from filament_calibrator.cli import _KNOWN_TYPES
+from filament_calibrator.ini_parser import parse_prusaslicer_ini
 from filament_calibrator.printer_gcode import KNOWN_PRINTERS
 
 
@@ -407,6 +408,66 @@ def _tkinter_directory_dialog(title: str) -> Optional[str]:
 
 
 # ---------------------------------------------------------------------------
+# INI auto-populate helpers
+# ---------------------------------------------------------------------------
+
+
+def snap_nozzle_size(diameter: float) -> float:
+    """Snap *diameter* to the nearest value in :data:`_NOZZLE_SIZES`."""
+    return min(_NOZZLE_SIZES, key=lambda s: abs(s - diameter))
+
+
+def apply_ini_to_session(
+    state: Dict[str, Any],
+    ini_vals: Dict[str, Any],
+) -> None:
+    """Write parsed ``.ini`` values into Streamlit session-state widget keys.
+
+    Must be called **before** widgets render so that Streamlit picks up
+    the updated values.  Only keys present in *ini_vals* are written.
+    """
+    if "nozzle_temp" in ini_vals:
+        nt = ini_vals["nozzle_temp"]
+        state["flow_nozzle_temp"] = nt
+        state["pa_nozzle_temp"] = nt
+
+    if "bed_temp" in ini_vals:
+        bt = ini_vals["bed_temp"]
+        state["tt_bed_temp"] = bt
+        state["flow_bed_temp"] = bt
+        state["pa_bed_temp"] = bt
+
+    if "fan_speed" in ini_vals:
+        fs = ini_vals["fan_speed"]
+        state["tt_fan"] = fs
+        state["flow_fan"] = fs
+        state["pa_fan"] = fs
+
+    if "layer_height" in ini_vals:
+        lh = ini_vals["layer_height"]
+        state["flow_lh"] = lh
+        state["pa_lh"] = lh
+
+    if "extrusion_width" in ini_vals:
+        ew = ini_vals["extrusion_width"]
+        state["flow_ew"] = ew
+        state["pa_ew"] = ew
+
+    if "nozzle_diameter" in ini_vals:
+        snapped = snap_nozzle_size(ini_vals["nozzle_diameter"])
+        if snapped in _NOZZLE_SIZES:
+            state["_ini_nozzle_size"] = snapped
+
+    if "printer_model" in ini_vals:
+        pm = ini_vals["printer_model"].upper()
+        if pm in _PRINTER_LIST:
+            state["_ini_printer"] = pm
+
+    if "bed_center" in ini_vals:
+        state["_ini_bed_center"] = ini_vals["bed_center"]
+
+
+# ---------------------------------------------------------------------------
 # Streamlit app (only imported when actually running the GUI)
 # ---------------------------------------------------------------------------
 
@@ -430,6 +491,19 @@ def _app() -> None:  # pragma: no cover
         if _pending in st.session_state:
             st.session_state[_key] = st.session_state.pop(_pending)
 
+    # Parse .ini and auto-populate fields when the path changes.
+    _cur_ini = st.session_state.get("config_ini", "")
+    _prev_ini = st.session_state.get("_prev_config_ini", "")
+    if _cur_ini != _prev_ini:
+        st.session_state["_prev_config_ini"] = _cur_ini
+        if _cur_ini and Path(_cur_ini).is_file():
+            try:
+                ini_vals = parse_prusaslicer_ini(_cur_ini)
+            except Exception:
+                ini_vals = {}
+            if ini_vals:
+                apply_ini_to_session(st.session_state, ini_vals)
+
     # --- Sidebar: shared settings ---
     with st.sidebar:
         st.header("Common Settings")
@@ -441,16 +515,28 @@ def _app() -> None:  # pragma: no cover
         )
         preset = get_preset(filament_type)
 
+        _ini_pr = st.session_state.get("_ini_printer")
+        _pr_idx = (
+            _PRINTER_LIST.index(_ini_pr)
+            if _ini_pr in _PRINTER_LIST
+            else _PRINTER_LIST.index("COREONE")
+        )
         printer = st.selectbox(
             "Printer",
             options=_PRINTER_LIST,
-            index=_PRINTER_LIST.index("COREONE"),
+            index=_pr_idx,
         )
 
+        _ini_ns = st.session_state.get("_ini_nozzle_size")
+        _ns_idx = (
+            _NOZZLE_SIZES.index(_ini_ns)
+            if _ini_ns in _NOZZLE_SIZES
+            else _NOZZLE_SIZES.index(0.4)
+        )
         nozzle_size = st.selectbox(
             "Nozzle Size (mm)",
             options=_NOZZLE_SIZES,
-            index=_NOZZLE_SIZES.index(0.4),
+            index=_ns_idx,
         )
 
         ascii_gcode = st.checkbox(
