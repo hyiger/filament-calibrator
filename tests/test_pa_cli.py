@@ -14,6 +14,7 @@ from filament_calibrator.cli import _KNOWN_TYPES, _UNSET
 from filament_calibrator.pa_cli import (
     FIRMWARE_CHOICES,
     MAX_LEVELS,
+    METHOD_CHOICES,
     _resolve_preset,
     _validate_pa_args,
     build_parser,
@@ -113,6 +114,56 @@ class TestBuildParser:
         with pytest.raises(SystemExit):
             p.parse_args(["--start-pa", "0", "--end-pa", "0.1",
                           "--pa-step", "0.01", "--firmware", "invalid"])
+
+    def test_method_default(self):
+        p = build_parser()
+        args = p.parse_args(["--start-pa", "0", "--end-pa", "0.1", "--pa-step", "0.01"])
+        assert args.method == "tower"
+
+    def test_method_pattern(self):
+        p = build_parser()
+        args = p.parse_args([
+            "--start-pa", "0", "--end-pa", "0.1", "--pa-step", "0.01",
+            "--method", "pattern",
+        ])
+        assert args.method == "pattern"
+
+    def test_method_invalid(self):
+        p = build_parser()
+        with pytest.raises(SystemExit):
+            p.parse_args([
+                "--start-pa", "0", "--end-pa", "0.1", "--pa-step", "0.01",
+                "--method", "invalid",
+            ])
+
+    def test_method_choices_constant(self):
+        assert METHOD_CHOICES == ("tower", "pattern")
+
+    def test_pattern_options_defaults(self):
+        p = build_parser()
+        args = p.parse_args(["--start-pa", "0", "--end-pa", "0.1", "--pa-step", "0.01"])
+        assert args.corner_angle == 90.0
+        assert args.side_length == 30.0
+        assert args.wall_count == 3
+        assert args.num_layers == 4
+        assert args.pattern_spacing == 2.0
+
+    def test_pattern_options_custom(self):
+        p = build_parser()
+        args = p.parse_args([
+            "--start-pa", "0", "--end-pa", "0.1", "--pa-step", "0.01",
+            "--method", "pattern",
+            "--corner-angle", "60",
+            "--side-length", "20",
+            "--wall-count", "5",
+            "--num-layers", "8",
+            "--pattern-spacing", "3",
+        ])
+        assert args.corner_angle == 60.0
+        assert args.side_length == 20.0
+        assert args.wall_count == 5
+        assert args.num_layers == 8
+        assert args.pattern_spacing == 3.0
 
     def test_filament_type_help_lists_presets(self):
         p = build_parser()
@@ -241,7 +292,7 @@ class TestRun:
     def _make_args(self, tmp_path, **overrides):
         defaults = dict(
             start_pa=0.0, end_pa=0.1, pa_step=0.1,
-            firmware="marlin",
+            firmware="marlin", method="tower",
             level_height=1.0, filament_type="PLA",
             nozzle_size=0.4,
             layer_height=_UNSET, extrusion_width=_UNSET,
@@ -254,6 +305,9 @@ class TestRun:
             output_dir=str(tmp_path), keep_files=False,
             ascii_gcode=False,
             config=None, verbose=False,
+            # Pattern-specific defaults (used when method="pattern")
+            corner_angle=90.0, side_length=30.0,
+            wall_count=3, num_layers=4, pattern_spacing=2.0,
         )
         defaults.update(overrides)
         return argparse.Namespace(**defaults)
@@ -1118,6 +1172,399 @@ class TestRun:
         save_path = mock_save.call_args[0][1]
         assert save_path.endswith(".gcode")
         assert not save_path.endswith(".bgcode")
+
+
+# ---------------------------------------------------------------------------
+# Pattern pipeline
+# ---------------------------------------------------------------------------
+
+
+class TestRunPattern:
+    """Tests for the pattern-method PA calibration pipeline."""
+
+    def _make_args(self, tmp_path, **overrides):
+        defaults = dict(
+            start_pa=0.0, end_pa=0.1, pa_step=0.1,
+            firmware="marlin", method="pattern",
+            level_height=1.0, filament_type="PLA",
+            nozzle_size=0.4,
+            layer_height=_UNSET, extrusion_width=_UNSET,
+            bed_temp=_UNSET, fan_speed=_UNSET, nozzle_temp=_UNSET,
+            config_ini=None, prusaslicer_path=None,
+            extra_slicer_args=None, bed_center=None,
+            printer="COREONE",
+            printer_url=None, api_key=None,
+            no_upload=True, print_after_upload=False,
+            output_dir=str(tmp_path), keep_files=False,
+            ascii_gcode=False,
+            config=None, verbose=False,
+            corner_angle=90.0, side_length=30.0,
+            wall_count=3, num_layers=4, pattern_spacing=2.0,
+        )
+        defaults.update(overrides)
+        return argparse.Namespace(**defaults)
+
+    @patch("filament_calibrator.pa_cli.patch_slicer_metadata")
+    @patch("filament_calibrator.pa_cli.inject_thumbnails")
+    @patch("filament_calibrator.pa_cli.gl.save")
+    @patch("filament_calibrator.pa_cli.gl.load")
+    @patch("filament_calibrator.pa_cli.insert_pa_pattern_commands")
+    @patch("filament_calibrator.pa_cli.compute_pa_pattern_regions")
+    @patch("filament_calibrator.pa_cli.slice_pa_pattern")
+    @patch("filament_calibrator.pa_cli.generate_pa_pattern_stl")
+    def test_pattern_pipeline_dispatches(
+        self, mock_gen, mock_slice, mock_regions,
+        mock_insert, mock_load, mock_save, mock_inject, mock_patch_meta, tmp_path
+    ):
+        """method='pattern' dispatches to pattern pipeline, not tower."""
+        mock_gen.return_value = (str(tmp_path / "pattern.stl"), [0.0])
+        mock_slice.return_value = MagicMock(ok=True)
+        mock_regions.return_value = []
+        mock_load.return_value = MagicMock(lines=[])
+        mock_insert.return_value = []
+
+        args = self._make_args(tmp_path)
+        run(args)
+
+        mock_gen.assert_called_once()
+        mock_slice.assert_called_once()
+        mock_regions.assert_called_once()
+        mock_insert.assert_called_once()
+
+    @patch("filament_calibrator.pa_cli.patch_slicer_metadata")
+    @patch("filament_calibrator.pa_cli.inject_thumbnails")
+    @patch("filament_calibrator.pa_cli.gl.save")
+    @patch("filament_calibrator.pa_cli.gl.load")
+    @patch("filament_calibrator.pa_cli.insert_pa_pattern_commands")
+    @patch("filament_calibrator.pa_cli.compute_pa_pattern_regions")
+    @patch("filament_calibrator.pa_cli.slice_pa_pattern")
+    @patch("filament_calibrator.pa_cli.generate_pa_pattern_stl")
+    def test_pattern_tower_functions_not_called(
+        self, mock_gen, mock_slice, mock_regions,
+        mock_insert, mock_load, mock_save, mock_inject, mock_patch_meta, tmp_path
+    ):
+        """Pattern pipeline does not call tower-specific functions."""
+        mock_gen.return_value = (str(tmp_path / "pattern.stl"), [0.0])
+        mock_slice.return_value = MagicMock(ok=True)
+        mock_regions.return_value = []
+        mock_load.return_value = MagicMock(lines=[])
+        mock_insert.return_value = []
+
+        args = self._make_args(tmp_path)
+        with patch("filament_calibrator.pa_cli.generate_pa_tower_stl") as mock_tower_gen, \
+             patch("filament_calibrator.pa_cli.slice_pa_specimen") as mock_tower_slice:
+            run(args)
+            mock_tower_gen.assert_not_called()
+            mock_tower_slice.assert_not_called()
+
+    @patch("filament_calibrator.pa_cli.patch_slicer_metadata")
+    @patch("filament_calibrator.pa_cli.inject_thumbnails")
+    @patch("filament_calibrator.pa_cli.gl.save")
+    @patch("filament_calibrator.pa_cli.gl.load")
+    @patch("filament_calibrator.pa_cli.insert_pa_pattern_commands")
+    @patch("filament_calibrator.pa_cli.compute_pa_pattern_regions")
+    @patch("filament_calibrator.pa_cli.slice_pa_pattern")
+    @patch("filament_calibrator.pa_cli.generate_pa_pattern_stl")
+    def test_pattern_slicer_failure_exits(
+        self, mock_gen, mock_slice, mock_regions,
+        mock_insert, mock_load, mock_save, mock_inject, mock_patch_meta, tmp_path
+    ):
+        mock_gen.return_value = (str(tmp_path / "pattern.stl"), [0.0])
+        mock_slice.return_value = MagicMock(
+            ok=False, returncode=1, stderr="slice error"
+        )
+
+        args = self._make_args(tmp_path)
+        with pytest.raises(SystemExit) as exc_info:
+            run(args)
+        assert exc_info.value.code == 1
+
+    @patch("filament_calibrator.pa_cli.patch_slicer_metadata")
+    @patch("filament_calibrator.pa_cli.inject_thumbnails")
+    @patch("filament_calibrator.pa_cli.gl.prusalink_upload")
+    @patch("filament_calibrator.pa_cli.gl.save")
+    @patch("filament_calibrator.pa_cli.gl.load")
+    @patch("filament_calibrator.pa_cli.insert_pa_pattern_commands")
+    @patch("filament_calibrator.pa_cli.compute_pa_pattern_regions")
+    @patch("filament_calibrator.pa_cli.slice_pa_pattern")
+    @patch("filament_calibrator.pa_cli.generate_pa_pattern_stl")
+    def test_pattern_upload(
+        self, mock_gen, mock_slice, mock_regions,
+        mock_insert, mock_load, mock_save, mock_upload,
+        mock_inject, mock_patch_meta, tmp_path
+    ):
+        mock_gen.return_value = (str(tmp_path / "pattern.stl"), [0.0])
+        mock_slice.return_value = MagicMock(ok=True)
+        mock_regions.return_value = []
+        mock_load.return_value = MagicMock(lines=[])
+        mock_insert.return_value = []
+        mock_upload.return_value = "pattern.gcode"
+
+        args = self._make_args(
+            tmp_path,
+            no_upload=False,
+            printer_url="http://192.168.1.100",
+            api_key="key123",
+            print_after_upload=True,
+        )
+        run(args)
+
+        mock_upload.assert_called_once()
+        call_kwargs = mock_upload.call_args[1]
+        assert call_kwargs["base_url"] == "http://192.168.1.100"
+
+    @patch("filament_calibrator.pa_cli.patch_slicer_metadata")
+    @patch("filament_calibrator.pa_cli.inject_thumbnails")
+    @patch("filament_calibrator.pa_cli.gl.save")
+    @patch("filament_calibrator.pa_cli.gl.load")
+    @patch("filament_calibrator.pa_cli.insert_pa_pattern_commands")
+    @patch("filament_calibrator.pa_cli.compute_pa_pattern_regions")
+    @patch("filament_calibrator.pa_cli.slice_pa_pattern")
+    @patch("filament_calibrator.pa_cli.generate_pa_pattern_stl")
+    def test_pattern_perimeters_passed(
+        self, mock_gen, mock_slice, mock_regions,
+        mock_insert, mock_load, mock_save, mock_inject, mock_patch_meta, tmp_path
+    ):
+        """wall_count is passed as perimeters to slice_pa_pattern."""
+        mock_gen.return_value = (str(tmp_path / "pattern.stl"), [0.0])
+        mock_slice.return_value = MagicMock(ok=True)
+        mock_regions.return_value = []
+        mock_load.return_value = MagicMock(lines=[])
+        mock_insert.return_value = []
+
+        args = self._make_args(tmp_path, wall_count=5)
+        run(args)
+
+        slice_kwargs = mock_slice.call_args[1]
+        assert slice_kwargs["perimeters"] == 5
+
+    @patch("filament_calibrator.pa_cli.patch_slicer_metadata")
+    @patch("filament_calibrator.pa_cli.inject_thumbnails")
+    @patch("filament_calibrator.pa_cli.gl.save")
+    @patch("filament_calibrator.pa_cli.gl.load")
+    @patch("filament_calibrator.pa_cli.insert_pa_pattern_commands")
+    @patch("filament_calibrator.pa_cli.compute_pa_pattern_regions")
+    @patch("filament_calibrator.pa_cli.slice_pa_pattern")
+    @patch("filament_calibrator.pa_cli.generate_pa_pattern_stl")
+    def test_pattern_x_centers_shifted_by_bed_center(
+        self, mock_gen, mock_slice, mock_regions,
+        mock_insert, mock_load, mock_save, mock_inject, mock_patch_meta, tmp_path
+    ):
+        """Model-space x_centers are shifted by bed_center_x for regions."""
+        mock_gen.return_value = (str(tmp_path / "pattern.stl"), [-20.0, 20.0])
+        mock_slice.return_value = MagicMock(ok=True)
+        mock_regions.return_value = []
+        mock_load.return_value = MagicMock(lines=[])
+        mock_insert.return_value = []
+
+        args = self._make_args(tmp_path)
+        run(args)
+
+        # Default bed center is 125,110 → bed_cx=125.0
+        region_call_args = mock_regions.call_args[0]
+        shifted_centers = region_call_args[1]
+        assert shifted_centers == [105.0, 145.0]
+
+    @patch("filament_calibrator.pa_cli.patch_slicer_metadata")
+    @patch("filament_calibrator.pa_cli.inject_thumbnails")
+    @patch("filament_calibrator.pa_cli.gl.save")
+    @patch("filament_calibrator.pa_cli.gl.load")
+    @patch("filament_calibrator.pa_cli.insert_pa_pattern_commands")
+    @patch("filament_calibrator.pa_cli.compute_pa_pattern_regions")
+    @patch("filament_calibrator.pa_cli.slice_pa_pattern")
+    @patch("filament_calibrator.pa_cli.generate_pa_pattern_stl")
+    def test_pattern_custom_bed_center(
+        self, mock_gen, mock_slice, mock_regions,
+        mock_insert, mock_load, mock_save, mock_inject, mock_patch_meta, tmp_path
+    ):
+        """Custom bed_center shifts x_centers correctly."""
+        mock_gen.return_value = (str(tmp_path / "pattern.stl"), [0.0])
+        mock_slice.return_value = MagicMock(ok=True)
+        mock_regions.return_value = []
+        mock_load.return_value = MagicMock(lines=[])
+        mock_insert.return_value = []
+
+        args = self._make_args(tmp_path, bed_center="100,100")
+        run(args)
+
+        region_call_args = mock_regions.call_args[0]
+        shifted_centers = region_call_args[1]
+        assert shifted_centers == [100.0]
+
+    @patch("filament_calibrator.pa_cli.patch_slicer_metadata")
+    @patch("filament_calibrator.pa_cli.inject_thumbnails")
+    @patch("filament_calibrator.pa_cli.gl.save")
+    @patch("filament_calibrator.pa_cli.gl.load")
+    @patch("filament_calibrator.pa_cli.insert_pa_pattern_commands")
+    @patch("filament_calibrator.pa_cli.compute_pa_pattern_regions")
+    @patch("filament_calibrator.pa_cli.slice_pa_pattern")
+    @patch("filament_calibrator.pa_cli.generate_pa_pattern_stl")
+    def test_pattern_verbose_output(
+        self, mock_gen, mock_slice, mock_regions,
+        mock_insert, mock_load, mock_save, mock_inject, mock_patch_meta, tmp_path, capsys
+    ):
+        mock_gen.return_value = (str(tmp_path / "pattern.stl"), [0.0])
+        mock_slice.return_value = MagicMock(
+            ok=True, cmd=["prusa-slicer", "--slice"], stdout="", stderr=""
+        )
+        mock_regions.return_value = [
+            MagicMock(x_start=float("-inf"), x_end=float("inf"), pa_value=0.0),
+        ]
+        mock_load.return_value = MagicMock(lines=[])
+        mock_insert.return_value = []
+
+        args = self._make_args(tmp_path, verbose=True)
+        run(args)
+
+        captured = capsys.readouterr()
+        assert "[DEBUG]" in captured.out
+        assert "PA pattern:" in captured.out
+        assert "Diamond:" in captured.out
+        assert "PA regions:" in captured.out
+
+    @patch("filament_calibrator.pa_cli.patch_slicer_metadata")
+    @patch("filament_calibrator.pa_cli.inject_thumbnails")
+    @patch("filament_calibrator.pa_cli.gl.save")
+    @patch("filament_calibrator.pa_cli.gl.load")
+    @patch("filament_calibrator.pa_cli.insert_pa_pattern_commands")
+    @patch("filament_calibrator.pa_cli.compute_pa_pattern_regions")
+    @patch("filament_calibrator.pa_cli.slice_pa_pattern")
+    @patch("filament_calibrator.pa_cli.generate_pa_pattern_stl")
+    def test_pattern_reference_table_printed(
+        self, mock_gen, mock_slice, mock_regions,
+        mock_insert, mock_load, mock_save, mock_inject, mock_patch_meta, tmp_path, capsys
+    ):
+        mock_gen.return_value = (str(tmp_path / "pattern.stl"), [125.0])
+        mock_slice.return_value = MagicMock(ok=True)
+        mock_regions.return_value = []
+        mock_load.return_value = MagicMock(lines=[])
+        mock_insert.return_value = []
+
+        args = self._make_args(tmp_path)
+        run(args)
+
+        captured = capsys.readouterr()
+        assert "PA value by pattern position:" in captured.out
+        assert "sharpest corners" in captured.out
+
+    @patch("filament_calibrator.pa_cli.patch_slicer_metadata")
+    @patch("filament_calibrator.pa_cli.inject_thumbnails")
+    @patch("filament_calibrator.pa_cli.gl.save")
+    @patch("filament_calibrator.pa_cli.gl.load")
+    @patch("filament_calibrator.pa_cli.insert_pa_pattern_commands")
+    @patch("filament_calibrator.pa_cli.compute_pa_pattern_regions")
+    @patch("filament_calibrator.pa_cli.slice_pa_pattern")
+    @patch("filament_calibrator.pa_cli.generate_pa_pattern_stl")
+    def test_pattern_keep_files(
+        self, mock_gen, mock_slice, mock_regions,
+        mock_insert, mock_load, mock_save, mock_inject, mock_patch_meta, tmp_path
+    ):
+        stl = tmp_path / "pa_pattern_PLA_0.0_0.1x2.stl"
+        raw_gcode = tmp_path / "pa_pattern_PLA_0.0_0.1x2_raw.bgcode"
+        stl.write_text("dummy")
+        raw_gcode.write_text("dummy")
+
+        mock_gen.return_value = (str(stl), [0.0])
+        mock_slice.return_value = MagicMock(ok=True)
+        mock_regions.return_value = []
+        mock_load.return_value = MagicMock(lines=[])
+        mock_insert.return_value = []
+
+        args = self._make_args(tmp_path, keep_files=True)
+        run(args)
+
+        assert stl.exists()
+        assert raw_gcode.exists()
+
+    @patch("filament_calibrator.pa_cli.patch_slicer_metadata")
+    @patch("filament_calibrator.pa_cli.inject_thumbnails")
+    @patch("filament_calibrator.pa_cli.gl.save")
+    @patch("filament_calibrator.pa_cli.gl.load")
+    @patch("filament_calibrator.pa_cli.insert_pa_pattern_commands")
+    @patch("filament_calibrator.pa_cli.compute_pa_pattern_regions")
+    @patch("filament_calibrator.pa_cli.slice_pa_pattern")
+    @patch("filament_calibrator.pa_cli.generate_pa_pattern_stl")
+    def test_pattern_no_keep_files_cleans_up(
+        self, mock_gen, mock_slice, mock_regions,
+        mock_insert, mock_load, mock_save, mock_inject, mock_patch_meta, tmp_path
+    ):
+        stl = tmp_path / "pa_pattern_PLA_0.0_0.1x2.stl"
+        raw_gcode = tmp_path / "pa_pattern_PLA_0.0_0.1x2_raw.bgcode"
+        stl.write_text("dummy")
+        raw_gcode.write_text("dummy")
+
+        mock_gen.return_value = (str(stl), [0.0])
+        mock_slice.return_value = MagicMock(ok=True)
+        mock_regions.return_value = []
+        mock_load.return_value = MagicMock(lines=[])
+        mock_insert.return_value = []
+
+        args = self._make_args(tmp_path, keep_files=False)
+        run(args)
+
+        assert not stl.exists()
+        assert not raw_gcode.exists()
+
+    @patch("filament_calibrator.pa_cli.render_end_gcode")
+    @patch("filament_calibrator.pa_cli.render_start_gcode")
+    @patch("filament_calibrator.pa_cli.patch_slicer_metadata")
+    @patch("filament_calibrator.pa_cli.inject_thumbnails")
+    @patch("filament_calibrator.pa_cli.gl.save")
+    @patch("filament_calibrator.pa_cli.gl.load")
+    @patch("filament_calibrator.pa_cli.insert_pa_pattern_commands")
+    @patch("filament_calibrator.pa_cli.compute_pa_pattern_regions")
+    @patch("filament_calibrator.pa_cli.slice_pa_pattern")
+    @patch("filament_calibrator.pa_cli.generate_pa_pattern_stl")
+    def test_pattern_printer_renders_gcode(
+        self, mock_gen, mock_slice, mock_regions,
+        mock_insert, mock_load, mock_save,
+        mock_inject, mock_patch_meta,
+        mock_render_start, mock_render_end, tmp_path
+    ):
+        """--printer renders start/end G-code for pattern pipeline."""
+        mock_gen.return_value = (str(tmp_path / "pattern.stl"), [0.0])
+        mock_slice.return_value = MagicMock(ok=True)
+        mock_regions.return_value = []
+        mock_load.return_value = MagicMock(lines=[])
+        mock_insert.return_value = []
+        mock_render_start.return_value = "G28\n"
+        mock_render_end.return_value = "M104 S0\n"
+
+        args = self._make_args(tmp_path, printer="mk4s")
+        run(args)
+
+        mock_render_start.assert_called_once()
+        mock_render_end.assert_called_once()
+        slice_kwargs = mock_slice.call_args[1]
+        assert slice_kwargs["start_gcode"] == "G28\n"
+        assert slice_kwargs["end_gcode"] == "M104 S0\n"
+
+    @patch("filament_calibrator.pa_cli.patch_slicer_metadata")
+    @patch("filament_calibrator.pa_cli.inject_thumbnails")
+    @patch("filament_calibrator.pa_cli.gl.save")
+    @patch("filament_calibrator.pa_cli.gl.load")
+    @patch("filament_calibrator.pa_cli.insert_pa_pattern_commands")
+    @patch("filament_calibrator.pa_cli.compute_pa_pattern_regions")
+    @patch("filament_calibrator.pa_cli.slice_pa_pattern")
+    @patch("filament_calibrator.pa_cli.generate_pa_pattern_stl")
+    def test_pattern_verbose_slicer_stdout(
+        self, mock_gen, mock_slice, mock_regions,
+        mock_insert, mock_load, mock_save, mock_inject, mock_patch_meta, tmp_path, capsys
+    ):
+        mock_gen.return_value = (str(tmp_path / "pattern.stl"), [0.0])
+        mock_slice.return_value = MagicMock(
+            ok=True, cmd=["prusa-slicer"],
+            stdout="Slicing done", stderr=""
+        )
+        mock_regions.return_value = []
+        mock_load.return_value = MagicMock(lines=[])
+        mock_insert.return_value = []
+
+        args = self._make_args(tmp_path, verbose=True)
+        run(args)
+
+        captured = capsys.readouterr()
+        assert "PrusaSlicer stdout: Slicing done" in captured.out
 
 
 # ---------------------------------------------------------------------------

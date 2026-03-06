@@ -276,6 +276,77 @@ class TestBuildPaNamespace:
         )
         assert ns.firmware == "klipper"
 
+    def test_method_default_tower(self) -> None:
+        ns = build_pa_namespace(
+            filament_type="PLA",
+            start_pa=0.0,
+            end_pa=0.10,
+            pa_step=0.01,
+            firmware="marlin",
+            nozzle_temp=215,
+            bed_temp=60,
+            fan_speed=100,
+            nozzle_size=0.4,
+            layer_height=0.2,
+            extrusion_width=0.45,
+            printer="COREONE",
+            ascii_gcode=False,
+            output_dir="/tmp/pa",
+            config_ini=None,
+            prusaslicer_path=None,
+            printer_url=None,
+            api_key=None,
+            no_upload=True,
+            print_after_upload=False,
+        )
+        assert ns.method == "tower"
+        assert ns.level_height == 1.0
+        assert ns.corner_angle == 90.0
+        assert ns.side_length == 30.0
+        assert ns.wall_count == 3
+        assert ns.num_layers == 4
+        assert ns.pattern_spacing == 2.0
+
+    def test_method_pattern(self) -> None:
+        ns = build_pa_namespace(
+            filament_type="PETG",
+            start_pa=0.0,
+            end_pa=0.06,
+            pa_step=0.01,
+            firmware="klipper",
+            method="pattern",
+            level_height=2.0,
+            nozzle_temp=240,
+            bed_temp=80,
+            fan_speed=50,
+            nozzle_size=0.6,
+            layer_height=0.3,
+            extrusion_width=0.68,
+            corner_angle=60.0,
+            side_length=20.0,
+            wall_count=5,
+            num_layers=8,
+            pattern_spacing=3.0,
+            printer="MK4S",
+            ascii_gcode=True,
+            output_dir="/tmp/pa_pattern",
+            config_ini="/path/to/config.ini",
+            prusaslicer_path="/usr/bin/prusa-slicer",
+            printer_url="http://printer.local",
+            api_key="secret123",
+            no_upload=False,
+            print_after_upload=True,
+        )
+        assert ns.method == "pattern"
+        assert ns.corner_angle == 60.0
+        assert ns.side_length == 20.0
+        assert ns.wall_count == 5
+        assert ns.num_layers == 8
+        assert ns.pattern_spacing == 3.0
+        assert ns.level_height == 2.0
+        assert ns.firmware == "klipper"
+        assert ns.ascii_gcode is True
+
 
 # ---------------------------------------------------------------------------
 # find_output_file

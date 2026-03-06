@@ -1,6 +1,11 @@
 """Command-line interface for pressure advance calibration.
 
-Orchestrates: model generation → slicing → PA command insertion → upload.
+Supports two methods:
+
+* **tower** — generates a hollow rectangular STL tower, slices with
+  PrusaSlicer, and inserts PA commands at different Z levels.
+* **pattern** — generates side-by-side diamond-shaped STL patterns, slices
+  with PrusaSlicer, and inserts PA commands based on X position.
 """
 from __future__ import annotations
 
@@ -20,12 +25,29 @@ from filament_calibrator.cli import (
     _resolve_output_dir,
 )
 from filament_calibrator.config import _find_config_path, load_config
-from filament_calibrator.pa_insert import compute_pa_levels, insert_pa_commands
+from filament_calibrator.pa_insert import (
+    compute_pa_levels,
+    compute_pa_pattern_regions,
+    insert_pa_commands,
+    insert_pa_pattern_commands,
+)
 from filament_calibrator.pa_model import (
     TOWER_DEPTH,
     TOWER_WIDTH,
     PATowerConfig,
     generate_pa_tower_stl,
+)
+from filament_calibrator.pa_pattern import (
+    DEFAULT_CORNER_ANGLE,
+    DEFAULT_NUM_LAYERS,
+    DEFAULT_PATTERN_SPACING,
+    DEFAULT_SIDE_LENGTH,
+    DEFAULT_WALL_COUNT,
+    DEFAULT_WALL_THICKNESS,
+    PAPatternConfig,
+    diamond_height,
+    generate_pa_pattern_stl,
+    total_height as pattern_total_height,
 )
 from filament_calibrator.printer_gcode import (
     KNOWN_PRINTERS,
@@ -38,6 +60,7 @@ from filament_calibrator.printer_gcode import (
 from filament_calibrator.slicer import (
     DEFAULT_BED_CENTER,
     DEFAULT_THUMBNAILS,
+    slice_pa_pattern,
     slice_pa_specimen,
 )
 from filament_calibrator.thumbnail import inject_thumbnails, patch_slicer_metadata
@@ -49,15 +72,18 @@ MAX_LEVELS = 50
 # Valid firmware types for pressure advance commands.
 FIRMWARE_CHOICES = ("marlin", "klipper")
 
+# Valid calibration methods.
+METHOD_CHOICES = ("tower", "pattern")
+
 
 def build_parser() -> argparse.ArgumentParser:
     """Build the argument parser."""
     p = argparse.ArgumentParser(
         prog="pressure-advance",
         description=(
-            "Generate, slice, and upload a pressure advance calibration tower. "
-            "The model is a hollow rectangle with sharp corners; PA value "
-            "increases at each height level to find optimal pressure advance."
+            "Generate, slice, and upload a pressure advance calibration print. "
+            "Tower method: hollow rectangular tower with PA by height. "
+            "Pattern method: side-by-side diamond shapes with PA by position."
         ),
     )
 
@@ -65,15 +91,15 @@ def build_parser() -> argparse.ArgumentParser:
     pa = p.add_argument_group("pressure advance options")
     pa.add_argument(
         "--start-pa", type=float, required=True,
-        help="Starting PA value (bottom level).",
+        help="Starting PA value (bottom level / leftmost pattern).",
     )
     pa.add_argument(
         "--end-pa", type=float, required=True,
-        help="Ending PA value (top level).",
+        help="Ending PA value (top level / rightmost pattern).",
     )
     pa.add_argument(
         "--pa-step", type=float, required=True,
-        help="PA value increment per level.",
+        help="PA value increment per level / pattern.",
     )
     pa.add_argument(
         "--firmware", type=str, default="marlin",
@@ -85,13 +111,23 @@ def build_parser() -> argparse.ArgumentParser:
             "Default: marlin"
         ),
     )
+    pa.add_argument(
+        "--method", type=str, default="tower",
+        choices=METHOD_CHOICES,
+        help=(
+            "Calibration method. 'tower' generates a hollow rectangular "
+            "tower with PA increasing by height. 'pattern' generates "
+            "diamond shapes side by side, each with a different PA value. "
+            "Default: tower"
+        ),
+    )
 
     # --- Model options ---
     type_names = ", ".join(_KNOWN_TYPES)
     model = p.add_argument_group("model options")
     model.add_argument(
         "--level-height", type=float, default=1.0,
-        help="Height per PA level in mm. Default: 1.0",
+        help="Height per PA level in mm (tower method). Default: 1.0",
     )
     model.add_argument(
         "--filament-type", type=str, default="PLA",
@@ -101,6 +137,29 @@ def build_parser() -> argparse.ArgumentParser:
             "Custom names are accepted but require explicit temperatures. "
             "Default: PLA"
         ),
+    )
+
+    # --- Pattern method options ---
+    pat = p.add_argument_group("pattern method options (--method pattern)")
+    pat.add_argument(
+        "--corner-angle", type=float, default=DEFAULT_CORNER_ANGLE,
+        help=f"Diamond corner angle in degrees. Default: {DEFAULT_CORNER_ANGLE}",
+    )
+    pat.add_argument(
+        "--side-length", type=float, default=DEFAULT_SIDE_LENGTH,
+        help=f"Diamond side length in mm. Default: {DEFAULT_SIDE_LENGTH}",
+    )
+    pat.add_argument(
+        "--wall-count", type=int, default=DEFAULT_WALL_COUNT,
+        help=f"Number of concentric perimeters. Default: {DEFAULT_WALL_COUNT}",
+    )
+    pat.add_argument(
+        "--num-layers", type=int, default=DEFAULT_NUM_LAYERS,
+        help=f"Number of layers to print. Default: {DEFAULT_NUM_LAYERS}",
+    )
+    pat.add_argument(
+        "--pattern-spacing", type=float, default=DEFAULT_PATTERN_SPACING,
+        help=f"Gap between diamond patterns in mm. Default: {DEFAULT_PATTERN_SPACING}",
     )
 
     # --- Nozzle options ---
@@ -302,45 +361,23 @@ def _resolve_preset(args: argparse.Namespace) -> Dict[str, object]:
     }
 
 
-def run(args: argparse.Namespace) -> None:
-    """Execute the full pressure advance calibration pipeline.
+# ---------------------------------------------------------------------------
+# Shared pipeline helpers
+# ---------------------------------------------------------------------------
 
-    1. Validate PA arguments.
-    2. Generate the hollow rectangular tower STL.
-    3. Slice with PrusaSlicer.
-    4. Insert PA commands into the G-code.
-    5. Upload to the printer (unless ``--no-upload``).
+
+def _resolve_common(args: argparse.Namespace) -> dict:
+    """Resolve settings shared by both tower and pattern pipelines.
+
+    Returns a dict with resolved values ready for use.
     """
-    # Load TOML config and apply defaults.
-    toml_config = load_config(args.config)
-    _apply_config(args, toml_config)
+    num_levels = _validate_pa_args(args.start_pa, args.end_pa, args.pa_step)
 
-    if args.verbose:
-        cfg_path = _find_config_path(args.config)
-        if cfg_path is not None:
-            print(f"[DEBUG] Config file: {cfg_path}")
-            print(f"[DEBUG] Config values: {toml_config}")
-        else:
-            print("[DEBUG] No config file loaded")
-
-    # Fail fast: validate upload requirements.
-    if not args.no_upload and (not args.printer_url or not args.api_key):
-        print("Error: --printer-url and --api-key are required for upload.",
-              file=sys.stderr)
-        sys.exit(1)
-
-    # Validate PA args and compute level count.
-    num_levels = _validate_pa_args(
-        args.start_pa, args.end_pa, args.pa_step,
-    )
-
-    # Resolve filament preset for slicer settings.
     resolved = _resolve_preset(args)
     nozzle_temp: int = resolved["nozzle_temp"]
     bed_temp: int = resolved["bed_temp"]
     fan_speed: int = resolved["fan_speed"]
 
-    # Derive layer height and extrusion width from nozzle size.
     nozzle_size: float = args.nozzle_size
     layer_height: float = (
         args.layer_height if args.layer_height is not _UNSET
@@ -351,31 +388,83 @@ def run(args: argparse.Namespace) -> None:
         else round(nozzle_size * 1.125, 2)
     )
 
-    # Resolve printer model for start/end G-code.
     printer_name: Optional[str] = None
     bed_shape: Optional[str] = None
     if args.printer is not None:
         printer_name = resolve_printer(args.printer)
-        # Auto-set bed center and shape from printer presets if not explicit.
         if args.bed_center is None:
             args.bed_center = compute_bed_center(printer_name)
         bed_shape = compute_bed_shape(printer_name)
 
+    return {
+        "num_levels": num_levels,
+        "nozzle_temp": nozzle_temp,
+        "bed_temp": bed_temp,
+        "fan_speed": fan_speed,
+        "nozzle_size": nozzle_size,
+        "layer_height": layer_height,
+        "extrusion_width": extrusion_width,
+        "printer_name": printer_name,
+        "bed_shape": bed_shape,
+    }
+
+
+def _render_gcode_templates(
+    args: argparse.Namespace,
+    printer_name: Optional[str],
+    nozzle_size: float,
+    nozzle_temp: int,
+    bed_temp: int,
+    model_width: float,
+    model_depth: float,
+    max_z: float,
+) -> tuple[Optional[str], Optional[str]]:
+    """Render printer-specific start/end G-code if applicable."""
+    if printer_name is None or args.config_ini is not None:
+        return None, None
+
+    filament_preset = gl.FILAMENT_PRESETS.get(args.filament_type.upper())
+    use_cool_fan = True
+    if filament_preset is not None and filament_preset.get("enclosure"):
+        use_cool_fan = False
+
+    start_gcode = render_start_gcode(
+        printer_name,
+        nozzle_dia=nozzle_size,
+        bed_temp=bed_temp,
+        hotend_temp=nozzle_temp,
+        bed_center=args.bed_center or DEFAULT_BED_CENTER,
+        model_width=model_width,
+        model_depth=model_depth,
+        cool_fan=use_cool_fan,
+    )
+    end_gcode = render_end_gcode(
+        printer_name,
+        max_layer_z=max_z,
+    )
+    return start_gcode, end_gcode
+
+
+# ---------------------------------------------------------------------------
+# Tower pipeline
+# ---------------------------------------------------------------------------
+
+
+def _run_tower_pipeline(args: argparse.Namespace) -> None:
+    """Execute the tower-method PA calibration pipeline."""
+    common = _resolve_common(args)
+    num_levels = common["num_levels"]
+    nozzle_temp = common["nozzle_temp"]
+    bed_temp = common["bed_temp"]
+    fan_speed = common["fan_speed"]
+    nozzle_size = common["nozzle_size"]
+    layer_height = common["layer_height"]
+    extrusion_width = common["extrusion_width"]
+    printer_name = common["printer_name"]
+    bed_shape = common["bed_shape"]
+
     if args.verbose:
-        filament_key = args.filament_type.upper()
-        preset = gl.FILAMENT_PRESETS.get(filament_key)
-        if preset is not None:
-            print(f"[DEBUG] Filament preset '{filament_key}' found")
-        else:
-            print(f"[DEBUG] Filament type '{filament_key}' not in presets, "
-                  "using fallback defaults")
-        print(f"[DEBUG] Resolved: nozzle_temp={nozzle_temp} bed_temp={bed_temp} "
-              f"fan_speed={fan_speed}")
-        print(f"[DEBUG] Nozzle: {nozzle_size} mm → "
-              f"layer_height={layer_height} extrusion_width={extrusion_width}")
-        if printer_name is not None:
-            print(f"[DEBUG] Printer: {printer_name} "
-                  f"(bed center: {args.bed_center})")
+        _debug_common(args, common)
 
     config = PATowerConfig(
         num_levels=num_levels,
@@ -385,9 +474,8 @@ def run(args: argparse.Namespace) -> None:
     out_dir = _resolve_output_dir(args.output_dir)
 
     if args.verbose:
-        print(f"[DEBUG] PA: {num_levels} levels, "
-              f"{args.start_pa}→{args.end_pa}, "
-              f"step={args.pa_step}")
+        print(f"[DEBUG] PA tower: {num_levels} levels, "
+              f"{args.start_pa}→{args.end_pa}, step={args.pa_step}")
         print(f"[DEBUG] Output directory: {out_dir}")
 
     print(
@@ -415,36 +503,13 @@ def run(args: argparse.Namespace) -> None:
         effective_center = args.bed_center or f"{DEFAULT_BED_CENTER} (default)"
         print(f"[DEBUG] Bed center: {effective_center}")
 
-    # Render printer-specific start/end G-code when --printer is set
-    # and no --config-ini is given (config.ini already has start/end gcode).
-    start_gcode: Optional[str] = None
-    end_gcode: Optional[str] = None
-    if printer_name is not None and args.config_ini is None:
-        total_height = num_levels * args.level_height
-        # Determine whether to use cooling fan during MBL.
-        filament_preset = gl.FILAMENT_PRESETS.get(
-            args.filament_type.upper()
-        )
-        use_cool_fan = True
-        if filament_preset is not None and filament_preset.get("enclosure"):
-            use_cool_fan = False
-
-        start_gcode = render_start_gcode(
-            printer_name,
-            nozzle_dia=nozzle_size,
-            bed_temp=bed_temp,
-            hotend_temp=nozzle_temp,
-            bed_center=args.bed_center or DEFAULT_BED_CENTER,
-            model_width=TOWER_WIDTH,
-            model_depth=TOWER_DEPTH,
-            cool_fan=use_cool_fan,
-        )
-        end_gcode = render_end_gcode(
-            printer_name,
-            max_layer_z=total_height,
-        )
-        if args.verbose:
-            print(f"[DEBUG] Rendered {printer_name} start/end G-code")
+    total_z = num_levels * args.level_height
+    start_gcode, end_gcode = _render_gcode_templates(
+        args, printer_name, nozzle_size, nozzle_temp, bed_temp,
+        TOWER_WIDTH, TOWER_DEPTH, total_z,
+    )
+    if args.verbose and start_gcode is not None:
+        print(f"[DEBUG] Rendered {printer_name} start/end G-code")
 
     result = slice_pa_specimen(
         stl_path=stl_path,
@@ -511,6 +576,206 @@ def run(args: argparse.Namespace) -> None:
         Path(raw_gcode_path).unlink(missing_ok=True)
 
     # --- Step 4: Upload ---
+    _upload(args, final_gcode_path)
+
+    print("Done.")
+
+
+# ---------------------------------------------------------------------------
+# Pattern pipeline
+# ---------------------------------------------------------------------------
+
+
+def _run_pattern_pipeline(args: argparse.Namespace) -> None:
+    """Execute the pattern-method PA calibration pipeline."""
+    common = _resolve_common(args)
+    num_levels = common["num_levels"]
+    nozzle_temp = common["nozzle_temp"]
+    bed_temp = common["bed_temp"]
+    fan_speed = common["fan_speed"]
+    nozzle_size = common["nozzle_size"]
+    layer_height = common["layer_height"]
+    extrusion_width = common["extrusion_width"]
+    printer_name = common["printer_name"]
+    bed_shape = common["bed_shape"]
+
+    if args.verbose:
+        _debug_common(args, common)
+
+    config = PAPatternConfig(
+        num_patterns=num_levels,
+        corner_angle=args.corner_angle,
+        side_length=args.side_length,
+        wall_count=args.wall_count,
+        num_layers=args.num_layers,
+        pattern_spacing=args.pattern_spacing,
+        wall_thickness=DEFAULT_WALL_THICKNESS,
+        layer_height=layer_height,
+        filament_type=args.filament_type,
+    )
+    out_dir = _resolve_output_dir(args.output_dir)
+
+    if args.verbose:
+        print(f"[DEBUG] PA pattern: {num_levels} patterns, "
+              f"{args.start_pa}→{args.end_pa}, step={args.pa_step}")
+        print(f"[DEBUG] Diamond: angle={config.corner_angle}° "
+              f"side={config.side_length}mm "
+              f"walls={config.wall_count}")
+        print(f"[DEBUG] Output directory: {out_dir}")
+
+    print(
+        f"Filament: {config.filament_type}  "
+        f"Nozzle: {nozzle_size} mm  "
+        f"PA: {args.start_pa}→{args.end_pa} (step {args.pa_step})  "
+        f"Firmware: {args.firmware}  "
+        f"Temp: {nozzle_temp}°C  Bed: {bed_temp}°C  Fan: {fan_speed}%"
+    )
+
+    # --- Step 1: Generate STL ---
+    stl_name = (
+        f"pa_pattern_{config.filament_type}"
+        f"_{args.start_pa}_{args.pa_step}x{num_levels}.stl"
+    )
+    stl_path = str(out_dir / stl_name)
+    print(f"Generating model → {stl_path}")
+    _, x_centers = generate_pa_pattern_stl(config, stl_path)
+
+    # --- Step 2: Slice ---
+    gcode_ext = _gcode_ext(args.ascii_gcode)
+    raw_gcode_path = str(out_dir / stl_name.replace(".stl", f"_raw{gcode_ext}"))
+    print(f"Slicing → {raw_gcode_path}")
+
+    model_height = pattern_total_height(config)
+    model_depth = diamond_height(config.side_length, config.corner_angle)
+    from filament_calibrator.pa_pattern import diamond_width as dw_fn
+    model_width = (
+        num_levels * dw_fn(config.side_length, config.corner_angle)
+        + (num_levels - 1) * config.pattern_spacing
+    )
+
+    start_gcode, end_gcode = _render_gcode_templates(
+        args, printer_name, nozzle_size, nozzle_temp, bed_temp,
+        model_width, model_depth, model_height,
+    )
+    if args.verbose and start_gcode is not None:
+        print(f"[DEBUG] Rendered {printer_name} start/end G-code")
+
+    result = slice_pa_pattern(
+        stl_path=stl_path,
+        output_gcode_path=raw_gcode_path,
+        layer_height=layer_height,
+        extrusion_width=extrusion_width,
+        perimeters=config.wall_count,
+        config_ini=args.config_ini,
+        prusaslicer_path=args.prusaslicer_path,
+        extra_args=args.extra_slicer_args,
+        nozzle_temp=nozzle_temp,
+        bed_temp=bed_temp,
+        fan_speed=fan_speed,
+        bed_center=args.bed_center,
+        bed_shape=bed_shape,
+        nozzle_diameter=nozzle_size,
+        start_gcode=start_gcode,
+        end_gcode=end_gcode,
+        printer_model=printer_name,
+        binary_gcode=not args.ascii_gcode,
+    )
+    if args.verbose:
+        print(f"[DEBUG] PrusaSlicer command: {' '.join(result.cmd)}")
+        if result.stdout.strip():
+            print(f"[DEBUG] PrusaSlicer stdout: {result.stdout.strip()}")
+
+    if not result.ok:
+        print(f"PrusaSlicer failed (exit {result.returncode}):", file=sys.stderr)
+        print(result.stderr, file=sys.stderr)
+        sys.exit(1)
+
+    # --- Step 3: Insert PA commands by X position ---
+    final_gcode_path = str(out_dir / stl_name.replace(".stl", gcode_ext))
+    print(f"Inserting PA commands → {final_gcode_path}")
+    gf = gl.load(raw_gcode_path)
+    inject_thumbnails(gf, stl_path, DEFAULT_THUMBNAILS, verbose=args.verbose)
+    if printer_name is not None:
+        patch_slicer_metadata(
+            gf, printer_name, nozzle_size, verbose=args.verbose
+        )
+
+    # Build PA values (left-to-right, matching x_centers order).
+    pa_values = [
+        round(args.start_pa + i * args.pa_step, 4)
+        for i in range(num_levels)
+    ]
+    # x_centers are model-space (centred at 0).  The slicer's --center shifts
+    # the model to bed_center, so we must apply the same offset.
+    bed_cx = 125.0  # default
+    if args.bed_center is not None:
+        bed_cx = float(args.bed_center.split(",")[0])
+    shifted_centers = [cx + bed_cx for cx in x_centers]
+
+    regions = compute_pa_pattern_regions(pa_values, shifted_centers)
+    if args.verbose:
+        print("[DEBUG] PA regions:")
+        for r in regions:
+            xs = f"{r.x_start:.1f}" if r.x_start != float("-inf") else "-inf"
+            xe = f"{r.x_end:.1f}" if r.x_end != float("inf") else "+inf"
+            print(f"[DEBUG]   X {xs} – {xe} → PA {r.pa_value:.4f}")
+
+    gf.lines = insert_pa_pattern_commands(
+        gf.lines, regions, firmware=args.firmware,
+    )
+    gl.save(gf, final_gcode_path)
+
+    # Print PA pattern reference table for the user.
+    print("\nPA value by pattern position:")
+    for i, (pa, cx) in enumerate(zip(pa_values, shifted_centers)):
+        print(f"  Pattern {i + 1:2d} (X ≈ {cx:6.1f} mm)  ->  PA {pa:.4f}")
+    print(f"\nInspect which diamond has the sharpest corners to find your optimal PA value.\n")
+
+    # --- Clean up intermediate files ---
+    if not args.keep_files:
+        Path(stl_path).unlink(missing_ok=True)
+        Path(raw_gcode_path).unlink(missing_ok=True)
+
+    # --- Step 4: Upload ---
+    _upload(args, final_gcode_path)
+
+    print("Done.")
+
+
+# ---------------------------------------------------------------------------
+# Shared helpers
+# ---------------------------------------------------------------------------
+
+
+def _debug_common(args: argparse.Namespace, common: dict) -> None:
+    """Print common debug information."""
+    cfg_path = _find_config_path(args.config)
+    if cfg_path is not None:
+        toml_config = load_config(args.config)
+        print(f"[DEBUG] Config file: {cfg_path}")
+        print(f"[DEBUG] Config values: {toml_config}")
+    else:
+        print("[DEBUG] No config file loaded")
+
+    filament_key = args.filament_type.upper()
+    preset = gl.FILAMENT_PRESETS.get(filament_key)
+    if preset is not None:
+        print(f"[DEBUG] Filament preset '{filament_key}' found")
+    else:
+        print(f"[DEBUG] Filament type '{filament_key}' not in presets, "
+              "using fallback defaults")
+    print(f"[DEBUG] Resolved: nozzle_temp={common['nozzle_temp']} "
+          f"bed_temp={common['bed_temp']} fan_speed={common['fan_speed']}")
+    print(f"[DEBUG] Nozzle: {common['nozzle_size']} mm → "
+          f"layer_height={common['layer_height']} "
+          f"extrusion_width={common['extrusion_width']}")
+    if common["printer_name"] is not None:
+        print(f"[DEBUG] Printer: {common['printer_name']} "
+              f"(bed center: {args.bed_center})")
+
+
+def _upload(args: argparse.Namespace, gcode_path: str) -> None:
+    """Upload G-code if enabled, or print the save path."""
     if not args.no_upload:
         if args.verbose:
             print(f"[DEBUG] Upload target: {args.printer_url}")
@@ -519,16 +784,41 @@ def run(args: argparse.Namespace) -> None:
         filename = gl.prusalink_upload(
             base_url=args.printer_url,
             api_key=args.api_key,
-            gcode_path=final_gcode_path,
+            gcode_path=gcode_path,
             print_after_upload=args.print_after_upload,
         )
         print(f"Uploaded as: {filename}")
         if args.print_after_upload:
             print("Print started.")
     else:
-        print(f"G-code saved to: {final_gcode_path}")
+        print(f"G-code saved to: {gcode_path}")
 
-    print("Done.")
+
+# ---------------------------------------------------------------------------
+# Entry points
+# ---------------------------------------------------------------------------
+
+
+def run(args: argparse.Namespace) -> None:
+    """Execute the pressure advance calibration pipeline.
+
+    Dispatches to the tower or pattern method based on ``--method``.
+    """
+    # Load TOML config and apply defaults.
+    toml_config = load_config(args.config)
+    _apply_config(args, toml_config)
+
+    # Fail fast: validate upload requirements.
+    if not args.no_upload and (not args.printer_url or not args.api_key):
+        print("Error: --printer-url and --api-key are required for upload.",
+              file=sys.stderr)
+        sys.exit(1)
+
+    method = getattr(args, "method", "tower")
+    if method == "pattern":
+        _run_pattern_pipeline(args)
+    else:
+        _run_tower_pipeline(args)
 
 
 def main(argv: Optional[List[str]] = None) -> None:

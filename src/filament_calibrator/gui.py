@@ -189,13 +189,19 @@ def build_pa_namespace(
     end_pa: float,
     pa_step: float,
     firmware: str,
-    level_height: float,
+    method: str = "tower",
+    level_height: float = 1.0,
     nozzle_temp: int,
     bed_temp: int,
     fan_speed: int,
     nozzle_size: float,
     layer_height: float,
     extrusion_width: float,
+    corner_angle: float = 90.0,
+    side_length: float = 30.0,
+    wall_count: int = 3,
+    num_layers: int = 4,
+    pattern_spacing: float = 2.0,
     printer: str,
     ascii_gcode: bool,
     output_dir: str,
@@ -213,6 +219,7 @@ def build_pa_namespace(
         end_pa=end_pa,
         pa_step=pa_step,
         firmware=firmware,
+        method=method,
         level_height=level_height,
         nozzle_temp=nozzle_temp,
         bed_temp=bed_temp,
@@ -220,6 +227,11 @@ def build_pa_namespace(
         nozzle_size=nozzle_size,
         layer_height=layer_height,
         extrusion_width=extrusion_width,
+        corner_angle=corner_angle,
+        side_length=side_length,
+        wall_count=wall_count,
+        num_layers=num_layers,
+        pattern_spacing=pattern_spacing,
         printer=printer,
         ascii_gcode=ascii_gcode,
         output_dir=output_dir,
@@ -747,10 +759,28 @@ def _app() -> None:  # pragma: no cover
     # === Tab 3: Pressure Advance ===
     with tab_pa:
         st.subheader("Pressure Advance")
-        st.caption(
-            "Generate a hollow rectangular tower with sharp corners. "
-            "PA value increases with height."
+        pa_method = st.radio(
+            "Method",
+            options=["Tower", "Pattern"],
+            horizontal=True,
+            help=(
+                "Tower: hollow rectangular tower with PA by height. "
+                "Pattern: side-by-side diamond shapes with PA by X position."
+            ),
         )
+        method_key = pa_method.lower()
+
+        if method_key == "tower":
+            st.caption(
+                "Generate a hollow rectangular tower with sharp corners. "
+                "PA value increases with height."
+            )
+        else:
+            st.caption(
+                "Generate side-by-side diamond shapes. "
+                "Each diamond has a different PA value \u2014 inspect which "
+                "has the sharpest corners."
+            )
 
         col1, col2, col3 = st.columns(3)
         with col1:
@@ -810,14 +840,61 @@ def _app() -> None:  # pragma: no cover
                 key="pa_fan",
             )
 
+        # Pattern-specific settings (defaults used when method is tower)
+        pa_corner_angle = 90.0
+        pa_side_length = 30.0
+        pa_wall_count = 3
+        pa_num_layers = 4
+        pa_pattern_spacing = 2.0
+        if method_key == "pattern":
+            with st.expander("Pattern Settings"):
+                pa_corner_angle = st.number_input(
+                    "Corner Angle (\u00b0)",
+                    value=90.0,
+                    min_value=10.0,
+                    max_value=170.0,
+                    step=5.0,
+                    key="pa_corner_angle",
+                )
+                pa_side_length = st.number_input(
+                    "Side Length (mm)",
+                    value=30.0,
+                    min_value=5.0,
+                    step=5.0,
+                    key="pa_side_length",
+                )
+                pa_wall_count = st.number_input(
+                    "Wall Count",
+                    value=3,
+                    min_value=1,
+                    max_value=10,
+                    key="pa_wall_count",
+                )
+                pa_num_layers = st.number_input(
+                    "Number of Layers",
+                    value=4,
+                    min_value=1,
+                    max_value=20,
+                    key="pa_num_layers",
+                )
+                pa_pattern_spacing = st.number_input(
+                    "Pattern Spacing (mm)",
+                    value=2.0,
+                    min_value=0.0,
+                    step=0.5,
+                    key="pa_pattern_spacing",
+                )
+
+        pa_level_height = 1.0
         with st.expander("Advanced Slicer Settings"):
-            pa_level_height = st.number_input(
-                "Level Height (mm)",
-                value=1.0,
-                min_value=0.2,
-                step=0.5,
-                key="pa_level_height",
-            )
+            if method_key == "tower":
+                pa_level_height = st.number_input(
+                    "Level Height (mm)",
+                    value=1.0,
+                    min_value=0.2,
+                    step=0.5,
+                    key="pa_level_height",
+                )
             pa_layer_height = st.number_input(
                 "Layer Height (mm)",
                 value=derived_lh,
@@ -838,12 +915,13 @@ def _app() -> None:  # pragma: no cover
         # Level count preview
         if end_pa > start_pa and pa_step_val > 0:
             num_levels = round((end_pa - start_pa) / pa_step_val) + 1
+            label = "levels" if method_key == "tower" else "patterns"
             st.info(
-                f"{num_levels} levels: "
+                f"{num_levels} {label}: "
                 f"PA {start_pa:.4f} \u2192 {end_pa:.4f}"
             )
 
-        if st.button("Generate PA Tower", type="primary",
+        if st.button("Generate PA Calibration", type="primary",
                       key="run_pa"):
             run_dir = _fresh_output_dir(custom_output_dir)
             args = build_pa_namespace(
@@ -852,6 +930,7 @@ def _app() -> None:  # pragma: no cover
                 end_pa=end_pa,
                 pa_step=pa_step_val,
                 firmware=firmware,
+                method=method_key,
                 level_height=pa_level_height,
                 nozzle_temp=pa_nozzle_temp,
                 bed_temp=pa_bed_temp,
@@ -859,6 +938,11 @@ def _app() -> None:  # pragma: no cover
                 nozzle_size=nozzle_size,
                 layer_height=pa_layer_height,
                 extrusion_width=pa_extrusion_width,
+                corner_angle=pa_corner_angle,
+                side_length=pa_side_length,
+                wall_count=pa_wall_count,
+                num_layers=pa_num_layers,
+                pattern_spacing=pa_pattern_spacing,
                 printer=printer,
                 ascii_gcode=ascii_gcode,
                 output_dir=run_dir,

@@ -1,7 +1,12 @@
 """Pressure advance G-code insertion for PA calibration prints.
 
-Uses ``gcode_lib.iter_layers()`` to identify Z-level boundaries and inserts
-firmware-specific pressure advance commands at the start of each PA level.
+Provides two insertion strategies:
+
+* **Z-based** (tower method): uses ``gcode_lib.iter_layers()`` to identify
+  Z-level boundaries and inserts PA commands at each height transition.
+* **X-based** (pattern method): walks G-code line by line using
+  ``gcode_lib.ModalState`` to track X position and inserts PA commands when
+  the toolpath moves to a different diamond region.
 """
 from __future__ import annotations
 
@@ -149,5 +154,131 @@ def insert_pa_commands(
             prev_pa = target_pa
 
         result.extend(layer_lines)
+
+    return result
+
+
+# ===================================================================
+# X-based insertion (pattern method)
+# ===================================================================
+
+
+@dataclass
+class PAPatternRegion:
+    """One diamond pattern's X region and PA value.
+
+    Attributes
+    ----------
+    pa_value: Pressure advance value for this pattern.
+    x_start:  Left boundary (inclusive), in mm.
+    x_end:    Right boundary (exclusive), in mm.
+    """
+    pa_value: float
+    x_start: float
+    x_end: float
+
+
+def compute_pa_pattern_regions(
+    pa_values: List[float],
+    x_centers: List[float],
+) -> List[PAPatternRegion]:
+    """Build X-axis regions for each diamond pattern.
+
+    Region boundaries are placed at the midpoint between adjacent
+    diamond centres.  The leftmost region extends to ``-inf`` and the
+    rightmost extends to ``+inf``.
+
+    Parameters
+    ----------
+    pa_values: PA value for each pattern (left to right).
+    x_centers: X coordinate of each diamond's centre (left to right).
+
+    Returns
+    -------
+    List[PAPatternRegion]
+        One region per pattern, ordered left to right.
+    """
+    regions: List[PAPatternRegion] = []
+    n = len(pa_values)
+    for i in range(n):
+        x_start = (
+            float("-inf")
+            if i == 0
+            else (x_centers[i - 1] + x_centers[i]) / 2.0
+        )
+        x_end = (
+            float("inf")
+            if i == n - 1
+            else (x_centers[i] + x_centers[i + 1]) / 2.0
+        )
+        regions.append(PAPatternRegion(
+            pa_value=pa_values[i],
+            x_start=x_start,
+            x_end=x_end,
+        ))
+    return regions
+
+
+def _region_for_x(
+    x: float,
+    regions: List[PAPatternRegion],
+) -> PAPatternRegion | None:
+    """Return the region that contains *x*, or ``None``."""
+    for region in regions:
+        if region.x_start <= x < region.x_end:
+            return region
+    return None
+
+
+def _is_extrusion_move(line: gl.GCodeLine) -> bool:
+    """Return ``True`` if *line* is a G1 move that extrudes material.
+
+    An extrusion move has an ``E`` word and at least one of ``X`` or ``Y``
+    (i.e. lateral movement, not just a retraction or Z-only move).
+    """
+    if line.command != "G1":
+        return False
+    if "E" not in line.words:
+        return False
+    return "X" in line.words or "Y" in line.words
+
+
+def insert_pa_pattern_commands(
+    lines: List[gl.GCodeLine],
+    regions: List[PAPatternRegion],
+    firmware: str = "marlin",
+) -> List[gl.GCodeLine]:
+    """Insert PA commands based on the toolpath's X position.
+
+    Walks G-code line by line using :class:`gcode_lib.ModalState` to
+    track the current X coordinate.  When an extrusion move enters a
+    different diamond's X region, a PA command is inserted before it.
+
+    Returns a new list of :class:`gcode_lib.GCodeLine`.
+
+    Parameters
+    ----------
+    lines:    Parsed G-code lines.
+    regions:  Pattern regions from :func:`compute_pa_pattern_regions`.
+    firmware: ``"marlin"`` or ``"klipper"``.
+    """
+    if not regions:
+        return list(lines)
+
+    result: List[gl.GCodeLine] = []
+    state = gl.ModalState()
+    prev_pa: float | None = None
+
+    for line in lines:
+        gl.advance_state(state, line)
+
+        if _is_extrusion_move(line):
+            region = _region_for_x(state.x, regions)
+            if region is not None and region.pa_value != prev_pa:
+                cmd = pa_command(region.pa_value, firmware)
+                result.append(gl.parse_line(cmd))
+                prev_pa = region.pa_value
+
+        result.append(line)
 
     return result

@@ -7,10 +7,15 @@ import gcode_lib as gl
 
 from filament_calibrator.pa_insert import (
     PALevel,
-    compute_pa_levels,
-    insert_pa_commands,
-    pa_command,
+    PAPatternRegion,
+    _is_extrusion_move,
     _level_for_z,
+    _region_for_x,
+    compute_pa_levels,
+    compute_pa_pattern_regions,
+    insert_pa_commands,
+    insert_pa_pattern_commands,
+    pa_command,
 )
 
 
@@ -260,4 +265,251 @@ class TestInsertPACommands:
         original_len = len(lines)
         levels = compute_pa_levels(0.0, 0.05, 1, 1.0)
         insert_pa_commands(lines, levels, firmware="marlin")
+        assert len(lines) == original_len
+
+
+# ===========================================================================
+# X-based PA insertion (pattern method)
+# ===========================================================================
+
+
+# ---------------------------------------------------------------------------
+# PAPatternRegion
+# ---------------------------------------------------------------------------
+
+
+class TestPAPatternRegion:
+    def test_attributes(self):
+        r = PAPatternRegion(pa_value=0.05, x_start=10.0, x_end=20.0)
+        assert r.pa_value == 0.05
+        assert r.x_start == 10.0
+        assert r.x_end == 20.0
+
+
+# ---------------------------------------------------------------------------
+# compute_pa_pattern_regions
+# ---------------------------------------------------------------------------
+
+
+class TestComputePaPatternRegions:
+    def test_single_region(self):
+        regions = compute_pa_pattern_regions([0.05], [100.0])
+        assert len(regions) == 1
+        assert regions[0].pa_value == 0.05
+        assert regions[0].x_start == float("-inf")
+        assert regions[0].x_end == float("inf")
+
+    def test_two_regions(self):
+        regions = compute_pa_pattern_regions([0.0, 0.1], [100.0, 150.0])
+        assert len(regions) == 2
+        assert regions[0].x_start == float("-inf")
+        assert regions[0].x_end == pytest.approx(125.0)
+        assert regions[1].x_start == pytest.approx(125.0)
+        assert regions[1].x_end == float("inf")
+
+    def test_three_regions_boundaries(self):
+        regions = compute_pa_pattern_regions(
+            [0.0, 0.05, 0.1], [80.0, 120.0, 160.0],
+        )
+        assert len(regions) == 3
+        assert regions[0].x_start == float("-inf")
+        assert regions[0].x_end == pytest.approx(100.0)
+        assert regions[1].x_start == pytest.approx(100.0)
+        assert regions[1].x_end == pytest.approx(140.0)
+        assert regions[2].x_start == pytest.approx(140.0)
+        assert regions[2].x_end == float("inf")
+
+    def test_pa_values_assigned(self):
+        regions = compute_pa_pattern_regions(
+            [0.01, 0.02, 0.03], [50.0, 100.0, 150.0],
+        )
+        assert regions[0].pa_value == 0.01
+        assert regions[1].pa_value == 0.02
+        assert regions[2].pa_value == 0.03
+
+
+# ---------------------------------------------------------------------------
+# _region_for_x
+# ---------------------------------------------------------------------------
+
+
+class TestRegionForX:
+    def test_in_first_region(self):
+        regions = compute_pa_pattern_regions([0.0, 0.1], [100.0, 150.0])
+        assert _region_for_x(90.0, regions).pa_value == 0.0
+
+    def test_in_second_region(self):
+        regions = compute_pa_pattern_regions([0.0, 0.1], [100.0, 150.0])
+        assert _region_for_x(130.0, regions).pa_value == 0.1
+
+    def test_at_boundary_goes_to_next(self):
+        regions = compute_pa_pattern_regions([0.0, 0.1], [100.0, 150.0])
+        # x_start is inclusive, so the boundary point belongs to region 1
+        assert _region_for_x(125.0, regions).pa_value == 0.1
+
+    def test_far_left(self):
+        regions = compute_pa_pattern_regions([0.0, 0.1], [100.0, 150.0])
+        assert _region_for_x(-1000.0, regions).pa_value == 0.0
+
+    def test_far_right(self):
+        regions = compute_pa_pattern_regions([0.0, 0.1], [100.0, 150.0])
+        assert _region_for_x(9999.0, regions).pa_value == 0.1
+
+    def test_empty_regions(self):
+        assert _region_for_x(50.0, []) is None
+
+
+# ---------------------------------------------------------------------------
+# _is_extrusion_move
+# ---------------------------------------------------------------------------
+
+
+class TestIsExtrusionMove:
+    def test_g1_with_x_and_e(self):
+        line = gl.parse_line("G1 X10 E1.5")
+        assert _is_extrusion_move(line) is True
+
+    def test_g1_with_y_and_e(self):
+        line = gl.parse_line("G1 Y20 E1.5")
+        assert _is_extrusion_move(line) is True
+
+    def test_g1_with_x_y_and_e(self):
+        line = gl.parse_line("G1 X10 Y20 E1.5")
+        assert _is_extrusion_move(line) is True
+
+    def test_g1_without_e(self):
+        """Travel move (no extrusion) should return False."""
+        line = gl.parse_line("G1 X10 Y20")
+        assert _is_extrusion_move(line) is False
+
+    def test_g1_e_only_retraction(self):
+        """Retraction (E only, no X/Y) should return False."""
+        line = gl.parse_line("G1 E-1.0")
+        assert _is_extrusion_move(line) is False
+
+    def test_g1_z_and_e(self):
+        """Z-only move with E (no X/Y) should return False."""
+        line = gl.parse_line("G1 Z0.2 E0.5")
+        assert _is_extrusion_move(line) is False
+
+    def test_g0_travel_move(self):
+        """G0 is never an extrusion move."""
+        line = gl.parse_line("G0 X10 E1")
+        assert _is_extrusion_move(line) is False
+
+    def test_non_move_command(self):
+        line = gl.parse_line("M104 S200")
+        assert _is_extrusion_move(line) is False
+
+
+# ---------------------------------------------------------------------------
+# insert_pa_pattern_commands
+# ---------------------------------------------------------------------------
+
+
+class TestInsertPaPatternCommands:
+    def test_basic_marlin_insertion(self):
+        """PA commands are inserted when toolpath enters new X region."""
+        gcode = (
+            "G28\n"
+            "G1 Z0.2 F1000\n"
+            "G1 X90 E1\n"
+            "G1 X130 E2\n"
+        )
+        lines = _lines(gcode)
+        regions = compute_pa_pattern_regions([0.0, 0.1], [100.0, 150.0])
+        result = insert_pa_pattern_commands(lines, regions, firmware="marlin")
+        texts = _raw_texts(result)
+
+        m900_lines = [t for t in texts if t.startswith("M900")]
+        assert len(m900_lines) == 2
+        assert "K0.0000" in m900_lines[0]
+        assert "K0.1000" in m900_lines[1]
+
+    def test_klipper_insertion(self):
+        """SET_PRESSURE_ADVANCE commands are used for klipper."""
+        gcode = (
+            "G1 Z0.2 F1000\n"
+            "G1 X90 E1\n"
+            "G1 X130 E2\n"
+        )
+        lines = _lines(gcode)
+        regions = compute_pa_pattern_regions([0.0, 0.1], [100.0, 150.0])
+        result = insert_pa_pattern_commands(lines, regions, firmware="klipper")
+        texts = _raw_texts(result)
+
+        pa_lines = [t for t in texts if t.startswith("SET_PRESSURE_ADVANCE")]
+        assert len(pa_lines) == 2
+
+    def test_no_duplicate_in_same_region(self):
+        """Multiple moves within the same X region don't produce duplicates."""
+        gcode = (
+            "G1 Z0.2 F1000\n"
+            "G1 X90 E1\n"
+            "G1 X95 E2\n"
+            "G1 X92 E3\n"
+        )
+        lines = _lines(gcode)
+        regions = compute_pa_pattern_regions([0.0, 0.1], [100.0, 150.0])
+        result = insert_pa_pattern_commands(lines, regions, firmware="marlin")
+        texts = _raw_texts(result)
+
+        m900_lines = [t for t in texts if t.startswith("M900")]
+        assert len(m900_lines) == 1
+
+    def test_empty_regions_no_modification(self):
+        gcode = "G28\nG1 X10 E1\n"
+        lines = _lines(gcode)
+        result = insert_pa_pattern_commands(lines, [])
+        assert len(result) == len(lines)
+
+    def test_empty_lines(self):
+        regions = compute_pa_pattern_regions([0.0], [100.0])
+        result = insert_pa_pattern_commands([], regions)
+        assert result == []
+
+    def test_command_before_extrusion_move(self):
+        """PA command appears before the extrusion move that triggers it."""
+        gcode = (
+            "G1 Z0.2 F1000\n"
+            "G1 X90 E1\n"
+            "G1 X130 E2\n"
+        )
+        lines = _lines(gcode)
+        regions = compute_pa_pattern_regions([0.0, 0.1], [100.0, 150.0])
+        result = insert_pa_pattern_commands(lines, regions, firmware="marlin")
+        texts = _raw_texts(result)
+
+        idx_pa1 = next(i for i, t in enumerate(texts) if "K0.1000" in t)
+        idx_x130 = next(i for i, t in enumerate(texts) if "X130" in t)
+        assert idx_pa1 < idx_x130
+
+    def test_travel_moves_dont_trigger(self):
+        """Travel moves (no E) don't trigger PA changes."""
+        gcode = (
+            "G1 Z0.2 F1000\n"
+            "G1 X90 E1\n"
+            "G1 X130\n"
+            "G1 X90 E2\n"
+        )
+        lines = _lines(gcode)
+        regions = compute_pa_pattern_regions([0.0, 0.1], [100.0, 150.0])
+        result = insert_pa_pattern_commands(lines, regions, firmware="marlin")
+        texts = _raw_texts(result)
+
+        m900_lines = [t for t in texts if t.startswith("M900")]
+        # First extrusion at X90 → region 0, travel to X130 (no PA change),
+        # extrusion back at X90 → still region 0 (no change needed)
+        assert len(m900_lines) == 1
+
+    def test_immutable_input(self):
+        """Original list is not mutated."""
+        gcode = (
+            "G1 Z0.2 F1000\n"
+            "G1 X90 E1\n"
+        )
+        lines = _lines(gcode)
+        original_len = len(lines)
+        regions = compute_pa_pattern_regions([0.0], [100.0])
+        insert_pa_pattern_commands(lines, regions, firmware="marlin")
         assert len(lines) == original_len
