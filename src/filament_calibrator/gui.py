@@ -20,6 +20,7 @@ from typing import Any, Callable, Dict, List, Optional, Tuple
 import gcode_lib as gl
 
 from filament_calibrator.cli import _KNOWN_TYPES
+from filament_calibrator.config import load_config
 from filament_calibrator.ini_parser import parse_prusaslicer_ini
 from filament_calibrator.printer_gcode import KNOWN_PRINTERS
 
@@ -408,6 +409,49 @@ def _tkinter_directory_dialog(title: str) -> Optional[str]:
 
 
 # ---------------------------------------------------------------------------
+# TOML config auto-populate
+# ---------------------------------------------------------------------------
+
+
+def apply_toml_to_session(
+    state: Dict[str, Any],
+    toml_cfg: Dict[str, Any],
+) -> None:
+    """Apply TOML config values to Streamlit session state on first load.
+
+    Only writes keys that are **not yet present** in *state*, so user
+    edits and browse-dialog results are never overwritten.
+    """
+    _mapping: Dict[str, str] = {
+        "printer_url": "printer_url",
+        "api_key": "api_key",
+        "config_ini": "config_ini",
+        "prusaslicer_path": "prusaslicer_path",
+        "output_dir": "output_dir",
+    }
+    for toml_key, state_key in _mapping.items():
+        if toml_key in toml_cfg and state_key not in state:
+            state[state_key] = str(toml_cfg[toml_key])
+
+    if "filament_type" in toml_cfg:
+        ft = toml_cfg["filament_type"].upper()
+        if ft in _KNOWN_TYPES and "_toml_filament_type" not in state:
+            state["_toml_filament_type"] = ft
+
+    if "nozzle_size" in toml_cfg:
+        ns = toml_cfg["nozzle_size"]
+        if isinstance(ns, (int, float)):
+            snapped = snap_nozzle_size(float(ns))
+            if snapped in _NOZZLE_SIZES and "_toml_nozzle_size" not in state:
+                state["_toml_nozzle_size"] = snapped
+
+    if "printer" in toml_cfg:
+        pr = toml_cfg["printer"].upper()
+        if pr in _PRINTER_LIST and "_toml_printer" not in state:
+            state["_toml_printer"] = pr
+
+
+# ---------------------------------------------------------------------------
 # INI auto-populate helpers
 # ---------------------------------------------------------------------------
 
@@ -490,6 +534,16 @@ def _app() -> None:  # pragma: no cover
     )
     st.title("Filament Calibrator")
 
+    # Load TOML config defaults on first render only.
+    if "_toml_loaded" not in st.session_state:
+        st.session_state["_toml_loaded"] = True
+        try:
+            _toml = load_config()
+        except SystemExit:
+            _toml = {}
+        if _toml:
+            apply_toml_to_session(st.session_state, _toml)
+
     # Apply pending browse-dialog results before widgets render.
     for _key in ("config_ini", "prusaslicer_path", "output_dir"):
         _pending = f"_pending_{_key}"
@@ -513,10 +567,13 @@ def _app() -> None:  # pragma: no cover
     with st.sidebar:
         st.header("Common Settings")
 
-        _ini_ft = st.session_state.get("_ini_filament_type")
+        _ft = (
+            st.session_state.get("_ini_filament_type")
+            or st.session_state.get("_toml_filament_type")
+        )
         _ft_idx = (
-            _KNOWN_TYPES.index(_ini_ft)
-            if _ini_ft in _KNOWN_TYPES
+            _KNOWN_TYPES.index(_ft)
+            if _ft in _KNOWN_TYPES
             else _KNOWN_TYPES.index("PLA")
         )
         filament_type = st.selectbox(
@@ -526,10 +583,13 @@ def _app() -> None:  # pragma: no cover
         )
         preset = get_preset(filament_type)
 
-        _ini_pr = st.session_state.get("_ini_printer")
+        _pr = (
+            st.session_state.get("_ini_printer")
+            or st.session_state.get("_toml_printer")
+        )
         _pr_idx = (
-            _PRINTER_LIST.index(_ini_pr)
-            if _ini_pr in _PRINTER_LIST
+            _PRINTER_LIST.index(_pr)
+            if _pr in _PRINTER_LIST
             else _PRINTER_LIST.index("COREONE")
         )
         printer = st.selectbox(
@@ -538,10 +598,13 @@ def _app() -> None:  # pragma: no cover
             index=_pr_idx,
         )
 
-        _ini_ns = st.session_state.get("_ini_nozzle_size")
+        _ns = (
+            st.session_state.get("_ini_nozzle_size")
+            or st.session_state.get("_toml_nozzle_size")
+        )
         _ns_idx = (
-            _NOZZLE_SIZES.index(_ini_ns)
-            if _ini_ns in _NOZZLE_SIZES
+            _NOZZLE_SIZES.index(_ns)
+            if _ns in _NOZZLE_SIZES
             else _NOZZLE_SIZES.index(0.4)
         )
         nozzle_size = st.selectbox(
@@ -558,7 +621,13 @@ def _app() -> None:  # pragma: no cover
 
         st.divider()
         st.subheader("PrusaLink Upload")
-        enable_upload = st.checkbox("Upload to printer", value=False)
+        _has_upload_cfg = bool(
+            st.session_state.get("printer_url")
+            and st.session_state.get("api_key")
+        )
+        enable_upload = st.checkbox(
+            "Upload to printer", value=_has_upload_cfg,
+        )
         printer_url = ""
         api_key = ""
         print_after = False
@@ -566,8 +635,11 @@ def _app() -> None:  # pragma: no cover
             printer_url = st.text_input(
                 "Printer URL",
                 placeholder="http://192.168.1.100",
+                key="printer_url",
             )
-            api_key = st.text_input("API Key", type="password")
+            api_key = st.text_input(
+                "API Key", type="password", key="api_key",
+            )
             print_after = st.checkbox("Print after upload", value=False)
 
         st.divider()

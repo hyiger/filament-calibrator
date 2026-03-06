@@ -19,6 +19,7 @@ from filament_calibrator.gui import (
     _tkinter_directory_dialog,
     _tkinter_file_dialog,
     apply_ini_to_session,
+    apply_toml_to_session,
     build_flow_namespace,
     build_pa_namespace,
     build_temp_tower_namespace,
@@ -776,3 +777,81 @@ class TestApplyIniToSession:
         state: dict = {}
         apply_ini_to_session(state, {"filament_type": "EXOTIC123"})
         assert "_ini_filament_type" not in state
+
+
+# ---------------------------------------------------------------------------
+# apply_toml_to_session
+# ---------------------------------------------------------------------------
+
+class TestApplyTomlToSession:
+    """Test apply_toml_to_session() TOML config population."""
+
+    def test_full_config(self) -> None:
+        state: dict = {}
+        cfg = {
+            "printer_url": "http://192.168.1.100",
+            "api_key": "secret123",
+            "config_ini": "/path/to/config.ini",
+            "prusaslicer_path": "/usr/bin/prusa-slicer",
+            "output_dir": "/tmp/output",
+            "filament_type": "ABS",
+            "nozzle_size": 0.6,
+            "printer": "COREONE",
+        }
+        apply_toml_to_session(state, cfg)
+
+        assert state["printer_url"] == "http://192.168.1.100"
+        assert state["api_key"] == "secret123"
+        assert state["config_ini"] == "/path/to/config.ini"
+        assert state["prusaslicer_path"] == "/usr/bin/prusa-slicer"
+        assert state["output_dir"] == "/tmp/output"
+        assert state["_toml_filament_type"] == "ABS"
+        assert state["_toml_nozzle_size"] == 0.6
+        assert state["_toml_printer"] == "COREONE"
+
+    def test_partial_config(self) -> None:
+        state: dict = {}
+        apply_toml_to_session(state, {"printer_url": "http://10.0.0.1"})
+        assert state["printer_url"] == "http://10.0.0.1"
+        assert "api_key" not in state
+        assert "_toml_filament_type" not in state
+
+    def test_empty_config(self) -> None:
+        state: dict = {}
+        apply_toml_to_session(state, {})
+        assert state == {}
+
+    def test_does_not_overwrite_existing(self) -> None:
+        state = {"printer_url": "http://existing"}
+        apply_toml_to_session(state, {"printer_url": "http://new"})
+        assert state["printer_url"] == "http://existing"
+
+    def test_nozzle_size_snapped(self) -> None:
+        state: dict = {}
+        apply_toml_to_session(state, {"nozzle_size": 0.42})
+        assert state["_toml_nozzle_size"] == 0.4
+
+    def test_unknown_filament_type_not_stored(self) -> None:
+        state: dict = {}
+        apply_toml_to_session(state, {"filament_type": "EXOTIC123"})
+        assert "_toml_filament_type" not in state
+
+    def test_unknown_printer_not_stored(self) -> None:
+        state: dict = {}
+        apply_toml_to_session(state, {"printer": "UNKNOWNXYZ"})
+        assert "_toml_printer" not in state
+
+    def test_nozzle_size_int(self) -> None:
+        state: dict = {}
+        apply_toml_to_session(state, {"nozzle_size": 1})
+        assert state["_toml_nozzle_size"] == 0.8
+
+    def test_nozzle_size_string_ignored(self) -> None:
+        state: dict = {}
+        apply_toml_to_session(state, {"nozzle_size": "bad"})
+        assert "_toml_nozzle_size" not in state
+
+    def test_toml_keys_not_overwritten_once_set(self) -> None:
+        state = {"_toml_filament_type": "PLA"}
+        apply_toml_to_session(state, {"filament_type": "ABS"})
+        assert state["_toml_filament_type"] == "PLA"
