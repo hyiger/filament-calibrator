@@ -266,13 +266,19 @@ def _fresh_output_dir(custom_output_dir: str) -> str:
 
 
 def find_output_file(output_dir: str, ascii_gcode: bool) -> Optional[Path]:
-    """Find the final G-code file in *output_dir* (not the ``_raw`` one)."""
+    """Find the most recent final G-code file in *output_dir*.
+
+    Selects the newest file by modification time so that a shared output
+    directory with files from previous runs returns the correct result.
+    """
     ext = ".gcode" if ascii_gcode else ".bgcode"
     candidates = [
         f for f in Path(output_dir).glob(f"*{ext}")
         if "_raw" not in f.name
     ]
-    return candidates[0] if candidates else None
+    if not candidates:
+        return None
+    return max(candidates, key=lambda f: f.stat().st_mtime)
 
 
 # ---------------------------------------------------------------------------
@@ -1172,13 +1178,14 @@ def _show_results(
                 mime="application/octet-stream",
             )
 
-    # Thumbnail preview
+    # Thumbnail preview (use most recent STL for shared output dirs)
     stl_files = list(Path(output_dir).glob("*.stl"))
     if stl_files:
+        newest_stl = max(stl_files, key=lambda f: f.stat().st_mtime)
         try:
             from filament_calibrator.thumbnail import render_stl_to_png
 
-            png_data = render_stl_to_png(str(stl_files[0]), 440, 248)
+            png_data = render_stl_to_png(str(newest_stl), 440, 248)
             st.image(png_data, caption="Model Preview", width=440)
         except Exception:
             pass

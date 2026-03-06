@@ -393,6 +393,26 @@ class TestFindOutputFile:
         result = find_output_file(str(d), ascii_gcode=False)
         assert result is None
 
+    def test_returns_most_recent_file(self, tmp_path: object) -> None:
+        """When a shared output dir has files from multiple runs,
+        return the most recently modified one."""
+        import os
+        import time
+        from pathlib import Path
+
+        d = Path(str(tmp_path))
+        old_file = d / "temp_tower_PLA.bgcode"
+        old_file.write_bytes(b"old")
+        # Ensure different mtime by explicitly setting an older timestamp
+        os.utime(old_file, (time.time() - 60, time.time() - 60))
+
+        new_file = d / "flow_specimen_PLA.bgcode"
+        new_file.write_bytes(b"new")
+
+        result = find_output_file(str(d), ascii_gcode=False)
+        assert result is not None
+        assert result.name == "flow_specimen_PLA.bgcode"
+
 
 # ---------------------------------------------------------------------------
 # Module-level constants
