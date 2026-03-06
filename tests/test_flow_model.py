@@ -1,7 +1,6 @@
 """Tests for filament_calibrator.flow_model — serpentine specimen generation."""
 from __future__ import annotations
 
-from pathlib import Path
 from unittest.mock import MagicMock, patch, call
 
 import pytest

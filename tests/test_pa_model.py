@@ -1,7 +1,6 @@
 """Tests for filament_calibrator.pa_model — PA tower generation."""
 from __future__ import annotations
 
-from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 import pytest

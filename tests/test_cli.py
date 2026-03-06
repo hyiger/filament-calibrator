@@ -2,8 +2,7 @@
 from __future__ import annotations
 
 import argparse
-from pathlib import Path
-from unittest.mock import MagicMock, patch, call
+from unittest.mock import MagicMock, patch
 
 import pytest
 
@@ -246,6 +245,11 @@ class TestResolveOutputDir:
         result = _resolve_output_dir(None)
         assert result.exists()
         assert "filament-calibrator" in str(result)
+
+    def test_custom_prefix(self):
+        result = _resolve_output_dir(None, prefix="pressure-advance-")
+        assert result.exists()
+        assert "pressure-advance-" in str(result)
 
 
 # ---------------------------------------------------------------------------

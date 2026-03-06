@@ -706,7 +706,7 @@ def _run_pattern_pipeline(
 
     # x_centers are model-space (centred at 0).  The slicer's --center shifts
     # the model to bed_center, so we must apply the same offset.
-    bed_cx = 125.0  # default
+    bed_cx = float(DEFAULT_BED_CENTER.split(",")[0])
     if args.bed_center is not None:
         bed_cx = float(args.bed_center.split(",")[0])
     shifted_centers = [cx + bed_cx for cx in x_centers]
