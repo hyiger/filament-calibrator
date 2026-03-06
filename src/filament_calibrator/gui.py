@@ -566,18 +566,18 @@ def build_calibration_results(
     max_volumetric_speed: float,
     set_pa: bool,
     pa_value: float,
-    pa_firmware: str,
 ) -> CalibrationResults:
     """Build a :class:`CalibrationResults` from GUI widget values.
 
     Checkbox flags (``set_*``) gate which values are included;
-    unchecked values are stored as ``None``.
+    unchecked values are stored as ``None``.  Firmware is always
+    ``"marlin"`` (M900) in the GUI.
     """
     return CalibrationResults(
         temperature=temperature if set_temp else None,
         max_volumetric_speed=max_volumetric_speed if set_flow else None,
         pa_value=pa_value if set_pa else None,
-        pa_firmware=pa_firmware,
+        pa_firmware="marlin",
     )
 
 
@@ -1088,12 +1088,6 @@ def _app() -> None:  # pragma: no cover
                 format="%.4f",
             )
 
-        firmware = st.selectbox(
-            "Firmware",
-            options=["marlin", "klipper"],
-            index=0,
-        )
-
         col4, col5, col6 = st.columns(3)
         with col4:
             pa_nozzle_temp = st.number_input(
@@ -1212,7 +1206,7 @@ def _app() -> None:  # pragma: no cover
                 start_pa=start_pa,
                 end_pa=end_pa,
                 pa_step=pa_step_val,
-                firmware=firmware,
+                firmware="marlin",
                 method=method_key,
                 level_height=pa_level_height,
                 nozzle_temp=pa_nozzle_temp,
@@ -1293,17 +1287,12 @@ def _app() -> None:  # pragma: no cover
             step=0.005, format="%.4f",
             disabled=not set_pa, key="res_pa",
         )
-        pa_fw = st.selectbox(
-            "Firmware", ["marlin", "klipper"],
-            disabled=not set_pa, key="res_pa_fw",
-        )
 
         # Build results object
         results = build_calibration_results(
             set_temp=set_temp, temperature=int(res_temp),
             set_flow=set_flow, max_volumetric_speed=float(res_flow),
             set_pa=set_pa, pa_value=float(res_pa),
-            pa_firmware=pa_fw,
         )
 
         # Show change summary
