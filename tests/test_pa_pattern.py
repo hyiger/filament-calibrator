@@ -57,7 +57,7 @@ class TestConstants:
         assert DEFAULT_FRAME_OFFSET == 3.0
 
     def test_label_height(self):
-        assert DEFAULT_LABEL_HEIGHT == 5.0
+        assert DEFAULT_LABEL_HEIGHT == 8.0
 
 
 # ---------------------------------------------------------------------------
@@ -400,6 +400,7 @@ class TestMakeLabels:
         mock_wp.translate.return_value = mock_wp
         mock_wp.workplane.return_value = mock_wp
         mock_wp.center.return_value = mock_wp
+        mock_wp.transformed.return_value = mock_wp
         mock_wp.text.return_value = mock_wp
         mock_wp.union.return_value = mock_wp
 
@@ -421,6 +422,7 @@ class TestMakeLabels:
         mock_wp.translate.return_value = mock_wp
         mock_wp.workplane.return_value = mock_wp
         mock_wp.center.return_value = mock_wp
+        mock_wp.transformed.return_value = mock_wp
         mock_wp.text.return_value = mock_wp
         mock_wp.union.return_value = mock_wp
 
@@ -443,6 +445,7 @@ class TestMakeLabels:
         mock_wp.translate.return_value = mock_wp
         mock_wp.workplane.return_value = mock_wp
         mock_wp.center.return_value = mock_wp
+        mock_wp.transformed.return_value = mock_wp
         mock_wp.text.return_value = mock_wp
         mock_wp.union.return_value = mock_wp
 
@@ -463,6 +466,7 @@ class TestMakeLabels:
         mock_wp.translate.return_value = mock_wp
         mock_wp.workplane.return_value = mock_wp
         mock_wp.center.return_value = mock_wp
+        mock_wp.transformed.return_value = mock_wp
         mock_wp.text.return_value = mock_wp
         mock_wp.union.return_value = mock_wp
 
@@ -484,12 +488,34 @@ class TestMakeLabels:
         mock_wp.translate.return_value = mock_wp
         mock_wp.workplane.return_value = mock_wp
         mock_wp.center.return_value = mock_wp
+        mock_wp.transformed.return_value = mock_wp
         mock_wp.text.return_value = mock_wp
         mock_wp.union.return_value = mock_wp
 
         _make_labels(cfg, x_tips, pa_values, 0.8)
 
         mock_wp.workplane.assert_called_once_with(offset=0.8)
+
+    @patch("filament_calibrator.pa_pattern.cq")
+    def test_text_rotated_90_degrees(self, mock_cq):
+        """Text is rotated 90° CCW via transformed()."""
+        cfg = PAPatternConfig(num_patterns=1)
+        x_tips = pattern_x_tips(cfg)
+        pa_values = [0.04]
+
+        mock_wp = MagicMock()
+        mock_cq.Workplane.return_value = mock_wp
+        mock_wp.box.return_value = mock_wp
+        mock_wp.translate.return_value = mock_wp
+        mock_wp.workplane.return_value = mock_wp
+        mock_wp.center.return_value = mock_wp
+        mock_wp.transformed.return_value = mock_wp
+        mock_wp.text.return_value = mock_wp
+        mock_wp.union.return_value = mock_wp
+
+        _make_labels(cfg, x_tips, pa_values, 0.8)
+
+        mock_wp.transformed.assert_called_once_with(rotate=(0, 0, 90))
 
     @patch("filament_calibrator.pa_pattern.cq")
     def test_label_depth_is_layer_height(self, mock_cq):
@@ -504,6 +530,7 @@ class TestMakeLabels:
         mock_wp.translate.return_value = mock_wp
         mock_wp.workplane.return_value = mock_wp
         mock_wp.center.return_value = mock_wp
+        mock_wp.transformed.return_value = mock_wp
         mock_wp.text.return_value = mock_wp
         mock_wp.union.return_value = mock_wp
 
@@ -635,6 +662,8 @@ class TestGeneratePaPatternStl:
         mock_wp.box.return_value = mock_wp
         mock_wp.translate.return_value = mock_wp
         mock_wp.workplane.return_value = mock_wp
+        mock_wp.center.return_value = mock_wp
+        mock_wp.transformed.return_value = mock_wp
         mock_wp.text.return_value = mock_wp
 
         out_path = str(tmp_path / "test.stl")

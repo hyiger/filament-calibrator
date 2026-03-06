@@ -45,7 +45,7 @@ DEFAULT_WALL_THICKNESS: float = 1.6
 DEFAULT_FRAME_OFFSET: float = 3.0
 """Margin between outermost chevron arm and inner frame edge in mm."""
 
-DEFAULT_LABEL_HEIGHT: float = 5.0
+DEFAULT_LABEL_HEIGHT: float = 8.0
 """Height of the label strip placed above the frame in mm."""
 
 
@@ -296,9 +296,9 @@ def _make_labels(
         .translate((bar_cx, bar_cy, 0))
     )
 
-    # Emboss labels on top of bar.
+    # Emboss rotated labels on top of bar (90° CCW so they read bottom-to-top).
     label_depth = config.layer_height  # one layer raised
-    font_size = min(3.0, label_strip_height * 0.7)
+    font_size = min(3.0, label_strip_height * 0.35)
     result = bar
     for tx, pa in zip(x_tips, pa_values):
         label_text = f"{pa:.2f}"
@@ -306,6 +306,7 @@ def _make_labels(
             cq.Workplane("XY")
             .workplane(offset=height)
             .center(tx, bar_cy)
+            .transformed(rotate=(0, 0, 90))
             .text(label_text, font_size, label_depth, combine=False)
         )
         result = result.union(text_solid)
