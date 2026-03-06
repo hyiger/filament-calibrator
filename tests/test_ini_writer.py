@@ -162,11 +162,13 @@ class TestMergeResultsIntoIni:
             "first_layer_temperature = 200\n"
             "filament_max_volumetric_speed = 10\n"
             'start_filament_gcode = "G92 E0"\n'
+            "extrusion_multiplier = 1\n"
         )
         results = CalibrationResults(
             temperature=215,
             max_volumetric_speed=12.5,
             pa_value=0.04,
+            extrusion_multiplier=0.95,
             printer="COREONE",
         )
         merged = merge_results_into_ini(ini, results)
@@ -174,6 +176,7 @@ class TestMergeResultsIntoIni:
         assert "first_layer_temperature = 215" in merged
         assert "filament_max_volumetric_speed = 12.5" in merged
         assert "M572 S0.0400" in merged
+        assert "extrusion_multiplier = 0.95" in merged
 
     def test_all_values_mini(self) -> None:
         ini = (
@@ -222,6 +225,7 @@ class TestMergeResultsIntoIni:
             temperature=220,
             max_volumetric_speed=11.0,
             pa_value=0.04,
+            extrusion_multiplier=0.97,
             printer="MK4S",
         )
         merged = merge_results_into_ini(ini, results)
@@ -229,6 +233,19 @@ class TestMergeResultsIntoIni:
         assert "first_layer_temperature = 220" in merged
         assert "filament_max_volumetric_speed = 11.0" in merged
         assert "start_filament_gcode = M572 S0.0400" in merged
+        assert "extrusion_multiplier = 0.97" in merged
+
+    def test_only_em(self) -> None:
+        ini = "extrusion_multiplier = 1\n"
+        results = CalibrationResults(extrusion_multiplier=0.93)
+        merged = merge_results_into_ini(ini, results)
+        assert "extrusion_multiplier = 0.93" in merged
+
+    def test_em_appended_when_missing(self) -> None:
+        ini = "temperature = 200\n"
+        results = CalibrationResults(extrusion_multiplier=1.02)
+        merged = merge_results_into_ini(ini, results)
+        assert "extrusion_multiplier = 1.02" in merged
 
     def test_empty_input(self) -> None:
         results = CalibrationResults()
@@ -248,12 +265,15 @@ class TestBuildChangeSummary:
             temperature=215,
             max_volumetric_speed=12.5,
             pa_value=0.04,
+            extrusion_multiplier=0.95,
             printer="COREONE",
         )
         summary = build_change_summary(results)
         assert "215 °C" in summary
         assert "12.5 mm³/s" in summary
         assert "M572 S0.0400" in summary
+        assert "0.95" in summary
+        assert "extrusion_multiplier" in summary
 
     def test_none_set(self) -> None:
         results = CalibrationResults()
@@ -277,3 +297,10 @@ class TestBuildChangeSummary:
         results = CalibrationResults(pa_value=0.05, printer="MINI")
         summary = build_change_summary(results)
         assert "M900 K0.0500" in summary
+
+    def test_partial_em_only(self) -> None:
+        results = CalibrationResults(extrusion_multiplier=0.97)
+        summary = build_change_summary(results)
+        assert "0.97" in summary
+        assert "extrusion_multiplier" in summary
+        assert "temperature" not in summary.lower()

@@ -1,8 +1,9 @@
 """Streamlit GUI for filament calibration tools.
 
 Provides a browser-based interface to the temperature-tower,
-volumetric-flow, and pressure-advance CLI pipelines.  All heavy
-lifting (CAD, slicing, G-code processing) runs server-side.
+extrusion-multiplier, volumetric-flow, and pressure-advance CLI
+pipelines.  All heavy lifting (CAD, slicing, G-code processing)
+runs server-side.
 """
 from __future__ import annotations
 
@@ -618,6 +619,8 @@ def build_calibration_results(
     max_volumetric_speed: float,
     set_pa: bool,
     pa_value: float,
+    set_em: bool,
+    extrusion_multiplier: float,
     printer: str,
 ) -> CalibrationResults:
     """Build a :class:`CalibrationResults` from GUI widget values.
@@ -631,6 +634,7 @@ def build_calibration_results(
         temperature=temperature if set_temp else None,
         max_volumetric_speed=max_volumetric_speed if set_flow else None,
         pa_value=pa_value if set_pa else None,
+        extrusion_multiplier=extrusion_multiplier if set_em else None,
         printer=printer,
     )
 
@@ -1450,11 +1454,22 @@ def _app() -> None:  # pragma: no cover
             disabled=not set_pa, key="res_pa",
         )
 
+        # Extrusion multiplier result
+        set_em = st.checkbox(
+            "Set extrusion multiplier", key="res_set_em",
+        )
+        res_em = st.number_input(
+            "Extrusion multiplier", 0.50, 1.50, 1.00,
+            step=0.01, format="%.2f",
+            disabled=not set_em, key="res_em",
+        )
+
         # Build results object
         results = build_calibration_results(
             set_temp=set_temp, temperature=int(res_temp),
             set_flow=set_flow, max_volumetric_speed=float(res_flow),
             set_pa=set_pa, pa_value=float(res_pa),
+            set_em=set_em, extrusion_multiplier=float(res_em),
             printer=printer,
         )
 
@@ -1463,6 +1478,7 @@ def _app() -> None:  # pragma: no cover
             results.temperature is not None
             or results.max_volumetric_speed is not None
             or results.pa_value is not None
+            or results.extrusion_multiplier is not None
         )
         if has_any:
             summary = build_change_summary(results)

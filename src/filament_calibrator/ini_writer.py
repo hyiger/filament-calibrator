@@ -32,6 +32,9 @@ class CalibrationResults:
     pa_value: Optional[float] = None
     """Pressure advance / linear advance value."""
 
+    extrusion_multiplier: Optional[float] = None
+    """Extrusion multiplier (ratio).  ``1.0`` = nominal width."""
+
     printer: str = "COREONE"
     """Printer model name.  Determines the PA G-code command:
     ``"MINI"`` uses ``M900 K<value>`` (Linear Advance),
@@ -192,6 +195,15 @@ def merge_results_into_ini(
             lines, results.pa_value, results.printer,
         )
 
+    # --- Extrusion multiplier ---
+    if results.extrusion_multiplier is not None:
+        em_str = f"{results.extrusion_multiplier:.2f}"
+        lines, found = _replace_ini_value(
+            lines, "extrusion_multiplier", em_str,
+        )
+        if not found:
+            lines.append(f"extrusion_multiplier = {em_str}")
+
     return "\n".join(lines) + "\n" if lines else ""
 
 
@@ -217,6 +229,13 @@ def build_change_summary(results: CalibrationResults) -> str:
         parts.append(
             f"- **Pressure advance:** `{cmd}` "
             f"(`start_filament_gcode`)"
+        )
+
+    if results.extrusion_multiplier is not None:
+        parts.append(
+            f"- **Extrusion multiplier:** "
+            f"{results.extrusion_multiplier:.2f} "
+            f"(`extrusion_multiplier`)"
         )
 
     if not parts:

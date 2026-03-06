@@ -1016,11 +1016,13 @@ class TestBuildCalibrationResults:
             set_temp=True, temperature=215,
             set_flow=True, max_volumetric_speed=12.5,
             set_pa=True, pa_value=0.04,
+            set_em=True, extrusion_multiplier=0.95,
             printer="COREONE",
         )
         assert r.temperature == 215
         assert r.max_volumetric_speed == 12.5
         assert r.pa_value == 0.04
+        assert r.extrusion_multiplier == 0.95
         assert r.printer == "COREONE"
 
     def test_none_set(self) -> None:
@@ -1028,11 +1030,13 @@ class TestBuildCalibrationResults:
             set_temp=False, temperature=215,
             set_flow=False, max_volumetric_speed=12.5,
             set_pa=False, pa_value=0.04,
+            set_em=False, extrusion_multiplier=0.95,
             printer="COREONE",
         )
         assert r.temperature is None
         assert r.max_volumetric_speed is None
         assert r.pa_value is None
+        assert r.extrusion_multiplier is None
         assert r.printer == "COREONE"
 
     def test_partial_temp_only(self) -> None:
@@ -1040,9 +1044,22 @@ class TestBuildCalibrationResults:
             set_temp=True, temperature=230,
             set_flow=False, max_volumetric_speed=11.0,
             set_pa=False, pa_value=0.04,
+            set_em=False, extrusion_multiplier=1.0,
             printer="MINI",
         )
         assert r.temperature == 230
         assert r.max_volumetric_speed is None
         assert r.pa_value is None
+        assert r.extrusion_multiplier is None
         assert r.printer == "MINI"
+
+    def test_partial_em_only(self) -> None:
+        r = build_calibration_results(
+            set_temp=False, temperature=215,
+            set_flow=False, max_volumetric_speed=11.0,
+            set_pa=False, pa_value=0.04,
+            set_em=True, extrusion_multiplier=0.97,
+            printer="COREONE",
+        )
+        assert r.temperature is None
+        assert r.extrusion_multiplier == 0.97

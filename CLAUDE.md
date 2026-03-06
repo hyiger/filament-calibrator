@@ -3,10 +3,14 @@
 ## Project Overview
 
 **filament-calibrator** is a CLI tool suite for 3D printer filament calibration.
-It contains three tools:
+It contains four tools:
 
 - `temperature-tower` — generates, slices, and uploads temperature tower prints
   to find the optimal printing temperature for a filament.
+- `extrusion-multiplier` — generates a 40 mm cube, slices it in vase mode
+  with classic perimeter generator, and reports the expected wall thickness.
+  The user prints the cube, measures the wall with calipers, and calculates
+  `EM = expected_width / measured_width`.
 - `volumetric-flow` — generates a serpentine vase-mode specimen with
   progressively increasing print speeds to determine maximum volumetric flow
   rate for a filament/hotend combination.
@@ -31,8 +35,10 @@ src/filament_calibrator/
   config.py         # TOML config file loading
   model.py          # CadQuery parametric temperature tower model
   slicer.py         # PrusaSlicer CLI wrapper (slice_tower, slice_flow_specimen,
-                    #   slice_pa_specimen)
+                    #   slice_pa_specimen, slice_em_specimen)
   tempinsert.py     # G-code temperature command insertion
+  em_cli.py         # extrusion-multiplier argparse CLI, pipeline orchestration
+  em_model.py       # CadQuery parametric cube model for EM calibration
   flow_cli.py       # volumetric-flow argparse CLI, pipeline orchestration
   flow_model.py     # CadQuery parametric serpentine specimen model
   flow_insert.py    # G-code feedrate override insertion for flow levels
@@ -40,10 +46,12 @@ src/filament_calibrator/
   pa_model.py       # CadQuery parametric hollow rectangular tower model
   pa_pattern.py     # CadQuery parametric chevron pattern model for PA calibration
   pa_insert.py      # G-code pressure advance command insertion
+  ini_parser.py     # PrusaSlicer .ini file parser (extract slicer settings)
+  ini_writer.py     # Merge calibration results into PrusaSlicer .ini configs
   printer_gcode.py  # Printer-specific start/end G-code templates and rendering
   thumbnail.py      # STL → PNG rendering (VTK), bgcode thumbnail injection,
                     #   and slicer metadata patching (printer_settings_id)
-  gui.py            # Streamlit browser GUI wrapping all three CLIs
+  gui.py            # Streamlit browser GUI wrapping all four CLIs
 ```
 
 ### Key Dependencies
@@ -84,9 +92,15 @@ slice_pa_pattern → load G-code → inject_thumbnails →
 patch_slicer_metadata → compute_pa_pattern_regions (X-based) →
 insert_pa_pattern_commands → save → optional upload.
 
+**extrusion-multiplier** (`em_cli.run()`):
+load_config → apply_config → resolve_preset → generate_em_cube_stl →
+slice_em_specimen (vase mode, classic walls) → load G-code →
+inject_thumbnails → patch_slicer_metadata → save →
+print expected wall thickness → optional upload.
+
 ### Filament Preset System
 
-All three CLIs use `--filament-type` to look up defaults from
+All four CLIs use `--filament-type` to look up defaults from
 `gcode_lib.FILAMENT_PRESETS`.  Known presets (PLA, PETG, ABS, ASA, TPU, etc.)
 automatically set nozzle temperature, bed temperature, and fan speed.
 Explicit CLI arguments (`--nozzle-temp`, `--bed-temp`, `--fan-speed`)
@@ -95,7 +109,7 @@ override the preset.  Unknown filament names fall back to safe defaults
 
 ### Slicer Configuration
 
-`slicer.py` contains three sets of defaults:
+`slicer.py` contains several sets of defaults:
 
 - `DEFAULT_SLICER_ARGS` — for temperature tower slicing (2 perimeters,
   15% infill).  Layer height and extrusion width are derived from
@@ -110,10 +124,14 @@ override the preset.  Unknown filament names fall back to safe defaults
 - `PA_PATTERN_SLICER_ARGS` — for PA chevron pattern slicing.  Uses the same
   base settings as the tower but with wall count derived from the pattern
   config.  Used by `slice_pa_pattern()`.
+- `EM_SLICER_ARGS` — for extrusion multiplier cube slicing (1 perimeter,
+  no infill, 5mm brim).  `slice_em_specimen()` always forces
+  `--spiral-vase`, `--perimeter-generator=classic`, and
+  `--support-material=0`.
 
-All three functions accept `nozzle_diameter` to pass `--nozzle-diameter` to
+All slicer functions accept `nozzle_diameter` to pass `--nozzle-diameter` to
 PrusaSlicer, and pass `--center` and `--bed-shape` for Prusa MK-series bed
-geometry (250×210mm).  All three default to `binary_gcode=True` which passes
+geometry (250×210mm).  All default to `binary_gcode=True` which passes
 `--binary-gcode` to PrusaSlicer, producing `.bgcode` output with embedded
 thumbnail previews.  Use `--ascii-gcode` on the CLI to switch to text
 `.gcode` output.
@@ -133,7 +151,7 @@ thumbnail previews.  Use `--ascii-gcode` on the CLI to switch to text
 - Filament preset lookup is case-insensitive (`.upper()`)
 - Shared CLI helpers (`_apply_config`, `_resolve_output_dir`, `_gcode_ext`,
   `_UNSET`, `_KNOWN_TYPES`, `_ARGPARSE_DEFAULTS`) live in `cli.py` and are
-  imported by `flow_cli.py` and `pa_cli.py`
+  imported by `em_cli.py`, `flow_cli.py`, and `pa_cli.py`
 
 ## Testing
 
@@ -157,6 +175,7 @@ pip install -e ".[gui]"             # with Streamlit GUI
 Entry points:
 
 - `temperature-tower` → `filament_calibrator.cli:main`
+- `extrusion-multiplier` → `filament_calibrator.em_cli:main`
 - `volumetric-flow` → `filament_calibrator.flow_cli:main`
 - `pressure-advance` → `filament_calibrator.pa_cli:main`
 - `filament-calibrator-gui` → `filament_calibrator.gui:main` (requires `[gui]` extra)
@@ -174,9 +193,10 @@ Entry points:
 - **Change PA pattern geometry**: Edit constants in `pa_pattern.py`
   (DEFAULT_CORNER_ANGLE, DEFAULT_ARM_LENGTH, DEFAULT_WALL_THICKNESS,
   DEFAULT_PATTERN_SPACING, DEFAULT_FRAME_OFFSET, DEFAULT_LABEL_HEIGHT).
+- **Change EM cube geometry**: Edit `CUBE_SIZE` in `em_model.py`.
 - **Change slicer defaults**: Edit `DEFAULT_SLICER_ARGS` (temp tower),
-  `VASE_MODE_SLICER_ARGS` (flow specimen), or `PA_SLICER_ARGS` (PA tower)
-  in `slicer.py`.
+  `VASE_MODE_SLICER_ARGS` (flow specimen), `PA_SLICER_ARGS` (PA tower),
+  or `EM_SLICER_ARGS` (EM cube) in `slicer.py`.
 - **Add a new calibration tool**: Create a new module + CLI entry point in
   `pyproject.toml [project.scripts]`.  Import shared helpers from `cli.py`.
 - **Add a new config key**: Add to `CONFIG_KEYS` in `config.py`, add
