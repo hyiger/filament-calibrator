@@ -45,7 +45,7 @@ DEFAULT_WALL_THICKNESS: float = 1.6
 DEFAULT_FRAME_OFFSET: float = 3.0
 """Margin between outermost chevron arm and inner frame edge in mm."""
 
-DEFAULT_LABEL_HEIGHT: float = 8.0
+DEFAULT_LABEL_HEIGHT: float = 10.0
 """Height of the label strip placed above the frame in mm."""
 
 

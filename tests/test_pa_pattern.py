@@ -57,7 +57,7 @@ class TestConstants:
         assert DEFAULT_FRAME_OFFSET == 3.0
 
     def test_label_height(self):
-        assert DEFAULT_LABEL_HEIGHT == 8.0
+        assert DEFAULT_LABEL_HEIGHT == 10.0
 
 
 # ---------------------------------------------------------------------------
