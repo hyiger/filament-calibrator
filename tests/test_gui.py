@@ -20,6 +20,7 @@ from filament_calibrator.gui import (
     _tkinter_file_dialog,
     apply_ini_to_session,
     apply_toml_to_session,
+    build_calibration_results,
     build_flow_namespace,
     build_pa_namespace,
     build_temp_tower_namespace,
@@ -934,3 +935,46 @@ class TestUploadToPrinter:
         assert ok is False
         assert "Upload failed" in msg
         assert "Connection refused" in msg
+
+
+# ---------------------------------------------------------------------------
+# build_calibration_results
+# ---------------------------------------------------------------------------
+
+class TestBuildCalibrationResults:
+    """Test build_calibration_results() helper."""
+
+    def test_all_set(self) -> None:
+        r = build_calibration_results(
+            set_temp=True, temperature=215,
+            set_flow=True, max_volumetric_speed=12.5,
+            set_pa=True, pa_value=0.04,
+            pa_firmware="marlin",
+        )
+        assert r.temperature == 215
+        assert r.max_volumetric_speed == 12.5
+        assert r.pa_value == 0.04
+        assert r.pa_firmware == "marlin"
+
+    def test_none_set(self) -> None:
+        r = build_calibration_results(
+            set_temp=False, temperature=215,
+            set_flow=False, max_volumetric_speed=12.5,
+            set_pa=False, pa_value=0.04,
+            pa_firmware="klipper",
+        )
+        assert r.temperature is None
+        assert r.max_volumetric_speed is None
+        assert r.pa_value is None
+        assert r.pa_firmware == "klipper"
+
+    def test_partial_temp_only(self) -> None:
+        r = build_calibration_results(
+            set_temp=True, temperature=230,
+            set_flow=False, max_volumetric_speed=11.0,
+            set_pa=False, pa_value=0.04,
+            pa_firmware="marlin",
+        )
+        assert r.temperature == 230
+        assert r.max_volumetric_speed is None
+        assert r.pa_value is None
