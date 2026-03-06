@@ -198,10 +198,11 @@ def build_pa_namespace(
     layer_height: float,
     extrusion_width: float,
     corner_angle: float = 90.0,
-    side_length: float = 30.0,
+    arm_length: float = 40.0,
     wall_count: int = 3,
     num_layers: int = 4,
     pattern_spacing: float = 2.0,
+    frame_offset: float = 3.0,
     printer: str,
     ascii_gcode: bool,
     output_dir: str,
@@ -228,10 +229,11 @@ def build_pa_namespace(
         layer_height=layer_height,
         extrusion_width=extrusion_width,
         corner_angle=corner_angle,
-        side_length=side_length,
+        arm_length=arm_length,
         wall_count=wall_count,
         num_layers=num_layers,
         pattern_spacing=pattern_spacing,
+        frame_offset=frame_offset,
         printer=printer,
         ascii_gcode=ascii_gcode,
         output_dir=output_dir,
@@ -842,10 +844,11 @@ def _app() -> None:  # pragma: no cover
 
         # Pattern-specific settings (defaults used when method is tower)
         pa_corner_angle = 90.0
-        pa_side_length = 30.0
+        pa_arm_length = 40.0
         pa_wall_count = 3
         pa_num_layers = 4
         pa_pattern_spacing = 2.0
+        pa_frame_offset = 3.0
         if method_key == "pattern":
             with st.expander("Pattern Settings"):
                 pa_corner_angle = st.number_input(
@@ -856,12 +859,12 @@ def _app() -> None:  # pragma: no cover
                     step=5.0,
                     key="pa_corner_angle",
                 )
-                pa_side_length = st.number_input(
-                    "Side Length (mm)",
-                    value=30.0,
+                pa_arm_length = st.number_input(
+                    "Arm Length (mm)",
+                    value=40.0,
                     min_value=5.0,
                     step=5.0,
-                    key="pa_side_length",
+                    key="pa_arm_length",
                 )
                 pa_wall_count = st.number_input(
                     "Wall Count",
@@ -883,6 +886,13 @@ def _app() -> None:  # pragma: no cover
                     min_value=0.0,
                     step=0.5,
                     key="pa_pattern_spacing",
+                )
+                pa_frame_offset = st.number_input(
+                    "Frame Offset (mm)",
+                    value=3.0,
+                    min_value=0.0,
+                    step=0.5,
+                    key="pa_frame_offset",
                 )
 
         pa_level_height = 1.0
@@ -939,10 +949,11 @@ def _app() -> None:  # pragma: no cover
                 layer_height=pa_layer_height,
                 extrusion_width=pa_extrusion_width,
                 corner_angle=pa_corner_angle,
-                side_length=pa_side_length,
+                arm_length=pa_arm_length,
                 wall_count=pa_wall_count,
                 num_layers=pa_num_layers,
                 pattern_spacing=pa_pattern_spacing,
+                frame_offset=pa_frame_offset,
                 printer=printer,
                 ascii_gcode=ascii_gcode,
                 output_dir=run_dir,

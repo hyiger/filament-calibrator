@@ -1,8 +1,9 @@
-"""CadQuery parametric diamond pattern model for PA calibration.
+"""CadQuery parametric chevron pattern model for PA calibration.
 
-Generates a row of hollow diamond (rhombus) prisms arranged side by side.
-Each diamond is printed with a different pressure advance value so the user
-can visually inspect which diamond has the sharpest corners.
+Generates nested V-shaped chevron outlines inside a rectangular frame,
+matching the classic Ellis/Andrew Ellis PA calibration pattern.  Each
+chevron is printed with a different pressure advance value — the user
+inspects which chevron has the sharpest corners.
 
 The STL is sliced by PrusaSlicer and then post-processed to insert PA
 commands based on X position (see :mod:`pa_insert`).
@@ -12,7 +13,7 @@ from __future__ import annotations
 import math
 from dataclasses import dataclass
 from pathlib import Path
-from typing import List, Tuple
+from typing import List, Optional, Tuple
 
 import cadquery as cq  # type: ignore[import-untyped]
 
@@ -21,10 +22,10 @@ import cadquery as cq  # type: ignore[import-untyped]
 # ---------------------------------------------------------------------------
 
 DEFAULT_CORNER_ANGLE: float = 90.0
-"""Diamond corner angle in degrees (acute angle at left/right vertices)."""
+"""Full angle at the chevron tip in degrees."""
 
-DEFAULT_SIDE_LENGTH: float = 30.0
-"""Length of each diamond side in mm."""
+DEFAULT_ARM_LENGTH: float = 40.0
+"""Length of each chevron arm in mm."""
 
 DEFAULT_WALL_COUNT: int = 3
 """Number of concentric perimeters (passed to slicer, not CadQuery)."""
@@ -33,10 +34,13 @@ DEFAULT_NUM_LAYERS: int = 4
 """Number of printed layers."""
 
 DEFAULT_PATTERN_SPACING: float = 2.0
-"""Gap between adjacent diamonds in mm."""
+"""Perpendicular gap between adjacent chevron arms in mm."""
 
 DEFAULT_WALL_THICKNESS: float = 1.6
-"""Shell thickness of hollow diamond in mm."""
+"""Cross-section thickness of each chevron arm in mm."""
+
+DEFAULT_FRAME_OFFSET: float = 3.0
+"""Margin between outermost chevron arm and inner frame edge in mm."""
 
 
 # ---------------------------------------------------------------------------
@@ -46,27 +50,29 @@ DEFAULT_WALL_THICKNESS: float = 1.6
 
 @dataclass
 class PAPatternConfig:
-    """Configuration for the diamond pattern PA calibration model.
+    """Configuration for the chevron pattern PA calibration model.
 
     Attributes
     ----------
-    num_patterns:     Number of diamonds to generate.
-    corner_angle:     Acute corner angle in degrees (left/right vertices).
-    side_length:      Length of each diamond side in mm.
+    num_patterns:     Number of chevrons to generate.
+    corner_angle:     Full angle at chevron tip in degrees.
+    arm_length:       Length of each chevron arm in mm.
     wall_count:       Number of perimeters (forwarded to slicer).
     num_layers:       Number of printed layers.
-    pattern_spacing:  Gap between adjacent diamonds in mm.
-    wall_thickness:   Shell thickness of hollow diamond in mm.
+    pattern_spacing:  Perpendicular gap between adjacent chevron arms in mm.
+    wall_thickness:   Cross-section thickness of each arm in mm.
+    frame_offset:     Margin between outermost chevron and frame inner edge.
     layer_height:     Slicer layer height in mm.
     filament_type:    Label (e.g. ``"PLA"``).
     """
     num_patterns: int
     corner_angle: float = DEFAULT_CORNER_ANGLE
-    side_length: float = DEFAULT_SIDE_LENGTH
+    arm_length: float = DEFAULT_ARM_LENGTH
     wall_count: int = DEFAULT_WALL_COUNT
     num_layers: int = DEFAULT_NUM_LAYERS
     pattern_spacing: float = DEFAULT_PATTERN_SPACING
     wall_thickness: float = DEFAULT_WALL_THICKNESS
+    frame_offset: float = DEFAULT_FRAME_OFFSET
     layer_height: float = 0.2
     filament_type: str = "PLA"
 
@@ -76,22 +82,22 @@ class PAPatternConfig:
 # ---------------------------------------------------------------------------
 
 
-def diamond_width(side_length: float, corner_angle: float) -> float:
-    """X extent of one diamond.
+def chevron_x_extent(arm_length: float, corner_angle: float) -> float:
+    """Horizontal projection of one chevron arm.
 
-    ``2 * side_length * cos(corner_angle / 2)``
+    ``arm_length * cos(corner_angle / 2)``
     """
     half = math.radians(corner_angle / 2)
-    return 2.0 * side_length * math.cos(half)
+    return arm_length * math.cos(half)
 
 
-def diamond_height(side_length: float, corner_angle: float) -> float:
-    """Y extent of one diamond.
+def chevron_y_extent(arm_length: float, corner_angle: float) -> float:
+    """Vertical extent of one chevron (tip to tip of both arms).
 
-    ``2 * side_length * sin(corner_angle / 2)``
+    ``2 * arm_length * sin(corner_angle / 2)``
     """
     half = math.radians(corner_angle / 2)
-    return 2.0 * side_length * math.sin(half)
+    return 2.0 * arm_length * math.sin(half)
 
 
 def total_height(config: PAPatternConfig) -> float:
@@ -99,19 +105,26 @@ def total_height(config: PAPatternConfig) -> float:
     return config.num_layers * config.layer_height
 
 
-def pattern_x_centers(config: PAPatternConfig) -> List[float]:
-    """Compute the X centre of each diamond, centred at X = 0.
+def tip_spacing(config: PAPatternConfig) -> float:
+    """Horizontal distance between adjacent chevron tips.
 
-    Returns one float per diamond, left-to-right.
+    Adjacent chevron arms are parallel lines separated by
+    ``pattern_spacing`` (perpendicular distance).  The horizontal
+    distance between tips is ``pattern_spacing / sin(half_angle)``.
     """
-    dw = diamond_width(config.side_length, config.corner_angle)
-    total_w = (
-        config.num_patterns * dw
-        + (config.num_patterns - 1) * config.pattern_spacing
-    )
-    start_x = -total_w / 2.0 + dw / 2.0
-    stride = dw + config.pattern_spacing
-    return [round(start_x + i * stride, 4) for i in range(config.num_patterns)]
+    half = math.radians(config.corner_angle / 2)
+    return config.pattern_spacing / math.sin(half)
+
+
+def pattern_x_tips(config: PAPatternConfig) -> List[float]:
+    """Compute the X position of each chevron tip, centred at X = 0.
+
+    Returns one float per chevron, left-to-right.
+    """
+    dx = tip_spacing(config)
+    total_w = (config.num_patterns - 1) * dx
+    start_x = -total_w / 2.0
+    return [round(start_x + i * dx, 4) for i in range(config.num_patterns)]
 
 
 # ---------------------------------------------------------------------------
@@ -119,90 +132,209 @@ def pattern_x_centers(config: PAPatternConfig) -> List[float]:
 # ---------------------------------------------------------------------------
 
 
-def _diamond_vertices(
-    center_x: float,
-    center_y: float,
-    side_length: float,
+def _chevron_outline(
+    tip_x: float,
+    arm_length: float,
     corner_angle: float,
+    wall_thickness: float,
 ) -> List[Tuple[float, float]]:
-    """Return the four vertices of a diamond (right, top, left, bottom)."""
+    """Return the polygon vertices for a thick chevron (V-shape).
+
+    The chevron points to the right.  Vertices are returned in order
+    suitable for ``Workplane.polyline().close().extrude()``.
+    """
     half = math.radians(corner_angle / 2)
-    dx = side_length * math.cos(half)
-    dy = side_length * math.sin(half)
+    cos_a = math.cos(half)
+    sin_a = math.sin(half)
+    w = wall_thickness
+
+    # Centre-line endpoints ---
+    # Tip at (tip_x, 0).
+    # Top arm left end: (tip_x - L*cos, L*sin).
+    # Bottom arm: mirror.
+    lx = tip_x - arm_length * cos_a
+    ly = arm_length * sin_a
+
+    # Perpendicular offsets ---
+    # Top arm outward normal (away from V centre): (sin_a, cos_a).
+    # Bottom arm outward normal: (sin_a, -cos_a).
+    hw = w / 2.0  # half wall thickness
+
+    # Outer tip: intersection of two outer edges.
+    outer_tip_x = tip_x + hw / sin_a
+
+    # Inner tip (notch): intersection of two inner edges.
+    inner_tip_x = tip_x - hw / sin_a
+
+    # Top arm left-end offsets.
+    top_outer_lx = lx + hw * sin_a
+    top_outer_ly = ly + hw * cos_a
+    top_inner_lx = lx - hw * sin_a
+    top_inner_ly = ly - hw * cos_a
+
+    # Bottom arm left-end offsets (mirror Y).
+    bot_inner_lx = lx - hw * sin_a
+    bot_inner_ly = -(ly - hw * cos_a)
+    bot_outer_lx = lx + hw * sin_a
+    bot_outer_ly = -(ly + hw * cos_a)
+
     return [
-        (center_x + dx, center_y),      # right
-        (center_x, center_y + dy),       # top
-        (center_x - dx, center_y),       # left
-        (center_x, center_y - dy),       # bottom
+        (outer_tip_x, 0.0),            # outer tip (rightmost)
+        (top_outer_lx, top_outer_ly),   # outer top-left
+        (top_inner_lx, top_inner_ly),   # inner top-left
+        (inner_tip_x, 0.0),            # inner tip (notch)
+        (bot_inner_lx, bot_inner_ly),   # inner bottom-left
+        (bot_outer_lx, bot_outer_ly),   # outer bottom-left
     ]
 
 
-def _make_diamond(
-    center_x: float,
-    center_y: float,
+def _make_chevron(
+    tip_x: float,
     config: PAPatternConfig,
     height: float,
 ) -> cq.Workplane:
-    """Create a single hollow diamond prism centred at *(center_x, 0)*."""
-    outer_verts = _diamond_vertices(
-        center_x, center_y, config.side_length, config.corner_angle,
+    """Create a single thick chevron prism with tip at *(tip_x, 0)*."""
+    verts = _chevron_outline(
+        tip_x, config.arm_length, config.corner_angle, config.wall_thickness,
+    )
+    return (
+        cq.Workplane("XY")
+        .polyline(verts)
+        .close()
+        .extrude(height)
     )
 
-    # Build outer shell.
+
+def _make_frame(
+    config: PAPatternConfig,
+    x_tips: List[float],
+    height: float,
+) -> cq.Workplane:
+    """Create the rectangular frame enclosing all chevrons."""
+    half = math.radians(config.corner_angle / 2)
+    hw = config.wall_thickness / 2.0
+
+    # Bounding box of all chevron outlines.
+    rightmost_tip = max(x_tips)
+    leftmost_tip = min(x_tips)
+    arm_lx = leftmost_tip - config.arm_length * math.cos(half)
+
+    # X bounds: from leftmost arm end (minus outer offset) to rightmost tip
+    x_min = arm_lx - hw * math.sin(half) - config.frame_offset
+    x_max = rightmost_tip + hw / math.sin(half) + config.frame_offset
+
+    # Y bounds: from tallest arm extent (plus outer offset).
+    y_max_arm = config.arm_length * math.sin(half) + hw * math.cos(half)
+    y_min = -(y_max_arm + config.frame_offset)
+    y_max = y_max_arm + config.frame_offset
+
+    w = config.wall_thickness
+
+    # Outer rectangle.
     outer = (
         cq.Workplane("XY")
-        .polyline(outer_verts)
+        .moveTo(x_min, y_min)
+        .lineTo(x_max, y_min)
+        .lineTo(x_max, y_max)
+        .lineTo(x_min, y_max)
         .close()
         .extrude(height)
     )
 
-    # Compute inner diamond by scaling inward using rhombus apothem.
-    half = math.radians(config.corner_angle / 2)
-    dx = config.side_length * math.cos(half)
-    dy = config.side_length * math.sin(half)
-    apothem = dx * dy / config.side_length  # perpendicular distance to edge
-
-    if apothem <= config.wall_thickness:
-        # Wall thickness fills entire diamond — return solid.
-        return outer
-
-    scale = (apothem - config.wall_thickness) / apothem
-    inner_verts = [
-        (center_x + dx * scale, center_y),
-        (center_x, center_y + dy * scale),
-        (center_x - dx * scale, center_y),
-        (center_x, center_y - dy * scale),
-    ]
+    # Inner rectangle (cut).
     inner = (
         cq.Workplane("XY")
-        .polyline(inner_verts)
+        .moveTo(x_min + w, y_min + w)
+        .lineTo(x_max - w, y_min + w)
+        .lineTo(x_max - w, y_max - w)
+        .lineTo(x_min + w, y_max - w)
         .close()
         .extrude(height)
     )
+
     return outer.cut(inner)
+
+
+def _make_labels(
+    config: PAPatternConfig,
+    x_tips: List[float],
+    pa_values: List[float],
+    height: float,
+) -> cq.Workplane:
+    """Create the label strip with embossed PA values above the chevrons."""
+    half = math.radians(config.corner_angle / 2)
+    hw = config.wall_thickness / 2.0
+
+    # Position the label bar in the upper portion of the frame.
+    y_max_arm = config.arm_length * math.sin(half) + hw * math.cos(half)
+    label_y = y_max_arm + config.frame_offset * 0.5
+
+    # Label bar dimensions.
+    leftmost_tip = min(x_tips)
+    rightmost_tip = max(x_tips)
+    arm_lx = leftmost_tip - config.arm_length * math.cos(half)
+    bar_x_min = arm_lx - hw * math.sin(half) - config.frame_offset + config.wall_thickness
+    bar_x_max = rightmost_tip + hw / math.sin(half) + config.frame_offset - config.wall_thickness
+    bar_width = bar_x_max - bar_x_min
+    bar_height = config.frame_offset - config.wall_thickness
+    bar_cx = (bar_x_min + bar_x_max) / 2.0
+
+    # Flat bar (one layer thick).
+    bar = (
+        cq.Workplane("XY")
+        .box(bar_width, bar_height, height, centered=(True, True, False))
+        .translate((bar_cx, label_y, 0))
+    )
+
+    # Emboss labels on top of bar.
+    label_depth = config.layer_height  # one layer raised
+    font_size = min(3.0, bar_height * 0.8)
+    result = bar
+    for tx, pa in zip(x_tips, pa_values):
+        label_text = f"{pa:.2f}"
+        text_solid = (
+            cq.Workplane("XY")
+            .workplane(offset=height)
+            .moveTo(tx, label_y)
+            .text(label_text, font_size, label_depth, combine=False)
+        )
+        result = result.union(text_solid)
+
+    return result
 
 
 def generate_pa_pattern_stl(
     config: PAPatternConfig,
     output_path: str,
+    pa_values: Optional[List[float]] = None,
 ) -> Tuple[str, List[float]]:
-    """Generate the side-by-side diamond pattern STL.
+    """Generate the nested chevron pattern STL.
 
-    Returns ``(output_path, x_centers)`` where *x_centers* lists each
-    diamond's X centre coordinate (model-space, centred at 0).
+    Returns ``(output_path, x_tips)`` where *x_tips* lists each
+    chevron's tip X coordinate (model-space, centred at 0).
     """
     Path(output_path).parent.mkdir(parents=True, exist_ok=True)
 
     height = total_height(config)
-    x_centers = pattern_x_centers(config)
+    x_tips = pattern_x_tips(config)
 
+    # Build chevrons.
     result: cq.Workplane | None = None
-    for cx in x_centers:
-        diamond = _make_diamond(cx, 0.0, config, height)
+    for tx in x_tips:
+        chevron = _make_chevron(tx, config, height)
         if result is None:
-            result = diamond
+            result = chevron
         else:
-            result = result.union(diamond)
+            result = result.union(chevron)
+
+    # Add frame.
+    frame = _make_frame(config, x_tips, height)
+    result = result.union(frame)
+
+    # Add labels if PA values are provided.
+    if pa_values is not None and len(pa_values) == len(x_tips):
+        labels = _make_labels(config, x_tips, pa_values, height)
+        result = result.union(labels)
 
     cq.exporters.export(result, output_path)
-    return output_path, x_centers
+    return output_path, x_tips

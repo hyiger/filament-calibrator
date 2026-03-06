@@ -143,7 +143,8 @@ class TestBuildParser:
         p = build_parser()
         args = p.parse_args(["--start-pa", "0", "--end-pa", "0.1", "--pa-step", "0.01"])
         assert args.corner_angle == 90.0
-        assert args.side_length == 30.0
+        assert args.arm_length == 40.0
+        assert args.frame_offset == 3.0
         assert args.wall_count == 3
         assert args.num_layers == 4
         assert args.pattern_spacing == 2.0
@@ -154,13 +155,15 @@ class TestBuildParser:
             "--start-pa", "0", "--end-pa", "0.1", "--pa-step", "0.01",
             "--method", "pattern",
             "--corner-angle", "60",
-            "--side-length", "20",
+            "--arm-length", "20",
+            "--frame-offset", "5",
             "--wall-count", "5",
             "--num-layers", "8",
             "--pattern-spacing", "3",
         ])
         assert args.corner_angle == 60.0
-        assert args.side_length == 20.0
+        assert args.arm_length == 20.0
+        assert args.frame_offset == 5.0
         assert args.wall_count == 5
         assert args.num_layers == 8
         assert args.pattern_spacing == 3.0
@@ -306,7 +309,7 @@ class TestRun:
             ascii_gcode=False,
             config=None, verbose=False,
             # Pattern-specific defaults (used when method="pattern")
-            corner_angle=90.0, side_length=30.0,
+            corner_angle=90.0, arm_length=40.0, frame_offset=3.0,
             wall_count=3, num_layers=4, pattern_spacing=2.0,
         )
         defaults.update(overrides)
@@ -1198,7 +1201,7 @@ class TestRunPattern:
             output_dir=str(tmp_path), keep_files=False,
             ascii_gcode=False,
             config=None, verbose=False,
-            corner_angle=90.0, side_length=30.0,
+            corner_angle=90.0, arm_length=40.0, frame_offset=3.0,
             wall_count=3, num_layers=4, pattern_spacing=2.0,
         )
         defaults.update(overrides)
@@ -1419,7 +1422,7 @@ class TestRunPattern:
         captured = capsys.readouterr()
         assert "[DEBUG]" in captured.out
         assert "PA pattern:" in captured.out
-        assert "Diamond:" in captured.out
+        assert "Chevron:" in captured.out
         assert "PA regions:" in captured.out
 
     @patch("filament_calibrator.pa_cli.patch_slicer_metadata")

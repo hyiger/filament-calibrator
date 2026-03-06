@@ -4,8 +4,8 @@ Supports two methods:
 
 * **tower** — generates a hollow rectangular STL tower, slices with
   PrusaSlicer, and inserts PA commands at different Z levels.
-* **pattern** — generates side-by-side diamond-shaped STL patterns, slices
-  with PrusaSlicer, and inserts PA commands based on X position.
+* **pattern** — generates nested chevron (V-shape) STL patterns inside a
+  frame, slices with PrusaSlicer, and inserts PA commands based on X position.
 """
 from __future__ import annotations
 
@@ -38,15 +38,18 @@ from filament_calibrator.pa_model import (
     generate_pa_tower_stl,
 )
 from filament_calibrator.pa_pattern import (
+    DEFAULT_ARM_LENGTH,
     DEFAULT_CORNER_ANGLE,
+    DEFAULT_FRAME_OFFSET,
     DEFAULT_NUM_LAYERS,
     DEFAULT_PATTERN_SPACING,
-    DEFAULT_SIDE_LENGTH,
     DEFAULT_WALL_COUNT,
     DEFAULT_WALL_THICKNESS,
     PAPatternConfig,
-    diamond_height,
+    chevron_x_extent,
+    chevron_y_extent,
     generate_pa_pattern_stl,
+    tip_spacing as pattern_tip_spacing,
     total_height as pattern_total_height,
 )
 from filament_calibrator.printer_gcode import (
@@ -83,7 +86,7 @@ def build_parser() -> argparse.ArgumentParser:
         description=(
             "Generate, slice, and upload a pressure advance calibration print. "
             "Tower method: hollow rectangular tower with PA by height. "
-            "Pattern method: side-by-side diamond shapes with PA by position."
+            "Pattern method: nested chevron shapes with PA by X position."
         ),
     )
 
@@ -117,7 +120,7 @@ def build_parser() -> argparse.ArgumentParser:
         help=(
             "Calibration method. 'tower' generates a hollow rectangular "
             "tower with PA increasing by height. 'pattern' generates "
-            "diamond shapes side by side, each with a different PA value. "
+            "nested chevron shapes, each with a different PA value. "
             "Default: tower"
         ),
     )
@@ -143,11 +146,11 @@ def build_parser() -> argparse.ArgumentParser:
     pat = p.add_argument_group("pattern method options (--method pattern)")
     pat.add_argument(
         "--corner-angle", type=float, default=DEFAULT_CORNER_ANGLE,
-        help=f"Diamond corner angle in degrees. Default: {DEFAULT_CORNER_ANGLE}",
+        help=f"Chevron tip angle in degrees. Default: {DEFAULT_CORNER_ANGLE}",
     )
     pat.add_argument(
-        "--side-length", type=float, default=DEFAULT_SIDE_LENGTH,
-        help=f"Diamond side length in mm. Default: {DEFAULT_SIDE_LENGTH}",
+        "--arm-length", type=float, default=DEFAULT_ARM_LENGTH,
+        help=f"Chevron arm length in mm. Default: {DEFAULT_ARM_LENGTH}",
     )
     pat.add_argument(
         "--wall-count", type=int, default=DEFAULT_WALL_COUNT,
@@ -159,7 +162,11 @@ def build_parser() -> argparse.ArgumentParser:
     )
     pat.add_argument(
         "--pattern-spacing", type=float, default=DEFAULT_PATTERN_SPACING,
-        help=f"Gap between diamond patterns in mm. Default: {DEFAULT_PATTERN_SPACING}",
+        help=f"Perpendicular gap between chevron arms in mm. Default: {DEFAULT_PATTERN_SPACING}",
+    )
+    pat.add_argument(
+        "--frame-offset", type=float, default=DEFAULT_FRAME_OFFSET,
+        help=f"Frame margin around chevrons in mm. Default: {DEFAULT_FRAME_OFFSET}",
     )
 
     # --- Nozzle options ---
@@ -605,21 +612,22 @@ def _run_pattern_pipeline(args: argparse.Namespace) -> None:
     config = PAPatternConfig(
         num_patterns=num_levels,
         corner_angle=args.corner_angle,
-        side_length=args.side_length,
+        arm_length=args.arm_length,
         wall_count=args.wall_count,
         num_layers=args.num_layers,
         pattern_spacing=args.pattern_spacing,
         wall_thickness=DEFAULT_WALL_THICKNESS,
+        frame_offset=args.frame_offset,
         layer_height=layer_height,
         filament_type=args.filament_type,
     )
     out_dir = _resolve_output_dir(args.output_dir)
 
     if args.verbose:
-        print(f"[DEBUG] PA pattern: {num_levels} patterns, "
+        print(f"[DEBUG] PA pattern: {num_levels} chevrons, "
               f"{args.start_pa}→{args.end_pa}, step={args.pa_step}")
-        print(f"[DEBUG] Diamond: angle={config.corner_angle}° "
-              f"side={config.side_length}mm "
+        print(f"[DEBUG] Chevron: angle={config.corner_angle}° "
+              f"arm={config.arm_length}mm "
               f"walls={config.wall_count}")
         print(f"[DEBUG] Output directory: {out_dir}")
 
@@ -638,7 +646,11 @@ def _run_pattern_pipeline(args: argparse.Namespace) -> None:
     )
     stl_path = str(out_dir / stl_name)
     print(f"Generating model → {stl_path}")
-    _, x_centers = generate_pa_pattern_stl(config, stl_path)
+    pa_values = [
+        round(args.start_pa + i * args.pa_step, 4)
+        for i in range(num_levels)
+    ]
+    _, x_centers = generate_pa_pattern_stl(config, stl_path, pa_values=pa_values)
 
     # --- Step 2: Slice ---
     gcode_ext = _gcode_ext(args.ascii_gcode)
@@ -646,11 +658,12 @@ def _run_pattern_pipeline(args: argparse.Namespace) -> None:
     print(f"Slicing → {raw_gcode_path}")
 
     model_height = pattern_total_height(config)
-    model_depth = diamond_height(config.side_length, config.corner_angle)
-    from filament_calibrator.pa_pattern import diamond_width as dw_fn
+    model_depth = chevron_y_extent(config.arm_length, config.corner_angle)
+    cx_extent = chevron_x_extent(config.arm_length, config.corner_angle)
     model_width = (
-        num_levels * dw_fn(config.side_length, config.corner_angle)
-        + (num_levels - 1) * config.pattern_spacing
+        cx_extent
+        + (num_levels - 1) * pattern_tip_spacing(config)
+        + 2.0 * config.frame_offset
     )
 
     start_gcode, end_gcode = _render_gcode_templates(
@@ -700,11 +713,6 @@ def _run_pattern_pipeline(args: argparse.Namespace) -> None:
             gf, printer_name, nozzle_size, verbose=args.verbose
         )
 
-    # Build PA values (left-to-right, matching x_centers order).
-    pa_values = [
-        round(args.start_pa + i * args.pa_step, 4)
-        for i in range(num_levels)
-    ]
     # x_centers are model-space (centred at 0).  The slicer's --center shifts
     # the model to bed_center, so we must apply the same offset.
     bed_cx = 125.0  # default
@@ -729,7 +737,7 @@ def _run_pattern_pipeline(args: argparse.Namespace) -> None:
     print("\nPA value by pattern position:")
     for i, (pa, cx) in enumerate(zip(pa_values, shifted_centers)):
         print(f"  Pattern {i + 1:2d} (X ≈ {cx:6.1f} mm)  ->  PA {pa:.4f}")
-    print(f"\nInspect which diamond has the sharpest corners to find your optimal PA value.\n")
+    print(f"\nInspect which chevron has the sharpest corners to find your optimal PA value.\n")
 
     # --- Clean up intermediate files ---
     if not args.keep_files:
