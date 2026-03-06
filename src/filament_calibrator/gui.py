@@ -767,7 +767,7 @@ def _app() -> None:  # pragma: no cover
             horizontal=True,
             help=(
                 "Tower: hollow rectangular tower with PA by height. "
-                "Pattern: side-by-side diamond shapes with PA by X position."
+                "Pattern: nested chevron (V-shape) outlines with PA by X position."
             ),
         )
         method_key = pa_method.lower()
@@ -779,9 +779,9 @@ def _app() -> None:  # pragma: no cover
             )
         else:
             st.caption(
-                "Generate side-by-side diamond shapes. "
-                "Each diamond has a different PA value \u2014 inspect which "
-                "has the sharpest corners."
+                "Generate nested chevron (V-shape) outlines in a frame "
+                "with embossed PA labels. Each chevron has a different PA "
+                "value \u2014 inspect which has the sharpest corners."
             )
 
         col1, col2, col3 = st.columns(3)

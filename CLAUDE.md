@@ -10,9 +10,14 @@ It contains three tools:
 - `volumetric-flow` — generates a serpentine vase-mode specimen with
   progressively increasing print speeds to determine maximum volumetric flow
   rate for a filament/hotend combination.
-- `pressure-advance` — generates a hollow rectangular tower with sharp corners,
-  slices it, and inserts pressure advance commands at each height level to find
-  the optimal PA/Linear Advance value.
+- `pressure-advance` — two methods for finding the optimal PA/Linear Advance
+  value:
+  - **tower** (default): generates a hollow rectangular tower with sharp
+    corners; PA value increases with height.
+  - **pattern**: generates nested chevron (V-shape) outlines inside a
+    rectangular frame with embossed PA value labels; each chevron is
+    printed at a different PA value — inspect which has the sharpest
+    corners.  PA insertion is X-based (by chevron tip position).
 
 ## Architecture
 
@@ -33,6 +38,7 @@ src/filament_calibrator/
   flow_insert.py    # G-code feedrate override insertion for flow levels
   pa_cli.py         # pressure-advance argparse CLI, pipeline orchestration
   pa_model.py       # CadQuery parametric hollow rectangular tower model
+  pa_pattern.py     # CadQuery parametric chevron pattern model for PA calibration
   pa_insert.py      # G-code pressure advance command insertion
   printer_gcode.py  # Printer-specific start/end G-code templates and rendering
   thumbnail.py      # STL → PNG rendering (VTK), bgcode thumbnail injection,
@@ -65,11 +71,18 @@ generate_flow_specimen_stl → slice_flow_specimen (vase mode) → load G-code �
 inject_thumbnails → patch_slicer_metadata → compute_flow_levels →
 insert_flow_rates → save → optional upload.
 
-**pressure-advance** (`pa_cli.run()`):
+**pressure-advance — tower** (`pa_cli.run()`):
 load_config → apply_config → validate_pa_args → resolve_preset →
 generate_pa_tower_stl → slice_pa_specimen → load G-code →
 inject_thumbnails → patch_slicer_metadata → compute_pa_levels →
 insert_pa_commands → save → optional upload.
+
+**pressure-advance — pattern** (`pa_cli.run()`):
+load_config → apply_config → validate_pa_args → resolve_preset →
+generate_pa_pattern_stl (chevrons + frame + labels) →
+slice_pa_pattern → load G-code → inject_thumbnails →
+patch_slicer_metadata → compute_pa_pattern_regions (X-based) →
+insert_pa_pattern_commands → save → optional upload.
 
 ### Filament Preset System
 
@@ -94,6 +107,9 @@ override the preset.  Unknown filament names fall back to safe defaults
 - `PA_SLICER_ARGS` — for PA calibration tower slicing (2 perimeters, 0% infill,
   0 top/bottom solid layers).  `layer-height` and `extrusion-width` are passed
   explicitly by `slice_pa_specimen()`, derived from `--nozzle-size`.
+- `PA_PATTERN_SLICER_ARGS` — for PA chevron pattern slicing.  Uses the same
+  base settings as the tower but with wall count derived from the pattern
+  config.  Used by `slice_pa_pattern()`.
 
 All three functions accept `nozzle_diameter` to pass `--nozzle-diameter` to
 PrusaSlicer, and pass `--center` and `--bed-shape` for Prusa MK-series bed
@@ -155,6 +171,9 @@ Entry points:
   (SPECIMEN_WIDTH, ARM_THICKNESS, GAP_WIDTH, NUM_ARMS, LEVEL_HEIGHT).
 - **Change PA tower geometry**: Edit constants in `pa_model.py`
   (TOWER_WIDTH, TOWER_DEPTH, WALL_THICKNESS, LEVEL_HEIGHT).
+- **Change PA pattern geometry**: Edit constants in `pa_pattern.py`
+  (DEFAULT_CORNER_ANGLE, DEFAULT_ARM_LENGTH, DEFAULT_WALL_THICKNESS,
+  DEFAULT_PATTERN_SPACING, DEFAULT_FRAME_OFFSET, DEFAULT_LABEL_HEIGHT).
 - **Change slicer defaults**: Edit `DEFAULT_SLICER_ARGS` (temp tower),
   `VASE_MODE_SLICER_ARGS` (flow specimen), or `PA_SLICER_ARGS` (PA tower)
   in `slicer.py`.
