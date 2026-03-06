@@ -587,6 +587,25 @@ class TestSliceFlowSpecimen:
 
     @patch("filament_calibrator.slicer.gl.slice_model")
     @patch("filament_calibrator.slicer.gl.find_prusaslicer_executable")
+    def test_bottom_layers_zero_and_brim_always(self, mock_find, mock_slice):
+        """--bottom-solid-layers=0 and --brim-width=5 always present."""
+        mock_find.return_value = "/usr/bin/prusa-slicer"
+        mock_slice.return_value = gl.RunResult(
+            cmd=[], returncode=0, stdout="", stderr=""
+        )
+
+        # With config_ini to ensure they're always applied, not just defaults.
+        slice_flow_specimen(
+            "/tmp/specimen.stl", "/tmp/specimen.gcode",
+            config_ini="/some/config.ini",
+        )
+
+        req = mock_slice.call_args[0][1]
+        assert "--bottom-solid-layers=0" in req.extra_args
+        assert "--brim-width=5" in req.extra_args
+
+    @patch("filament_calibrator.slicer.gl.slice_model")
+    @patch("filament_calibrator.slicer.gl.find_prusaslicer_executable")
     def test_vase_defaults_used_without_config_ini(self, mock_find, mock_slice):
         """VASE_MODE_SLICER_ARGS applied when no config_ini."""
         mock_find.return_value = "/usr/bin/prusa-slicer"
@@ -606,7 +625,8 @@ class TestSliceFlowSpecimen:
     @patch("filament_calibrator.slicer.gl.slice_model")
     @patch("filament_calibrator.slicer.gl.find_prusaslicer_executable")
     def test_no_vase_defaults_with_config_ini(self, mock_find, mock_slice):
-        """VASE_MODE_SLICER_ARGS NOT applied when config_ini is given."""
+        """VASE_MODE_SLICER_ARGS NOT applied when config_ini is given
+        (except bottom-solid-layers and brim-width which are always forced)."""
         mock_find.return_value = "/usr/bin/prusa-slicer"
         mock_slice.return_value = gl.RunResult(
             cmd=[], returncode=0, stdout="", stderr=""
@@ -617,8 +637,12 @@ class TestSliceFlowSpecimen:
             config_ini="/config.ini",
         )
 
+        # Keys that are always forced for vase mode (not from dict defaults)
+        _always_forced = {"bottom-solid-layers", "brim-width"}
         req = mock_slice.call_args[0][1]
         for key, val in VASE_MODE_SLICER_ARGS.items():
+            if key in _always_forced:
+                continue
             assert f"--{key}={val}" not in req.extra_args
         # --spiral-vase still present
         assert "--spiral-vase" in req.extra_args
