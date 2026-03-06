@@ -518,8 +518,7 @@ def apply_ini_to_session(
 
     if "filament_type" in ini_vals:
         ft = ini_vals["filament_type"].upper()
-        if ft in _KNOWN_TYPES:
-            state["sidebar_filament_type"] = ft
+        state["sidebar_filament_type"] = ft
 
 
 # ---------------------------------------------------------------------------
@@ -621,9 +620,16 @@ def _app() -> None:  # pragma: no cover
     with st.sidebar:
         st.header("Common Settings")
 
+        # Build options list; include any custom type from .ini that isn't
+        # in the preset list so the dropdown reflects the config exactly.
+        _ft_options = list(_KNOWN_TYPES)
+        _cur_ft = st.session_state.get("sidebar_filament_type", "PLA")
+        if _cur_ft not in _ft_options:
+            _ft_options.insert(0, _cur_ft)
+
         filament_type = st.selectbox(
             "Filament Type",
-            options=_KNOWN_TYPES,
+            options=_ft_options,
             key="sidebar_filament_type",
         )
         preset = get_preset(filament_type)

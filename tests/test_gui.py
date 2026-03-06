@@ -794,10 +794,11 @@ class TestApplyIniToSession:
         apply_ini_to_session(state, {"filament_type": "petg"})
         assert state["sidebar_filament_type"] == "PETG"
 
-    def test_unknown_filament_type_not_stored(self) -> None:
+    def test_unknown_filament_type_stored(self) -> None:
+        """Custom types (e.g. POM, FLEX) are stored so the selectbox shows them."""
         state: dict = {}
-        apply_ini_to_session(state, {"filament_type": "EXOTIC123"})
-        assert "sidebar_filament_type" not in state
+        apply_ini_to_session(state, {"filament_type": "POM"})
+        assert state["sidebar_filament_type"] == "POM"
 
 
 # ---------------------------------------------------------------------------
