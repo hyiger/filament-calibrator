@@ -750,9 +750,9 @@ class TestApplyIniToSession:
         assert state["flow_ew"] == 0.45
         assert state["pa_ew"] == 0.45
 
-        # Selectbox helpers.
-        assert state["_ini_nozzle_size"] == 0.4
-        assert state["_ini_printer"] == "COREONE"
+        # Selectbox widget keys (written directly for Streamlit key= binding).
+        assert state["sidebar_nozzle_size"] == 0.4
+        assert state["sidebar_printer"] == "COREONE"
         assert state["_ini_bed_center"] == "125,110"
 
     def test_partial_dict_only_temp(self) -> None:
@@ -771,17 +771,17 @@ class TestApplyIniToSession:
     def test_nozzle_diameter_snapped(self) -> None:
         state: dict = {}
         apply_ini_to_session(state, {"nozzle_diameter": 0.42})
-        assert state["_ini_nozzle_size"] == 0.4
+        assert state["sidebar_nozzle_size"] == 0.4
 
     def test_unknown_printer_not_stored(self) -> None:
         state: dict = {}
         apply_ini_to_session(state, {"printer_model": "UNKNOWNXYZ"})
-        assert "_ini_printer" not in state
+        assert "sidebar_printer" not in state
 
     def test_known_printer_uppercased(self) -> None:
         state: dict = {}
         apply_ini_to_session(state, {"printer_model": "coreone"})
-        assert state["_ini_printer"] == "COREONE"
+        assert state["sidebar_printer"] == "COREONE"
 
     def test_bed_center_stored(self) -> None:
         state: dict = {}
@@ -791,12 +791,12 @@ class TestApplyIniToSession:
     def test_known_filament_type_stored(self) -> None:
         state: dict = {}
         apply_ini_to_session(state, {"filament_type": "petg"})
-        assert state["_ini_filament_type"] == "PETG"
+        assert state["sidebar_filament_type"] == "PETG"
 
     def test_unknown_filament_type_not_stored(self) -> None:
         state: dict = {}
         apply_ini_to_session(state, {"filament_type": "EXOTIC123"})
-        assert "_ini_filament_type" not in state
+        assert "sidebar_filament_type" not in state
 
 
 # ---------------------------------------------------------------------------
