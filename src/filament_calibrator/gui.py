@@ -22,6 +22,11 @@ import gcode_lib as gl
 from filament_calibrator.cli import _KNOWN_TYPES
 from filament_calibrator.config import load_config
 from filament_calibrator.ini_parser import parse_prusaslicer_ini
+from filament_calibrator.ini_writer import (
+    CalibrationResults,
+    build_change_summary,
+    merge_results_into_ini,
+)
 from filament_calibrator.printer_gcode import KNOWN_PRINTERS
 
 
@@ -553,6 +558,29 @@ def upload_to_printer(
         return False, f"Upload failed: {exc}"
 
 
+def build_calibration_results(
+    *,
+    set_temp: bool,
+    temperature: int,
+    set_flow: bool,
+    max_volumetric_speed: float,
+    set_pa: bool,
+    pa_value: float,
+    pa_firmware: str,
+) -> CalibrationResults:
+    """Build a :class:`CalibrationResults` from GUI widget values.
+
+    Checkbox flags (``set_*``) gate which values are included;
+    unchecked values are stored as ``None``.
+    """
+    return CalibrationResults(
+        temperature=temperature if set_temp else None,
+        max_volumetric_speed=max_volumetric_speed if set_flow else None,
+        pa_value=pa_value if set_pa else None,
+        pa_firmware=pa_firmware,
+    )
+
+
 # ---------------------------------------------------------------------------
 # Streamlit app (only imported when actually running the GUI)
 # ---------------------------------------------------------------------------
@@ -761,8 +789,9 @@ def _app() -> None:  # pragma: no cover
             st.session_state[_wk] = _wv
 
     # --- Tabs ---
-    tab_temp, tab_flow, tab_pa = st.tabs([
+    tab_temp, tab_flow, tab_pa, tab_results = st.tabs([
         "Temperature Tower", "Volumetric Flow", "Pressure Advance",
+        "Results",
     ])
 
     # === Tab 1: Temperature Tower ===
@@ -1228,6 +1257,85 @@ def _app() -> None:  # pragma: no cover
         _run = st.session_state.get("_last_run")
         if _run and _run["tab"] == "pa":
             _show_results(st, _run)
+
+    # === Tab 4: Calibration Results ===
+    with tab_results:
+        st.subheader("Calibration Results")
+        st.markdown(
+            "Record your calibration results and merge them into "
+            "a PrusaSlicer config."
+        )
+
+        # Temperature result
+        set_temp = st.checkbox(
+            "Set nozzle temperature", key="res_set_temp",
+        )
+        res_temp = st.number_input(
+            "Temperature (°C)", 150, 350, preset["hotend"],
+            disabled=not set_temp, key="res_temp",
+        )
+
+        # Volumetric flow result
+        set_flow = st.checkbox(
+            "Set max volumetric speed", key="res_set_flow",
+        )
+        res_flow = st.number_input(
+            "Max volumetric speed (mm³/s)", 0.5, 50.0, 11.0,
+            step=0.5, disabled=not set_flow, key="res_flow",
+        )
+
+        # Pressure advance result
+        set_pa = st.checkbox(
+            "Set pressure advance", key="res_set_pa",
+        )
+        res_pa = st.number_input(
+            "PA value", 0.0000, 2.0000, 0.0400,
+            step=0.005, format="%.4f",
+            disabled=not set_pa, key="res_pa",
+        )
+        pa_fw = st.selectbox(
+            "Firmware", ["marlin", "klipper"],
+            disabled=not set_pa, key="res_pa_fw",
+        )
+
+        # Build results object
+        results = build_calibration_results(
+            set_temp=set_temp, temperature=int(res_temp),
+            set_flow=set_flow, max_volumetric_speed=float(res_flow),
+            set_pa=set_pa, pa_value=float(res_pa),
+            pa_firmware=pa_fw,
+        )
+
+        # Show change summary
+        has_any = (
+            results.temperature is not None
+            or results.max_volumetric_speed is not None
+            or results.pa_value is not None
+        )
+        if has_any:
+            summary = build_change_summary(results)
+            st.markdown("### Changes")
+            st.markdown(summary)
+
+        # Merge & download (only if a config.ini is loaded)
+        config_ini_path = st.session_state.get("config_ini", "")
+        if has_any and config_ini_path and Path(config_ini_path).is_file():
+            ini_text = Path(config_ini_path).read_text(
+                encoding="utf-8", errors="replace",
+            )
+            merged = merge_results_into_ini(ini_text, results)
+            ini_name = Path(config_ini_path).stem + "_calibrated.ini"
+            st.download_button(
+                label=f"Download {ini_name}",
+                data=merged.encode("utf-8"),
+                file_name=ini_name,
+                mime="text/plain",
+            )
+        elif has_any and not config_ini_path:
+            st.info(
+                "Load a PrusaSlicer config.ini in the sidebar to "
+                "merge results and download."
+            )
 
 
 def _show_results(
