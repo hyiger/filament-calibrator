@@ -277,6 +277,9 @@ def slice_flow_specimen(
         f"--bed-shape={bed_shape or DEFAULT_BED_SHAPE}",
         f"--thumbnails={DEFAULT_THUMBNAILS}",
         "--spiral-vase",
+        # Disable supports — always incompatible with spiral-vase mode.
+        # Required when a user-supplied config.ini has them enabled.
+        "--support-material=0",
     ]
     if binary_gcode:
         cli_extra.append("--binary-gcode")

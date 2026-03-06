@@ -573,6 +573,20 @@ class TestSliceFlowSpecimen:
 
     @patch("filament_calibrator.slicer.gl.slice_model")
     @patch("filament_calibrator.slicer.gl.find_prusaslicer_executable")
+    def test_supports_disabled_for_vase_mode(self, mock_find, mock_slice):
+        """--support-material=0 always present (incompatible with vase)."""
+        mock_find.return_value = "/usr/bin/prusa-slicer"
+        mock_slice.return_value = gl.RunResult(
+            cmd=[], returncode=0, stdout="", stderr=""
+        )
+
+        slice_flow_specimen("/tmp/specimen.stl", "/tmp/specimen.gcode")
+
+        req = mock_slice.call_args[0][1]
+        assert "--support-material=0" in req.extra_args
+
+    @patch("filament_calibrator.slicer.gl.slice_model")
+    @patch("filament_calibrator.slicer.gl.find_prusaslicer_executable")
     def test_vase_defaults_used_without_config_ini(self, mock_find, mock_slice):
         """VASE_MODE_SLICER_ARGS applied when no config_ini."""
         mock_find.return_value = "/usr/bin/prusa-slicer"
