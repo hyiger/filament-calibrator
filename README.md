@@ -586,9 +586,8 @@ Two calibration methods are available via `--method`:
    solid layers). Layer height and extrusion width are derived from
    `--nozzle-size`.
 
-3. **PA command insertion** — Pressure advance commands are inserted at the
-   G-code layer boundaries corresponding to each level. Marlin firmware uses
-   `M900 K<value>`, Klipper uses `SET_PRESSURE_ADVANCE ADVANCE=<value>`.
+3. **PA command insertion** — Pressure advance (`M900 K<value>`) commands are
+   inserted at the G-code layer boundaries corresponding to each level.
 
 #### Pattern method
 
@@ -621,7 +620,6 @@ is embossed next to each chevron for easy identification.
 | `--end-pa` | *required* | Ending PA value (top level / last chevron) |
 | `--pa-step` | *required* | PA value increment per level |
 | `--method` | `tower` | Calibration method: `tower` or `pattern` |
-| `--firmware` | `marlin` | Firmware type: `marlin` (M900) or `klipper` (SET_PRESSURE_ADVANCE) |
 
 The PA range must be evenly divisible by `--pa-step`, and the resulting number
 of levels cannot exceed 50. `--start-pa` must be non-negative.
@@ -728,15 +726,6 @@ Bowden extruder (typical PA range 0.3--1.0):
 pressure-advance \
   --start-pa 0.3 --end-pa 1.0 --pa-step 0.05 \
   --no-upload --output-dir ./output
-```
-
-Klipper firmware:
-
-```bash
-pressure-advance \
-  --start-pa 0 --end-pa 0.10 --pa-step 0.01 \
-  --firmware klipper \
-  --no-upload
 ```
 
 PETG with custom temperatures:

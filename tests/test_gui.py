@@ -232,7 +232,6 @@ class TestBuildPaNamespace:
             start_pa=0.0,
             end_pa=0.10,
             pa_step=0.01,
-            firmware="marlin",
             level_height=1.0,
             nozzle_temp=215,
             bed_temp=60,
@@ -253,34 +252,7 @@ class TestBuildPaNamespace:
         assert ns.start_pa == 0.0
         assert ns.end_pa == 0.10
         assert ns.pa_step == 0.01
-        assert ns.firmware == "marlin"
         assert ns.verbose is True
-
-    def test_klipper_firmware(self) -> None:
-        ns = build_pa_namespace(
-            filament_type="PLA",
-            start_pa=0.0,
-            end_pa=0.10,
-            pa_step=0.01,
-            firmware="klipper",
-            level_height=1.0,
-            nozzle_temp=215,
-            bed_temp=60,
-            fan_speed=100,
-            nozzle_size=0.4,
-            layer_height=0.2,
-            extrusion_width=0.45,
-            printer="COREONE",
-            ascii_gcode=False,
-            output_dir="/tmp/pa",
-            config_ini=None,
-            prusaslicer_path=None,
-            printer_url=None,
-            api_key=None,
-            no_upload=True,
-            print_after_upload=False,
-        )
-        assert ns.firmware == "klipper"
 
     def test_method_default_tower(self) -> None:
         ns = build_pa_namespace(
@@ -288,7 +260,6 @@ class TestBuildPaNamespace:
             start_pa=0.0,
             end_pa=0.10,
             pa_step=0.01,
-            firmware="marlin",
             nozzle_temp=215,
             bed_temp=60,
             fan_speed=100,
@@ -320,7 +291,6 @@ class TestBuildPaNamespace:
             start_pa=0.0,
             end_pa=0.06,
             pa_step=0.01,
-            firmware="klipper",
             method="pattern",
             level_height=2.0,
             nozzle_temp=240,
@@ -353,7 +323,6 @@ class TestBuildPaNamespace:
         assert ns.num_layers == 8
         assert ns.pattern_spacing == 3.0
         assert ns.level_height == 2.0
-        assert ns.firmware == "klipper"
         assert ns.ascii_gcode is True
 
 

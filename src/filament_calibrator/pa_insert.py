@@ -43,22 +43,18 @@ class PALevel:
 # ---------------------------------------------------------------------------
 
 
-def pa_command(pa_value: float, firmware: str) -> str:
-    """Return the G-code command to set pressure advance.
+def pa_command(pa_value: float) -> str:
+    """Return the Marlin G-code command to set pressure advance.
 
     Parameters
     ----------
     pa_value: The pressure advance value.
-    firmware: ``"marlin"`` or ``"klipper"``.
 
     Returns
     -------
     str
-        The G-code command string.
+        The G-code command string (``M900 K<value>``).
     """
-    if firmware == "klipper":
-        return f"SET_PRESSURE_ADVANCE ADVANCE={pa_value:.4f} ; PA calibration level"
-    # Default: Marlin (also used by Prusa firmware)
     return f"M900 K{pa_value:.4f} ; PA calibration level"
 
 
@@ -119,7 +115,6 @@ def _level_for_z(z: float, levels: List[PALevel]) -> PALevel | None:
 def insert_pa_commands(
     lines: List[gl.GCodeLine],
     levels: List[PALevel],
-    firmware: str = "marlin",
 ) -> List[gl.GCodeLine]:
     """Insert pressure advance commands at level boundaries.
 
@@ -134,7 +129,6 @@ def insert_pa_commands(
     ----------
     lines:    Parsed G-code lines.
     levels:   PA levels from :func:`compute_pa_levels`.
-    firmware: ``"marlin"`` or ``"klipper"``.
     """
     if not levels:
         return list(lines)
@@ -151,7 +145,7 @@ def insert_pa_commands(
             target_pa = prev_pa
 
         if target_pa is not None and target_pa != prev_pa:
-            cmd = pa_command(target_pa, firmware)
+            cmd = pa_command(target_pa)
             result.append(gl.parse_line(cmd))
             prev_pa = target_pa
 
@@ -235,7 +229,6 @@ def _region_for_x(
 def insert_pa_pattern_commands(
     lines: List[gl.GCodeLine],
     regions: List[PAPatternRegion],
-    firmware: str = "marlin",
 ) -> List[gl.GCodeLine]:
     """Insert PA commands based on the toolpath's X position.
 
@@ -249,7 +242,6 @@ def insert_pa_pattern_commands(
     ----------
     lines:    Parsed G-code lines.
     regions:  Pattern regions from :func:`compute_pa_pattern_regions`.
-    firmware: ``"marlin"`` or ``"klipper"``.
     """
     if not regions:
         return list(lines)
@@ -264,7 +256,7 @@ def insert_pa_pattern_commands(
         if _is_extrusion_move(line):
             region = _region_for_x(state.x, regions)
             if region is not None and region.pa_value != prev_pa:
-                cmd = pa_command(region.pa_value, firmware)
+                cmd = pa_command(region.pa_value)
                 result.append(gl.parse_line(cmd))
                 prev_pa = region.pa_value
 

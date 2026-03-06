@@ -10,7 +10,6 @@ import gcode_lib as gl
 
 from filament_calibrator.cli import _KNOWN_TYPES, _UNSET
 from filament_calibrator.pa_cli import (
-    FIRMWARE_CHOICES,
     MAX_LEVELS,
     METHOD_CHOICES,
     _resolve_preset,
@@ -42,7 +41,6 @@ class TestBuildParser:
         assert args.start_pa == 0.0
         assert args.end_pa == 0.1
         assert args.pa_step == 0.01
-        assert args.firmware == "marlin"
         assert args.level_height == 1.0
         assert args.filament_type == "PLA"
         assert args.nozzle_size == 0.4
@@ -72,7 +70,6 @@ class TestBuildParser:
             "--start-pa", "0.02",
             "--end-pa", "0.1",
             "--pa-step", "0.02",
-            "--firmware", "klipper",
             "--level-height", "2.0",
             "--filament-type", "PETG",
             "--nozzle-size", "0.6",
@@ -96,7 +93,6 @@ class TestBuildParser:
         assert args.start_pa == 0.02
         assert args.end_pa == 0.1
         assert args.pa_step == 0.02
-        assert args.firmware == "klipper"
         assert args.level_height == 2.0
         assert args.filament_type == "PETG"
         assert args.nozzle_size == 0.6
@@ -106,12 +102,6 @@ class TestBuildParser:
         assert args.fan_speed == 50
         assert args.nozzle_temp == 240
         assert args.verbose is True
-
-    def test_firmware_choices(self):
-        p = build_parser()
-        with pytest.raises(SystemExit):
-            p.parse_args(["--start-pa", "0", "--end-pa", "0.1",
-                          "--pa-step", "0.01", "--firmware", "invalid"])
 
     def test_method_default(self):
         p = build_parser()
@@ -298,7 +288,7 @@ class TestRun:
     def _make_args(self, tmp_path, **overrides):
         defaults = dict(
             start_pa=0.0, end_pa=0.1, pa_step=0.1,
-            firmware="marlin", method="tower",
+            method="tower",
             level_height=1.0, filament_type="PLA",
             nozzle_size=0.4,
             layer_height=_UNSET, extrusion_width=_UNSET,
@@ -784,31 +774,6 @@ class TestRun:
         tower_config = gen_call[0][0]
         assert tower_config.filament_type == "PETG"
 
-    @patch("filament_calibrator.pa_cli.patch_slicer_metadata")
-    @patch("filament_calibrator.pa_cli.inject_thumbnails")
-    @patch("filament_calibrator.pa_cli.gl.save")
-    @patch("filament_calibrator.pa_cli.gl.load")
-    @patch("filament_calibrator.pa_cli.insert_pa_commands")
-    @patch("filament_calibrator.pa_cli.compute_pa_levels")
-    @patch("filament_calibrator.pa_cli.slice_pa_specimen")
-    @patch("filament_calibrator.pa_cli.generate_pa_tower_stl")
-    def test_firmware_passed_to_insert(
-        self, mock_gen, mock_slice, mock_levels,
-        mock_insert, mock_load, mock_save, mock_inject, mock_patch_meta, tmp_path
-    ):
-        """--firmware is forwarded to insert_pa_commands."""
-        mock_gen.return_value = str(tmp_path / "tower.stl")
-        mock_slice.return_value = MagicMock(ok=True)
-        mock_levels.return_value = []
-        mock_load.return_value = MagicMock(lines=[])
-        mock_insert.return_value = []
-
-        args = self._make_args(tmp_path, firmware="klipper")
-        run(args)
-
-        insert_kwargs = mock_insert.call_args[1]
-        assert insert_kwargs["firmware"] == "klipper"
-
     # --- --printer tests ---
 
     @patch("filament_calibrator.pa_cli.patch_slicer_metadata")
@@ -1201,7 +1166,7 @@ class TestRunPattern:
     def _make_args(self, tmp_path, **overrides):
         defaults = dict(
             start_pa=0.0, end_pa=0.1, pa_step=0.1,
-            firmware="marlin", method="pattern",
+            method="pattern",
             level_height=1.0, filament_type="PLA",
             nozzle_size=0.4,
             layer_height=_UNSET, extrusion_width=_UNSET,

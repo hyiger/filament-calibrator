@@ -10,7 +10,6 @@ from __future__ import annotations
 import multiprocessing as mp
 import platform
 import struct
-import threading
 import warnings
 import zlib
 from dataclasses import dataclass
@@ -54,6 +53,36 @@ _MODEL_COLOR = (0.93, 0.42, 0.13)
 # for better visual quality.
 _SUPERSAMPLE_THRESHOLD: int = 32
 _SUPERSAMPLE_FACTOR: int = 4
+
+
+def _fallback_png(width: int, height: int) -> bytes:
+    """Return a minimal solid-color RGB PNG as a safe rendering fallback."""
+    # PNG requires positive dimensions.
+    w = max(1, int(width))
+    h = max(1, int(height))
+
+    # Convert the model color (0..1 floats) to 8-bit RGB.
+    r = max(0, min(255, int(round(_MODEL_COLOR[0] * 255))))
+    g = max(0, min(255, int(round(_MODEL_COLOR[1] * 255))))
+    b = max(0, min(255, int(round(_MODEL_COLOR[2] * 255))))
+
+    # Each scanline: filter byte (0) + RGB triplets.
+    row = bytes([0]) + bytes([r, g, b]) * w
+    raw = row * h
+
+    def _chunk(kind: bytes, data: bytes) -> bytes:
+        body = kind + data
+        crc = zlib.crc32(body) & 0xFFFFFFFF
+        return struct.pack(">I", len(data)) + body + struct.pack(">I", crc)
+
+    ihdr = struct.pack(">IIBBBBB", w, h, 8, 2, 0, 0, 0)  # 8-bit RGB
+    idat = zlib.compress(raw)
+    return (
+        b"\x89PNG\r\n\x1a\n"
+        + _chunk(b"IHDR", ihdr)
+        + _chunk(b"IDAT", idat)
+        + _chunk(b"IEND", b"")
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -138,9 +167,15 @@ def render_stl_to_png(stl_path: str, width: int, height: int) -> bytes:
         needs_downscale = False
 
     if _needs_subprocess_render():
-        return _render_in_subprocess(
-            stl_path, render_w, render_h, width, height, needs_downscale,
-        )
+        try:
+            return _render_in_subprocess(
+                stl_path, render_w, render_h, width, height, needs_downscale,
+            )
+        except RuntimeError as exc:
+            warnings.warn(
+                f"VTK subprocess render failed ({exc}); using fallback thumbnail"
+            )
+            return _fallback_png(width, height)
     return _render_vtk(stl_path, render_w, render_h, width, height, needs_downscale)
 
 
@@ -385,16 +420,11 @@ def _needs_subprocess_render() -> bool:
 
     On macOS, VTK creates a ``vtkCocoaRenderWindow`` which calls into
     AppKit (``NSWindow``).  AppKit requires all UI operations on the main
-    thread; calling from a background thread triggers ``SIGABRT``.
-
-    When running under Streamlit (or any framework that dispatches user
-    callbacks on worker threads), this function returns ``True`` so the
-    caller can spawn a subprocess whose *main* thread performs the render.
+    thread, and in-process offscreen rendering can still abort in some
+    environments (for example test runners).  Always render in a subprocess
+    on Darwin to isolate potential native crashes.
     """
-    return (
-        platform.system() == "Darwin"
-        and threading.current_thread() is not threading.main_thread()
-    )
+    return platform.system() == "Darwin"
 
 
 def _subprocess_render_worker(

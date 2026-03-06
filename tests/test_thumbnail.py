@@ -685,21 +685,9 @@ class TestPatchSlicerMetadata:
 
 class TestNeedsSubprocessRender:
     @patch("filament_calibrator.thumbnail.platform")
-    @patch("filament_calibrator.thumbnail.threading")
-    def test_true_on_darwin_non_main_thread(self, mock_threading, mock_platform):
+    def test_true_on_darwin(self, mock_platform):
         mock_platform.system.return_value = "Darwin"
-        mock_threading.current_thread.return_value = MagicMock()
-        mock_threading.main_thread.return_value = MagicMock()
         assert _needs_subprocess_render() is True
-
-    @patch("filament_calibrator.thumbnail.platform")
-    @patch("filament_calibrator.thumbnail.threading")
-    def test_false_on_darwin_main_thread(self, mock_threading, mock_platform):
-        mock_platform.system.return_value = "Darwin"
-        sentinel = MagicMock()
-        mock_threading.current_thread.return_value = sentinel
-        mock_threading.main_thread.return_value = sentinel
-        assert _needs_subprocess_render() is False
 
     @patch("filament_calibrator.thumbnail.platform")
     def test_false_on_linux(self, mock_platform):
@@ -828,3 +816,18 @@ class TestRenderStlToPngSubprocess:
             16,
             True,
         )
+
+    @patch(
+        "filament_calibrator.thumbnail._render_in_subprocess",
+        side_effect=RuntimeError("child failed"),
+    )
+    @patch("filament_calibrator.thumbnail._needs_subprocess_render", return_value=True)
+    def test_subprocess_failure_falls_back_to_png(self, _mock_needs, _mock_sub, tmp_path):
+        stl = _make_stl_file(tmp_path)
+        with warnings.catch_warnings(record=True) as w:
+            warnings.simplefilter("always")
+            png = render_stl_to_png(stl, 32, 24)
+        assert png[:8] == b"\x89PNG\r\n\x1a\n"
+        img = Image.open(io.BytesIO(png))
+        assert img.size == (32, 24)
+        assert any("fallback thumbnail" in str(msg.message) for msg in w)

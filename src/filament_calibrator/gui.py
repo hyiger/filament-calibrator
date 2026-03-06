@@ -196,7 +196,6 @@ def build_pa_namespace(
     start_pa: float,
     end_pa: float,
     pa_step: float,
-    firmware: str,
     method: str = "tower",
     level_height: float = 1.0,
     nozzle_temp: int,
@@ -227,7 +226,6 @@ def build_pa_namespace(
         start_pa=start_pa,
         end_pa=end_pa,
         pa_step=pa_step,
-        firmware=firmware,
         method=method,
         level_height=level_height,
         nozzle_temp=nozzle_temp,
@@ -1250,7 +1248,7 @@ def _app() -> None:  # pragma: no cover
                 format="%.4f",
             )
 
-        col4, col5, col6, col7 = st.columns(4)
+        col4, col5, col6 = st.columns(3)
         with col4:
             pa_nozzle_temp = st.number_input(
                 "Nozzle Temp (\u00b0C)",
@@ -1271,16 +1269,6 @@ def _app() -> None:  # pragma: no cover
                 min_value=0,
                 max_value=100,
                 key="pa_fan",
-            )
-        with col7:
-            pa_firmware = st.selectbox(
-                "Firmware",
-                options=["marlin", "klipper"],
-                help=(
-                    "Marlin uses M900 K<value>. "
-                    "Klipper uses SET_PRESSURE_ADVANCE ADVANCE=<value>."
-                ),
-                key="pa_firmware",
             )
 
         # Pattern-specific settings (defaults used when method is tower)
@@ -1378,7 +1366,6 @@ def _app() -> None:  # pragma: no cover
                 start_pa=start_pa,
                 end_pa=end_pa,
                 pa_step=pa_step_val,
-                firmware=pa_firmware,
                 method=method_key,
                 level_height=pa_level_height,
                 nozzle_temp=pa_nozzle_temp,

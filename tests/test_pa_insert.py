@@ -52,19 +52,15 @@ class TestPALevel:
 
 class TestPACommand:
     def test_marlin_format(self):
-        result = pa_command(0.05, "marlin")
+        result = pa_command(0.05)
         assert result == "M900 K0.0500 ; PA calibration level"
 
-    def test_klipper_format(self):
-        result = pa_command(0.05, "klipper")
-        assert result == "SET_PRESSURE_ADVANCE ADVANCE=0.0500 ; PA calibration level"
-
     def test_four_decimal_places(self):
-        result = pa_command(0.1, "marlin")
+        result = pa_command(0.1)
         assert "K0.1000" in result
 
     def test_zero_value(self):
-        result = pa_command(0.0, "marlin")
+        result = pa_command(0.0)
         assert "K0.0000" in result
 
 
@@ -159,31 +155,13 @@ class TestInsertPACommands:
         )
         lines = _lines(gcode)
         levels = compute_pa_levels(0.0, 0.05, 2, 1.0)
-        result = insert_pa_commands(lines, levels, firmware="marlin")
+        result = insert_pa_commands(lines, levels)
         texts = _raw_texts(result)
 
         m900_lines = [t for t in texts if t.startswith("M900")]
         assert len(m900_lines) == 2
         assert "K0.0000" in m900_lines[0]
         assert "K0.0500" in m900_lines[1]
-
-    def test_klipper_insertion(self):
-        """SET_PRESSURE_ADVANCE commands are inserted for klipper firmware."""
-        gcode = (
-            "G1 Z0.2 F1000\n"
-            "G1 X10 E1\n"
-            "G1 Z1.2 F1000\n"
-            "G1 X20 E2\n"
-        )
-        lines = _lines(gcode)
-        levels = compute_pa_levels(0.0, 0.05, 2, 1.0)
-        result = insert_pa_commands(lines, levels, firmware="klipper")
-        texts = _raw_texts(result)
-
-        pa_lines = [t for t in texts if t.startswith("SET_PRESSURE_ADVANCE")]
-        assert len(pa_lines) == 2
-        assert "ADVANCE=0.0000" in pa_lines[0]
-        assert "ADVANCE=0.0500" in pa_lines[1]
 
     def test_no_duplicate_commands(self):
         """Same-level layers don't get duplicate PA commands."""
@@ -197,7 +175,7 @@ class TestInsertPACommands:
         )
         lines = _lines(gcode)
         levels = compute_pa_levels(0.0, 0.05, 1, 1.0)
-        result = insert_pa_commands(lines, levels, firmware="marlin")
+        result = insert_pa_commands(lines, levels)
         texts = _raw_texts(result)
 
         m900_lines = [t for t in texts if t.startswith("M900")]
@@ -223,7 +201,7 @@ class TestInsertPACommands:
         )
         lines = _lines(gcode)
         levels = compute_pa_levels(0.0, 0.05, 1, 1.0)  # single level: z=0-1
-        result = insert_pa_commands(lines, levels, firmware="marlin")
+        result = insert_pa_commands(lines, levels)
         texts = _raw_texts(result)
 
         m900_lines = [t for t in texts if t.startswith("M900")]
@@ -240,7 +218,7 @@ class TestInsertPACommands:
         )
         lines = _lines(gcode)
         levels = compute_pa_levels(0.0, 0.05, 2, 1.0)
-        result = insert_pa_commands(lines, levels, firmware="marlin")
+        result = insert_pa_commands(lines, levels)
         texts = _raw_texts(result)
 
         idx_m900_0 = next((i for i, t in enumerate(texts) if "K0.0000" in t), -1)
@@ -264,7 +242,7 @@ class TestInsertPACommands:
         lines = _lines(gcode)
         original_len = len(lines)
         levels = compute_pa_levels(0.0, 0.05, 1, 1.0)
-        insert_pa_commands(lines, levels, firmware="marlin")
+        insert_pa_commands(lines, levels)
         assert len(lines) == original_len
 
 
@@ -418,28 +396,13 @@ class TestInsertPaPatternCommands:
         )
         lines = _lines(gcode)
         regions = compute_pa_pattern_regions([0.0, 0.1], [100.0, 150.0])
-        result = insert_pa_pattern_commands(lines, regions, firmware="marlin")
+        result = insert_pa_pattern_commands(lines, regions)
         texts = _raw_texts(result)
 
         m900_lines = [t for t in texts if t.startswith("M900")]
         assert len(m900_lines) == 2
         assert "K0.0000" in m900_lines[0]
         assert "K0.1000" in m900_lines[1]
-
-    def test_klipper_insertion(self):
-        """SET_PRESSURE_ADVANCE commands are used for klipper."""
-        gcode = (
-            "G1 Z0.2 F1000\n"
-            "G1 X90 E1\n"
-            "G1 X130 E2\n"
-        )
-        lines = _lines(gcode)
-        regions = compute_pa_pattern_regions([0.0, 0.1], [100.0, 150.0])
-        result = insert_pa_pattern_commands(lines, regions, firmware="klipper")
-        texts = _raw_texts(result)
-
-        pa_lines = [t for t in texts if t.startswith("SET_PRESSURE_ADVANCE")]
-        assert len(pa_lines) == 2
 
     def test_no_duplicate_in_same_region(self):
         """Multiple moves within the same X region don't produce duplicates."""
@@ -451,7 +414,7 @@ class TestInsertPaPatternCommands:
         )
         lines = _lines(gcode)
         regions = compute_pa_pattern_regions([0.0, 0.1], [100.0, 150.0])
-        result = insert_pa_pattern_commands(lines, regions, firmware="marlin")
+        result = insert_pa_pattern_commands(lines, regions)
         texts = _raw_texts(result)
 
         m900_lines = [t for t in texts if t.startswith("M900")]
@@ -477,7 +440,7 @@ class TestInsertPaPatternCommands:
         )
         lines = _lines(gcode)
         regions = compute_pa_pattern_regions([0.0, 0.1], [100.0, 150.0])
-        result = insert_pa_pattern_commands(lines, regions, firmware="marlin")
+        result = insert_pa_pattern_commands(lines, regions)
         texts = _raw_texts(result)
 
         idx_pa1 = next(i for i, t in enumerate(texts) if "K0.1000" in t)
@@ -494,7 +457,7 @@ class TestInsertPaPatternCommands:
         )
         lines = _lines(gcode)
         regions = compute_pa_pattern_regions([0.0, 0.1], [100.0, 150.0])
-        result = insert_pa_pattern_commands(lines, regions, firmware="marlin")
+        result = insert_pa_pattern_commands(lines, regions)
         texts = _raw_texts(result)
 
         m900_lines = [t for t in texts if t.startswith("M900")]
@@ -511,5 +474,5 @@ class TestInsertPaPatternCommands:
         lines = _lines(gcode)
         original_len = len(lines)
         regions = compute_pa_pattern_regions([0.0], [100.0])
-        insert_pa_pattern_commands(lines, regions, firmware="marlin")
+        insert_pa_pattern_commands(lines, regions)
         assert len(lines) == original_len

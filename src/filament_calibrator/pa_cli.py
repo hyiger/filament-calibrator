@@ -74,9 +74,6 @@ from filament_calibrator.thumbnail import inject_thumbnails, patch_slicer_metada
 # Maximum number of PA levels to prevent excessively tall prints.
 MAX_LEVELS = 50
 
-# Valid firmware types for pressure advance commands.
-FIRMWARE_CHOICES = ("marlin", "klipper")
-
 # Valid calibration methods.
 METHOD_CHOICES = ("tower", "pattern")
 
@@ -105,16 +102,6 @@ def build_parser() -> argparse.ArgumentParser:
     pa.add_argument(
         "--pa-step", type=float, required=True,
         help="PA value increment per level / pattern.",
-    )
-    pa.add_argument(
-        "--firmware", type=str, default="marlin",
-        choices=FIRMWARE_CHOICES,
-        help=(
-            "Firmware type for PA commands. "
-            "'marlin' uses M900 K<value>, "
-            "'klipper' uses SET_PRESSURE_ADVANCE ADVANCE=<value>. "
-            "Default: marlin"
-        ),
     )
     pa.add_argument(
         "--method", type=str, default="tower",
@@ -470,7 +457,6 @@ def _run_tower_pipeline(
         f"Filament: {config.filament_type}  "
         f"Nozzle: {nozzle_size} mm  "
         f"PA: {args.start_pa}→{args.end_pa} (step {args.pa_step})  "
-        f"Firmware: {args.firmware}  "
         f"Temp: {nozzle_temp}°C  Bed: {bed_temp}°C  Fan: {fan_speed}%"
     )
 
@@ -551,7 +537,7 @@ def _run_tower_pipeline(
             print(f"[DEBUG]   Z {lv.z_start:.1f}–{lv.z_end:.1f} mm → "
                   f"PA {lv.pa_value:.4f}")
 
-    gf.lines = insert_pa_commands(gf.lines, levels, firmware=args.firmware)
+    gf.lines = insert_pa_commands(gf.lines, levels)
     gl.save(gf, final_gcode_path)
 
     # Print PA level lookup table for the user.
@@ -621,7 +607,6 @@ def _run_pattern_pipeline(
         f"Filament: {config.filament_type}  "
         f"Nozzle: {nozzle_size} mm  "
         f"PA: {args.start_pa}→{args.end_pa} (step {args.pa_step})  "
-        f"Firmware: {args.firmware}  "
         f"Temp: {nozzle_temp}°C  Bed: {bed_temp}°C  Fan: {fan_speed}%"
     )
 
@@ -719,9 +704,7 @@ def _run_pattern_pipeline(
             xe = f"{r.x_end:.1f}" if r.x_end != float("inf") else "+inf"
             print(f"[DEBUG]   X {xs} – {xe} → PA {r.pa_value:.4f}")
 
-    gf.lines = insert_pa_pattern_commands(
-        gf.lines, regions, firmware=args.firmware,
-    )
+    gf.lines = insert_pa_pattern_commands(gf.lines, regions)
     gl.save(gf, final_gcode_path)
 
     # Print PA pattern reference table for the user.
