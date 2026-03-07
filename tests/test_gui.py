@@ -837,6 +837,25 @@ class TestApplyIniToSession:
         apply_ini_to_session(state, {"filament_type": "POM"})
         assert state["sidebar_filament_type"] == "POM"
 
+    def test_sidebar_false_skips_sidebar_keys(self) -> None:
+        """sidebar=False skips sidebar widget keys (post-render re-apply)."""
+        state: dict = {}
+        ini_vals = {
+            "nozzle_temp": 230,
+            "bed_temp": 70,
+            "nozzle_diameter": 0.6,
+            "printer_model": "COREONE",
+            "filament_type": "PETG",
+        }
+        apply_ini_to_session(state, ini_vals, sidebar=False)
+        # Tab keys are written.
+        assert state["em_nozzle_temp"] == 230
+        assert state["pa_bed_temp"] == 70
+        # Sidebar keys are NOT written.
+        assert "sidebar_nozzle_size" not in state
+        assert "sidebar_printer" not in state
+        assert "sidebar_filament_type" not in state
+
 
 # ---------------------------------------------------------------------------
 # apply_toml_to_session

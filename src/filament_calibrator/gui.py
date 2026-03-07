@@ -519,11 +519,21 @@ def snap_nozzle_size(diameter: float) -> float:
 def apply_ini_to_session(
     state: Dict[str, Any],
     ini_vals: Dict[str, Any],
+    *,
+    sidebar: bool = True,
 ) -> None:
     """Write parsed ``.ini`` values into Streamlit session-state widget keys.
 
     Must be called **before** widgets render so that Streamlit picks up
     the updated values.  Only keys present in *ini_vals* are written.
+
+    Parameters
+    ----------
+    sidebar:
+        When *False*, skip sidebar widget keys (``sidebar_nozzle_size``,
+        ``sidebar_printer``, ``sidebar_filament_type``).  Use this for
+        the post-widget-defaults re-apply where sidebar widgets have
+        already been instantiated.
     """
     if "nozzle_temp" in ini_vals:
         nt = ini_vals["nozzle_temp"]
@@ -557,17 +567,17 @@ def apply_ini_to_session(
         state["flow_ew"] = ew
         state["pa_ew"] = ew
 
-    if "nozzle_diameter" in ini_vals:
+    if sidebar and "nozzle_diameter" in ini_vals:
         snapped = snap_nozzle_size(ini_vals["nozzle_diameter"])
         if snapped in _NOZZLE_SIZES:
             state["sidebar_nozzle_size"] = snapped
 
-    if "printer_model" in ini_vals:
+    if sidebar and "printer_model" in ini_vals:
         pm = ini_vals["printer_model"].upper()
         if pm in _PRINTER_LIST:
             state["sidebar_printer"] = pm
 
-    if "filament_type" in ini_vals:
+    if sidebar and "filament_type" in ini_vals:
         ft = ini_vals["filament_type"].upper()
         state["sidebar_filament_type"] = ft
 
@@ -858,9 +868,10 @@ def _app() -> None:  # pragma: no cover
             st.session_state[_wk] = _wv
 
     # Re-apply INI overrides — explicit config values take priority
-    # over preset defaults.
+    # over preset defaults.  sidebar=False because sidebar widgets have
+    # already been instantiated and Streamlit forbids setting their keys.
     if _ini_vals:
-        apply_ini_to_session(st.session_state, _ini_vals)
+        apply_ini_to_session(st.session_state, _ini_vals, sidebar=False)
 
     # --- Tabs ---
     tab_temp, tab_em, tab_flow, tab_pa, tab_results = st.tabs([
