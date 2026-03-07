@@ -44,6 +44,8 @@ class TestBuildParser:
         assert args.level_height == 1.0
         assert args.filament_type == "PLA"
         assert args.nozzle_size == 0.4
+        assert args.nozzle_high_flow is False
+        assert args.nozzle_hardened is False
         assert args.layer_height is _UNSET
         assert args.extrusion_width is _UNSET
         assert args.bed_temp is _UNSET
@@ -266,6 +268,7 @@ class TestRun:
             method="tower",
             level_height=1.0, filament_type="PLA",
             nozzle_size=0.4,
+            nozzle_high_flow=False, nozzle_hardened=False,
             layer_height=_UNSET, extrusion_width=_UNSET,
             bed_temp=_UNSET, fan_speed=_UNSET, nozzle_temp=_UNSET,
             config_ini=None, prusaslicer_path=None,
@@ -1151,6 +1154,7 @@ class TestRunPattern:
             method="pattern",
             level_height=1.0, filament_type="PLA",
             nozzle_size=0.4,
+            nozzle_high_flow=False, nozzle_hardened=False,
             layer_height=_UNSET, extrusion_width=_UNSET,
             bed_temp=_UNSET, fan_speed=_UNSET, nozzle_temp=_UNSET,
             config_ini=None, prusaslicer_path=None,

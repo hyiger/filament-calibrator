@@ -27,6 +27,8 @@ CONFIG_KEYS: frozenset[str] = frozenset({
     "output-dir",
     "bed-center",
     "nozzle-size",
+    "nozzle-high-flow",
+    "nozzle-hardened",
     "printer",
 })
 
@@ -41,6 +43,8 @@ _EXPECTED_TYPES: Dict[str, type] = {
     "output-dir": str,
     "bed-center": str,
     "nozzle-size": float,
+    "nozzle-high-flow": bool,
+    "nozzle-hardened": bool,
     "printer": str,
 }
 

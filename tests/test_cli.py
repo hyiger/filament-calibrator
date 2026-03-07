@@ -17,6 +17,7 @@ from filament_calibrator.cli import (
     _apply_config,
     _compute_num_tiers,
     _explicit_keys,
+    _patch_m862_nozzle_flags,
     build_parser,
     main,
     _resolve_preset,
@@ -47,6 +48,8 @@ class TestBuildParser:
         assert args.brand_top == ""
         assert args.brand_bottom == ""
         assert args.nozzle_size == 0.4
+        assert args.nozzle_high_flow is False
+        assert args.nozzle_hardened is False
         assert args.bed_temp is _UNSET
         assert args.fan_speed is _UNSET
         assert args.config_ini is None
@@ -318,6 +321,56 @@ class TestResolveOutputDir:
 
 
 # ---------------------------------------------------------------------------
+# _patch_m862_nozzle_flags
+# ---------------------------------------------------------------------------
+
+
+class TestPatchM862NozzleFlags:
+    def test_no_flags(self):
+        lines = ["M862.1 P0.4", "G28"]
+        result = _patch_m862_nozzle_flags(lines)
+        assert result == ["M862.1 P0.4 A0 F0", "G28"]
+
+    def test_hardened_only(self):
+        lines = ["M862.1 P0.4"]
+        result = _patch_m862_nozzle_flags(lines, nozzle_hardened=True)
+        assert result == ["M862.1 P0.4 A1 F0"]
+
+    def test_high_flow_only(self):
+        lines = ["M862.1 P0.6"]
+        result = _patch_m862_nozzle_flags(lines, nozzle_high_flow=True)
+        assert result == ["M862.1 P0.6 A0 F1"]
+
+    def test_both_flags(self):
+        lines = ["M862.1 P0.4"]
+        result = _patch_m862_nozzle_flags(
+            lines, nozzle_hardened=True, nozzle_high_flow=True,
+        )
+        assert result == ["M862.1 P0.4 A1 F1"]
+
+    def test_no_m862_lines(self):
+        lines = ["G28", "G1 X10 Y10", "M104 S200"]
+        result = _patch_m862_nozzle_flags(lines)
+        assert result == lines
+
+    def test_idempotent_repatch(self):
+        lines = ["M862.1 P0.4 A0 F0"]
+        result = _patch_m862_nozzle_flags(
+            lines, nozzle_hardened=True, nozzle_high_flow=True,
+        )
+        assert result == ["M862.1 P0.4 A1 F1"]
+
+    def test_preserves_trailing_comment(self):
+        lines = ["M862.1 P0.4 ; nozzle check"]
+        result = _patch_m862_nozzle_flags(lines, nozzle_hardened=True)
+        assert result == ["M862.1 P0.4 A1 F0 ; nozzle check"]
+
+    def test_empty_lines(self):
+        result = _patch_m862_nozzle_flags([])
+        assert result == []
+
+
+# ---------------------------------------------------------------------------
 # _resolve_preset
 # ---------------------------------------------------------------------------
 
@@ -540,6 +593,7 @@ class TestRun:
             start_temp=_UNSET, end_temp=_UNSET, temp_step=5,
             filament_type="PLA", brand_top="", brand_bottom="",
             nozzle_size=0.4,
+            nozzle_high_flow=False, nozzle_hardened=False,
             bed_temp=_UNSET, fan_speed=_UNSET,
             config_ini=None, prusaslicer_path=None,
             extra_slicer_args=None, bed_center=None,

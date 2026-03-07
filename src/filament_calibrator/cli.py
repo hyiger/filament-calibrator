@@ -5,6 +5,7 @@ Orchestrates: model generation → slicing → temp insertion → upload.
 from __future__ import annotations
 
 import argparse
+import re
 import sys
 import tempfile
 from pathlib import Path
@@ -88,6 +89,14 @@ def build_parser() -> argparse.ArgumentParser:
             "layer height (nozzle × 0.5) and extrusion width "
             "(nozzle × 1.125). Default: 0.4"
         ),
+    )
+    nozzle.add_argument(
+        "--nozzle-high-flow", action="store_true", default=False,
+        help="Nozzle is a high-flow variant (sets F flag in M862.1).",
+    )
+    nozzle.add_argument(
+        "--nozzle-hardened", action="store_true", default=False,
+        help="Nozzle is hardened/abrasive-resistant (sets A flag in M862.1).",
     )
 
     # --- Slicer options ---
@@ -198,6 +207,8 @@ _ARGPARSE_DEFAULTS: Dict[str, object] = {
     "output_dir": None,
     "bed_center": None,
     "nozzle_size": 0.4,
+    "nozzle_high_flow": False,
+    "nozzle_hardened": False,
     "printer": "COREONE",
 }
 
@@ -266,6 +277,33 @@ def _explicit_keys(
     return frozenset(
         dest for dest, val in vars(ns).items() if val is not sentinel
     )
+
+
+_M862_PATTERN = re.compile(r"(M862\.1\s+P[\d.]+)(?:\s+A\d)?(?:\s+F\d)?(.*)")
+
+
+def _patch_m862_nozzle_flags(
+    lines: List[str],
+    *,
+    nozzle_hardened: bool = False,
+    nozzle_high_flow: bool = False,
+) -> List[str]:
+    """Append ``A`` and ``F`` flags to ``M862.1`` nozzle-check commands.
+
+    ``A1`` = hardened/abrasive-resistant nozzle, ``F1`` = high-flow nozzle.
+    Existing ``A``/``F`` flags are stripped before re-inserting so the
+    transform is idempotent.
+    """
+    a_flag = 1 if nozzle_hardened else 0
+    f_flag = 1 if nozzle_high_flow else 0
+    result: List[str] = []
+    for line in lines:
+        m = _M862_PATTERN.match(line)
+        if m:
+            result.append(f"{m.group(1)} A{a_flag} F{f_flag}{m.group(2)}")
+        else:
+            result.append(line)
+    return result
 
 
 def _resolve_output_dir(
@@ -524,6 +562,11 @@ def run(args: argparse.Namespace) -> None:
             print(f"[DEBUG]   Z {t.z_start:.1f}–{t.z_end:.1f} mm → {t.temp}°C")
 
     gf.lines = insert_temperatures(gf.lines, tiers)
+    gf.lines = _patch_m862_nozzle_flags(
+        gf.lines,
+        nozzle_hardened=args.nozzle_hardened,
+        nozzle_high_flow=args.nozzle_high_flow,
+    )
     gl.save(gf, final_gcode_path)
 
     # --- Clean up intermediate files ---

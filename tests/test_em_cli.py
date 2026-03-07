@@ -38,6 +38,8 @@ class TestBuildParser:
         assert args.filament_type == "PLA"
         assert args.cube_size == 40.0
         assert args.nozzle_size == 0.4
+        assert args.nozzle_high_flow is False
+        assert args.nozzle_hardened is False
         assert args.layer_height is _UNSET
         assert args.extrusion_width is _UNSET
         assert args.bed_temp is _UNSET
@@ -122,6 +124,7 @@ class TestRun:
             filament_type="PLA",
             cube_size=40.0,
             nozzle_size=0.4,
+            nozzle_high_flow=False, nozzle_hardened=False,
             layer_height=_UNSET, extrusion_width=_UNSET,
             bed_temp=_UNSET, fan_speed=_UNSET, nozzle_temp=_UNSET,
             config_ini=None, prusaslicer_path=None,

@@ -20,6 +20,7 @@ from filament_calibrator.cli import (
     _UNSET,
     _apply_config,
     _explicit_keys,
+    _patch_m862_nozzle_flags,
     _resolve_output_dir,
 )
 from filament_calibrator.config import load_config
@@ -114,6 +115,14 @@ def build_parser() -> argparse.ArgumentParser:
     nozzle.add_argument(
         "--nozzle-size", type=float, default=0.4,
         help="Nozzle diameter in mm (default: 0.4).",
+    )
+    nozzle.add_argument(
+        "--nozzle-high-flow", action="store_true", default=False,
+        help="Nozzle is a high-flow variant (sets F flag in M862.1).",
+    )
+    nozzle.add_argument(
+        "--nozzle-hardened", action="store_true", default=False,
+        help="Nozzle is hardened/abrasive-resistant (sets A flag in M862.1).",
     )
 
     # -- Slicer options --
@@ -511,6 +520,11 @@ def _run_pipeline(
             )
 
     gf.lines = insert_retraction_commands(gf.lines, levels)
+    gf.lines = _patch_m862_nozzle_flags(
+        gf.lines,
+        nozzle_hardened=args.nozzle_hardened,
+        nozzle_high_flow=args.nozzle_high_flow,
+    )
     gl.save(gf, final_gcode_path)
 
     # Print retraction level lookup table.

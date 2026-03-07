@@ -19,6 +19,7 @@ from filament_calibrator.cli import (
     _UNSET,
     _apply_config,
     _explicit_keys,
+    _patch_m862_nozzle_flags,
     _resolve_output_dir,
 )
 from filament_calibrator.config import _find_config_path, load_config
@@ -69,6 +70,14 @@ def build_parser() -> argparse.ArgumentParser:
             "(nozzle × 1.125) when they are not explicitly provided. "
             "Default: 0.4"
         ),
+    )
+    nozzle.add_argument(
+        "--nozzle-high-flow", action="store_true", default=False,
+        help="Nozzle is a high-flow variant (sets F flag in M862.1).",
+    )
+    nozzle.add_argument(
+        "--nozzle-hardened", action="store_true", default=False,
+        help="Nozzle is hardened/abrasive-resistant (sets A flag in M862.1).",
     )
 
     # --- Slicer options ---
@@ -344,6 +353,11 @@ def run(args: argparse.Namespace) -> None:
         gl.patch_slicer_metadata(
             gf, printer_name, nozzle_size, verbose=args.verbose
         )
+    gf.lines = _patch_m862_nozzle_flags(
+        gf.lines,
+        nozzle_hardened=args.nozzle_hardened,
+        nozzle_high_flow=args.nozzle_high_flow,
+    )
     gl.save(gf, final_gcode_path)
 
     print(f"Expected wall thickness: {extrusion_width} mm")
