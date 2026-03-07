@@ -3,7 +3,7 @@
 ## Project Overview
 
 **filament-calibrator** is a CLI tool suite for 3D printer filament calibration.
-It contains four tools:
+It contains five tools:
 
 - `temperature-tower` — generates, slices, and uploads temperature tower prints
   to find the optimal printing temperature for a filament.
@@ -22,6 +22,11 @@ It contains four tools:
     rectangular frame with embossed PA value labels; each chevron is
     printed at a different PA value — inspect which has the sharpest
     corners.  PA insertion is X-based (by chevron tip position).
+- `retraction-test` — generates two cylindrical towers spaced apart;
+  PrusaSlicer's travel moves between them trigger retraction.  At each
+  height level the firmware retraction length is changed via
+  `M207 S<length>`, so the user can inspect stringing at each height to
+  find the optimal retraction distance.
 
 ## Architecture
 
@@ -35,7 +40,8 @@ src/filament_calibrator/
   config.py         # TOML config file loading
   model.py          # CadQuery parametric temperature tower model
   slicer.py         # PrusaSlicer CLI wrapper (slice_tower, slice_flow_specimen,
-                    #   slice_pa_specimen, slice_em_specimen)
+                    #   slice_pa_specimen, slice_em_specimen,
+                    #   slice_retraction_specimen)
   tempinsert.py     # G-code temperature command insertion
   em_cli.py         # extrusion-multiplier argparse CLI, pipeline orchestration
   em_model.py       # CadQuery parametric cube model for EM calibration
@@ -50,7 +56,10 @@ src/filament_calibrator/
   ini_writer.py     # Merge calibration results into PrusaSlicer .ini configs;
                     #   helpers (replace_ini_value, pa_command,
                     #   inject_pa_into_start_gcode) imported from gcode-lib
-  gui.py            # Streamlit browser GUI wrapping all four CLIs
+  retraction_cli.py   # retraction-test argparse CLI, pipeline orchestration
+  retraction_model.py # CadQuery parametric two-tower retraction test model
+  retraction_insert.py # G-code M207 retraction length command insertion
+  gui.py            # Streamlit browser GUI wrapping all five CLIs
 ```
 
 ### Key Dependencies
@@ -98,9 +107,16 @@ slice_em_specimen (vase mode, classic walls) → load G-code →
 inject_thumbnails → patch_slicer_metadata → save →
 print expected wall thickness → optional upload.
 
+**retraction-test** (`retraction_cli.run()`):
+load_config → apply_config → validate_retraction_args → resolve_preset →
+generate_retraction_tower_stl → slice_retraction_specimen
+(firmware retraction) → load G-code → inject_thumbnails →
+patch_slicer_metadata → compute_retraction_levels →
+insert_retraction_commands (M207) → save → optional upload.
+
 ### Filament Preset System
 
-All four CLIs use `--filament-type` to look up defaults from
+All five CLIs use `--filament-type` to look up defaults from
 `gcode_lib.FILAMENT_PRESETS`.  Known presets (PLA, PETG, ABS, ASA, TPU, etc.)
 automatically set nozzle temperature, bed temperature, and fan speed.
 Explicit CLI arguments (`--nozzle-temp`, `--bed-temp`, `--fan-speed`)
@@ -128,6 +144,11 @@ override the preset.  Unknown filament names fall back to safe defaults
   no infill, 5mm brim).  `slice_em_specimen()` always forces
   `--spiral-vase`, `--perimeter-generator=classic`, and
   `--support-material=0`.
+- `RETRACTION_SLICER_ARGS` — for retraction test tower slicing
+  (2 perimeters, 15% infill).  `slice_retraction_specimen()` always
+  forces `--use-firmware-retraction` so PrusaSlicer emits G10/G11
+  instead of explicit retract moves, allowing M207 commands to control
+  the retraction length.
 
 All slicer functions accept `nozzle_diameter` to pass `--nozzle-diameter` to
 PrusaSlicer, and pass `--center` and `--bed-shape` for Prusa MK-series bed
@@ -151,7 +172,8 @@ thumbnail previews.  Use `--ascii-gcode` on the CLI to switch to text
 - Filament preset lookup is case-insensitive (`.upper()`)
 - Shared CLI helpers (`_apply_config`, `_resolve_output_dir`, `_UNSET`,
   `_KNOWN_TYPES`, `_ARGPARSE_DEFAULTS`) live in `cli.py` and are imported
-  by `em_cli.py`, `flow_cli.py`, and `pa_cli.py`.  Generic filename/preset
+  by `em_cli.py`, `flow_cli.py`, `pa_cli.py`, and `retraction_cli.py`.
+  Generic filename/preset
   helpers (`unique_suffix`, `safe_filename_part`, `gcode_ext`,
   `resolve_filament_preset`) are imported from `gcode_lib`.
 
@@ -180,6 +202,7 @@ Entry points:
 - `extrusion-multiplier` → `filament_calibrator.em_cli:main`
 - `volumetric-flow` → `filament_calibrator.flow_cli:main`
 - `pressure-advance` → `filament_calibrator.pa_cli:main`
+- `retraction-test` → `filament_calibrator.retraction_cli:main`
 - `filament-calibrator-gui` → `filament_calibrator.gui:main` (requires `[gui]` extra)
 
 ## Common Tasks
@@ -196,9 +219,13 @@ Entry points:
   (DEFAULT_CORNER_ANGLE, DEFAULT_ARM_LENGTH, DEFAULT_WALL_THICKNESS,
   DEFAULT_PATTERN_SPACING, DEFAULT_FRAME_OFFSET, DEFAULT_LABEL_HEIGHT).
 - **Change EM cube geometry**: Edit `CUBE_SIZE` in `em_model.py`.
+- **Change retraction tower geometry**: Edit constants in
+  `retraction_model.py` (TOWER_DIAMETER, TOWER_SPACING, BASE_LENGTH,
+  BASE_WIDTH, BASE_HEIGHT, LEVEL_HEIGHT).
 - **Change slicer defaults**: Edit `DEFAULT_SLICER_ARGS` (temp tower),
   `VASE_MODE_SLICER_ARGS` (flow specimen), `PA_SLICER_ARGS` (PA tower),
-  or `EM_SLICER_ARGS` (EM cube) in `slicer.py`.
+  `EM_SLICER_ARGS` (EM cube), or `RETRACTION_SLICER_ARGS` (retraction
+  towers) in `slicer.py`.
 - **Add a new calibration tool**: Create a new module + CLI entry point in
   `pyproject.toml [project.scripts]`.  Import shared helpers from `cli.py`.
 - **Add a new config key**: Add to `CONFIG_KEYS` in `config.py`, add
