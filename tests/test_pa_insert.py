@@ -51,17 +51,30 @@ class TestPALevel:
 
 
 class TestPACommand:
-    def test_marlin_format(self):
+    def test_default_coreone_uses_m572(self):
         result = pa_command(0.05)
+        assert result == "M572 S0.0500 ; PA calibration level"
+
+    def test_mini_uses_m900(self):
+        result = pa_command(0.05, printer="MINI")
         assert result == "M900 K0.0500 ; PA calibration level"
+
+    def test_mini_case_insensitive(self):
+        result = pa_command(0.05, printer="mini")
+        assert "M900 K0.0500" in result
 
     def test_four_decimal_places(self):
         result = pa_command(0.1)
-        assert "K0.1000" in result
+        assert "S0.1000" in result
 
     def test_zero_value(self):
         result = pa_command(0.0)
-        assert "K0.0000" in result
+        assert "S0.0000" in result
+
+    def test_non_mini_printers_use_m572(self):
+        for printer in ("COREONE", "MK4S", "MK3S"):
+            result = pa_command(0.04, printer=printer)
+            assert result.startswith("M572 S"), f"Expected M572 for {printer}"
 
 
 # ---------------------------------------------------------------------------
@@ -144,8 +157,8 @@ class TestLevelForZ:
 
 
 class TestInsertPACommands:
-    def test_basic_marlin_insertion(self):
-        """M900 commands are inserted at level boundaries."""
+    def test_basic_insertion_default_m572(self):
+        """M572 commands are inserted at level boundaries (default printer)."""
         gcode = (
             "G28\n"
             "G1 Z0.2 F1000\n"
@@ -158,10 +171,25 @@ class TestInsertPACommands:
         result = insert_pa_commands(lines, levels)
         texts = _raw_texts(result)
 
+        m572_lines = [t for t in texts if t.startswith("M572")]
+        assert len(m572_lines) == 2
+        assert "S0.0000" in m572_lines[0]
+        assert "S0.0500" in m572_lines[1]
+
+    def test_mini_uses_m900(self):
+        """MINI printer inserts M900 commands."""
+        gcode = (
+            "G1 Z0.2 F1000\n"
+            "G1 X10 E1\n"
+        )
+        lines = _lines(gcode)
+        levels = compute_pa_levels(0.0, 0.05, 1, 1.0)
+        result = insert_pa_commands(lines, levels, printer="MINI")
+        texts = _raw_texts(result)
+
         m900_lines = [t for t in texts if t.startswith("M900")]
-        assert len(m900_lines) == 2
+        assert len(m900_lines) == 1
         assert "K0.0000" in m900_lines[0]
-        assert "K0.0500" in m900_lines[1]
 
     def test_no_duplicate_commands(self):
         """Same-level layers don't get duplicate PA commands."""
@@ -178,8 +206,8 @@ class TestInsertPACommands:
         result = insert_pa_commands(lines, levels)
         texts = _raw_texts(result)
 
-        m900_lines = [t for t in texts if t.startswith("M900")]
-        assert len(m900_lines) == 1
+        pa_lines = [t for t in texts if t.startswith("M572")]
+        assert len(pa_lines) == 1
 
     def test_empty_levels_no_modification(self):
         gcode = "G28\nG1 X10 E1\n"
@@ -204,9 +232,9 @@ class TestInsertPACommands:
         result = insert_pa_commands(lines, levels)
         texts = _raw_texts(result)
 
-        m900_lines = [t for t in texts if t.startswith("M900")]
-        assert len(m900_lines) == 1
-        assert "K0.0000" in m900_lines[0]
+        pa_lines = [t for t in texts if t.startswith("M572")]
+        assert len(pa_lines) == 1
+        assert "S0.0000" in pa_lines[0]
 
     def test_command_order_in_output(self):
         """PA command appears before the first line of the new-level layer."""
@@ -221,17 +249,17 @@ class TestInsertPACommands:
         result = insert_pa_commands(lines, levels)
         texts = _raw_texts(result)
 
-        idx_m900_0 = next((i for i, t in enumerate(texts) if "K0.0000" in t), -1)
+        idx_pa_0 = next((i for i, t in enumerate(texts) if "S0.0000" in t), -1)
         idx_z0_2 = next((i for i, t in enumerate(texts) if "Z0.2" in t), -1)
-        assert idx_m900_0 != -1
+        assert idx_pa_0 != -1
         assert idx_z0_2 != -1
-        assert idx_m900_0 < idx_z0_2
+        assert idx_pa_0 < idx_z0_2
 
-        idx_m900_1 = next((i for i, t in enumerate(texts) if "K0.0500" in t), -1)
+        idx_pa_1 = next((i for i, t in enumerate(texts) if "S0.0500" in t), -1)
         idx_z1_2 = next((i for i, t in enumerate(texts) if "Z1.2" in t), -1)
-        assert idx_m900_1 != -1
+        assert idx_pa_1 != -1
         assert idx_z1_2 != -1
-        assert idx_m900_1 < idx_z1_2
+        assert idx_pa_1 < idx_z1_2
 
     def test_immutable_input(self):
         """Original list is not mutated."""
@@ -386,8 +414,8 @@ class TestIsExtrusionMove:
 
 
 class TestInsertPaPatternCommands:
-    def test_basic_marlin_insertion(self):
-        """PA commands are inserted when toolpath enters new X region."""
+    def test_basic_insertion_default_m572(self):
+        """M572 commands are inserted when toolpath enters new X region."""
         gcode = (
             "G28\n"
             "G1 Z0.2 F1000\n"
@@ -397,6 +425,23 @@ class TestInsertPaPatternCommands:
         lines = _lines(gcode)
         regions = compute_pa_pattern_regions([0.0, 0.1], [100.0, 150.0])
         result = insert_pa_pattern_commands(lines, regions)
+        texts = _raw_texts(result)
+
+        m572_lines = [t for t in texts if t.startswith("M572")]
+        assert len(m572_lines) == 2
+        assert "S0.0000" in m572_lines[0]
+        assert "S0.1000" in m572_lines[1]
+
+    def test_mini_uses_m900(self):
+        """MINI printer inserts M900 commands for pattern method."""
+        gcode = (
+            "G1 Z0.2 F1000\n"
+            "G1 X90 E1\n"
+            "G1 X130 E2\n"
+        )
+        lines = _lines(gcode)
+        regions = compute_pa_pattern_regions([0.0, 0.1], [100.0, 150.0])
+        result = insert_pa_pattern_commands(lines, regions, printer="MINI")
         texts = _raw_texts(result)
 
         m900_lines = [t for t in texts if t.startswith("M900")]
@@ -417,8 +462,8 @@ class TestInsertPaPatternCommands:
         result = insert_pa_pattern_commands(lines, regions)
         texts = _raw_texts(result)
 
-        m900_lines = [t for t in texts if t.startswith("M900")]
-        assert len(m900_lines) == 1
+        pa_lines = [t for t in texts if t.startswith("M572")]
+        assert len(pa_lines) == 1
 
     def test_empty_regions_no_modification(self):
         gcode = "G28\nG1 X10 E1\n"
@@ -443,7 +488,7 @@ class TestInsertPaPatternCommands:
         result = insert_pa_pattern_commands(lines, regions)
         texts = _raw_texts(result)
 
-        idx_pa1 = next(i for i, t in enumerate(texts) if "K0.1000" in t)
+        idx_pa1 = next(i for i, t in enumerate(texts) if "S0.1000" in t)
         idx_x130 = next(i for i, t in enumerate(texts) if "X130" in t)
         assert idx_pa1 < idx_x130
 
@@ -460,10 +505,10 @@ class TestInsertPaPatternCommands:
         result = insert_pa_pattern_commands(lines, regions)
         texts = _raw_texts(result)
 
-        m900_lines = [t for t in texts if t.startswith("M900")]
+        pa_lines = [t for t in texts if t.startswith("M572")]
         # First extrusion at X90 → region 0, travel to X130 (no PA change),
         # extrusion back at X90 → still region 0 (no change needed)
-        assert len(m900_lines) == 1
+        assert len(pa_lines) == 1
 
     def test_immutable_input(self):
         """Original list is not mutated."""

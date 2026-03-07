@@ -22,13 +22,11 @@ import gcode_lib as gl
 
 from filament_calibrator.cli import _KNOWN_TYPES
 from filament_calibrator.config import load_config
-from filament_calibrator.ini_parser import parse_prusaslicer_ini
 from filament_calibrator.ini_writer import (
     CalibrationResults,
     build_change_summary,
     merge_results_into_ini,
 )
-from filament_calibrator.printer_gcode import KNOWN_PRINTERS
 
 
 # ---------------------------------------------------------------------------
@@ -46,7 +44,7 @@ _FALLBACK_PRESET: Dict[str, Any] = {
 
 _NOZZLE_SIZES: List[float] = [0.25, 0.3, 0.4, 0.5, 0.6, 0.8]
 
-_PRINTER_LIST: List[str] = sorted(KNOWN_PRINTERS)
+_PRINTER_LIST: List[str] = sorted(gl.KNOWN_PRINTERS)
 
 
 def get_preset(filament_type: str) -> Dict[str, Any]:
@@ -676,7 +674,7 @@ def _app() -> None:  # pragma: no cover
         st.session_state["_prev_config_ini"] = _cur_ini
         if _cur_ini and Path(_cur_ini).is_file():
             try:
-                ini_vals = parse_prusaslicer_ini(_cur_ini)
+                ini_vals = gl.parse_prusaslicer_ini(_cur_ini)
             except Exception:
                 ini_vals = {}
             if ini_vals:
@@ -1537,9 +1535,7 @@ def _show_results(
             png_data = st.session_state.get("_thumbnail_png")
         else:
             try:
-                from filament_calibrator.thumbnail import render_stl_to_png
-
-                png_data = render_stl_to_png(str(newest_stl), 440, 248)
+                png_data = gl.render_stl_to_png(str(newest_stl), 440, 248)
                 st.session_state["_thumbnail_stl"] = stl_key
                 st.session_state["_thumbnail_png"] = png_data
             except Exception:

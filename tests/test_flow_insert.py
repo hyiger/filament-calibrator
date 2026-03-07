@@ -7,12 +7,11 @@ import gcode_lib as gl
 
 from filament_calibrator.flow_insert import (
     FlowLevel,
-    _is_extrusion_move,
     _level_for_z,
     compute_flow_levels,
-    flow_to_feedrate,
     insert_flow_rates,
 )
+from gcode_lib import flow_to_feedrate
 
 
 # ---------------------------------------------------------------------------
@@ -40,33 +39,6 @@ class TestFlowLevel:
         assert lv.z_start == 0.0
         assert lv.z_end == 1.0
         assert lv.feedrate == pytest.approx(6666.67)
-
-
-# ---------------------------------------------------------------------------
-# flow_to_feedrate
-# ---------------------------------------------------------------------------
-
-
-class TestFlowToFeedrate:
-    def test_basic_calculation(self):
-        # 10 mm³/s / (0.2 * 0.45) = 111.11 mm/s → 6666.67 mm/min
-        result = flow_to_feedrate(10.0, 0.2, 0.45)
-        assert result == pytest.approx(6666.67, rel=1e-3)
-
-    def test_high_flow(self):
-        # 20 mm³/s / (0.2 * 0.45) = 222.22 mm/s → 13333.33 mm/min
-        result = flow_to_feedrate(20.0, 0.2, 0.45)
-        assert result == pytest.approx(13333.33, rel=1e-3)
-
-    def test_different_layer_height(self):
-        # 10 mm³/s / (0.3 * 0.45) = 74.07 mm/s → 4444.44 mm/min
-        result = flow_to_feedrate(10.0, 0.3, 0.45)
-        assert result == pytest.approx(4444.44, rel=1e-3)
-
-    def test_different_extrusion_width(self):
-        # 10 mm³/s / (0.2 * 0.6) = 83.33 mm/s → 5000 mm/min
-        result = flow_to_feedrate(10.0, 0.2, 0.6)
-        assert result == pytest.approx(5000.0, rel=1e-3)
 
 
 # ---------------------------------------------------------------------------
@@ -173,46 +145,6 @@ class TestLevelForZ:
 
     def test_empty_levels(self):
         assert _level_for_z(5.0, []) is None
-
-
-# ---------------------------------------------------------------------------
-# _is_extrusion_move
-# ---------------------------------------------------------------------------
-
-
-class TestIsExtrusionMove:
-    def test_g1_with_x_and_e(self):
-        line = gl.parse_line("G1 X10 E1 F1000")
-        assert _is_extrusion_move(line) is True
-
-    def test_g1_with_y_and_e(self):
-        line = gl.parse_line("G1 Y10 E1 F1000")
-        assert _is_extrusion_move(line) is True
-
-    def test_g1_with_xy_and_e(self):
-        line = gl.parse_line("G1 X10 Y20 E1.5 F1000")
-        assert _is_extrusion_move(line) is True
-
-    def test_g1_z_only_not_extrusion(self):
-        line = gl.parse_line("G1 Z1.0 F1000")
-        assert _is_extrusion_move(line) is False
-
-    def test_g1_retraction_not_extrusion(self):
-        """E-only move (retraction) is not a lateral extrusion."""
-        line = gl.parse_line("G1 E-1.0 F3000")
-        assert _is_extrusion_move(line) is False
-
-    def test_g0_travel_not_extrusion(self):
-        line = gl.parse_line("G0 X10 Y20 F5000")
-        assert _is_extrusion_move(line) is False
-
-    def test_non_move_command(self):
-        line = gl.parse_line("M104 S200")
-        assert _is_extrusion_move(line) is False
-
-    def test_comment_line(self):
-        line = gl.parse_line("; this is a comment")
-        assert _is_extrusion_move(line) is False
 
 
 # ---------------------------------------------------------------------------

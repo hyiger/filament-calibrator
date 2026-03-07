@@ -183,3 +183,46 @@ class TestLoadConfig:
     def test_explicit_missing_file_exits(self, tmp_path):
         with pytest.raises(SystemExit):
             load_config(str(tmp_path / "missing.toml"))
+
+    def test_wrong_type_string_for_float_warns(self, tmp_path):
+        """String value for a float key emits a warning and is ignored."""
+        cfg = tmp_path / "config.toml"
+        cfg.write_text('nozzle-size = "big"\n')
+        with pytest.warns(UserWarning, match="expected float"):
+            result = load_config(str(cfg))
+        assert result == {}
+
+    def test_int_value_for_float_key_accepted(self, tmp_path):
+        """Integer value for a float key is silently promoted to float."""
+        cfg = tmp_path / "config.toml"
+        cfg.write_text("nozzle-size = 1\n")
+        result = load_config(str(cfg))
+        assert result == {"nozzle_size": 1.0}
+        assert isinstance(result["nozzle_size"], float)
+
+    def test_wrong_type_int_for_string_warns(self, tmp_path):
+        """Integer value for a string key emits a warning and is ignored."""
+        cfg = tmp_path / "config.toml"
+        cfg.write_text("filament-type = 42\n")
+        with pytest.warns(UserWarning, match="expected str"):
+            result = load_config(str(cfg))
+        assert result == {}
+
+    def test_bool_for_string_key_warns(self, tmp_path):
+        """Boolean value for a string key emits a warning and is ignored."""
+        cfg = tmp_path / "config.toml"
+        cfg.write_text("printer = true\n")
+        with pytest.warns(UserWarning, match="expected str"):
+            result = load_config(str(cfg))
+        assert result == {}
+
+    def test_mixed_valid_and_invalid_types(self, tmp_path):
+        """Valid keys are loaded; invalid-type keys are skipped with a warning."""
+        cfg = tmp_path / "config.toml"
+        cfg.write_text(
+            'printer-url = "http://10.0.0.1"\n'
+            "nozzle-size = true\n"
+        )
+        with pytest.warns(UserWarning, match="expected float"):
+            result = load_config(str(cfg))
+        assert result == {"printer_url": "http://10.0.0.1"}

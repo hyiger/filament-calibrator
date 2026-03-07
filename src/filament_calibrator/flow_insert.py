@@ -4,6 +4,9 @@ Walks G-code line by line, tracking the current Z height via
 ``gcode_lib.ModalState``.  When Z crosses into a new flow level the
 feedrate on extrusion moves is overridden to achieve the target
 volumetric flow rate.
+
+Low-level helpers (``flow_to_feedrate``, ``is_extrusion_move``) are
+imported from ``gcode_lib`` (>= 1.1.0).
 """
 from __future__ import annotations
 
@@ -11,6 +14,7 @@ from dataclasses import dataclass
 from typing import List
 
 import gcode_lib as gl
+from gcode_lib import flow_to_feedrate
 
 
 # ---------------------------------------------------------------------------
@@ -38,28 +42,6 @@ class FlowLevel:
 # ---------------------------------------------------------------------------
 # Public helpers
 # ---------------------------------------------------------------------------
-
-
-def flow_to_feedrate(
-    flow_mm3s: float,
-    layer_height: float,
-    extrusion_width: float,
-) -> float:
-    """Convert a volumetric flow rate to a linear feedrate.
-
-    Parameters
-    ----------
-    flow_mm3s:       Target volumetric flow in mm³/s.
-    layer_height:    Slicer layer height in mm.
-    extrusion_width: Slicer extrusion width in mm.
-
-    Returns
-    -------
-    float
-        Feedrate in mm/min.
-    """
-    speed_mm_s = flow_mm3s / (layer_height * extrusion_width)
-    return speed_mm_s * 60.0
 
 
 def compute_flow_levels(
@@ -117,17 +99,8 @@ def _level_for_z(z: float, levels: List[FlowLevel]) -> FlowLevel | None:
     return None
 
 
-def _is_extrusion_move(line: gl.GCodeLine) -> bool:
-    """Return ``True`` if *line* is a G1 move that extrudes material.
-
-    An extrusion move has an ``E`` word and at least one of ``X`` or ``Y``
-    (i.e. lateral movement, not just a retraction or Z-only move).
-    """
-    if line.command != "G1":
-        return False
-    if "E" not in line.words:
-        return False
-    return "X" in line.words or "Y" in line.words
+# Import from gcode-lib under the private name used throughout this module.
+_is_extrusion_move = gl.is_extrusion_move
 
 
 # ---------------------------------------------------------------------------

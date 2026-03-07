@@ -30,6 +30,20 @@ CONFIG_KEYS: frozenset[str] = frozenset({
     "printer",
 })
 
+#: Expected types for each config key.  Used by :func:`load_config`
+#: to validate TOML values and emit warnings for mismatched types.
+_EXPECTED_TYPES: Dict[str, type] = {
+    "printer-url": str,
+    "api-key": str,
+    "prusaslicer-path": str,
+    "config-ini": str,
+    "filament-type": str,
+    "output-dir": str,
+    "bed-center": str,
+    "nozzle-size": float,
+    "printer": str,
+}
+
 #: Map TOML key names (hyphenated) to argparse attribute names (underscored).
 _KEY_TO_ATTR: Dict[str, str] = {k: k.replace("-", "_") for k in CONFIG_KEYS}
 
@@ -81,6 +95,20 @@ def load_config(explicit_path: Optional[str] = None) -> Dict[str, Any]:
                 stacklevel=2,
             )
             continue
+        expected = _EXPECTED_TYPES.get(key)
+        if expected is not None and not isinstance(value, expected):
+            # Accept int where float is expected (TOML ``nozzle-size = 1``),
+            # but reject bool (which is a subclass of int in Python).
+            if expected is float and isinstance(value, int) and not isinstance(value, bool):
+                value = float(value)
+            else:
+                warnings.warn(
+                    f"config key {key!r} in {path} has type "
+                    f"{type(value).__name__}, expected {expected.__name__} "
+                    f"(ignored)",
+                    stacklevel=2,
+                )
+                continue
         result[_KEY_TO_ATTR[key]] = value
 
     return result

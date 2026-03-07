@@ -5,7 +5,6 @@ Orchestrates: model generation → slicing → temp insertion → upload.
 from __future__ import annotations
 
 import argparse
-import secrets
 import sys
 import tempfile
 from pathlib import Path
@@ -15,19 +14,12 @@ import gcode_lib as gl
 
 from filament_calibrator.config import _find_config_path, load_config
 from filament_calibrator.model import TowerConfig, generate_tower_stl
-from filament_calibrator.printer_gcode import (
-    KNOWN_PRINTERS,
-    compute_bed_center,
-    compute_bed_shape,
-    resolve_printer,
-)
 from filament_calibrator.slicer import (
     DEFAULT_BED_CENTER,
     DEFAULT_THUMBNAILS,
     slice_tower,
 )
 from filament_calibrator.tempinsert import compute_temp_tiers, insert_temperatures
-from filament_calibrator.thumbnail import inject_thumbnails, patch_slicer_metadata
 
 # Sentinel used to detect whether the user explicitly supplied a value.
 _UNSET = object()
@@ -129,7 +121,7 @@ def build_parser() -> argparse.ArgumentParser:
     )
 
     # --- Printer model ---
-    printer_names = ", ".join(sorted(KNOWN_PRINTERS))
+    printer_names = ", ".join(sorted(gl.KNOWN_PRINTERS))
     p.add_argument(
         "--printer", type=str, default="COREONE",
         help=(
@@ -210,18 +202,70 @@ _ARGPARSE_DEFAULTS: Dict[str, object] = {
 }
 
 
-def _apply_config(args: argparse.Namespace, config: Dict[str, object]) -> None:
+def _apply_config(
+    args: argparse.Namespace,
+    config: Dict[str, object],
+    *,
+    explicit_keys: Optional[frozenset[str]] = None,
+) -> None:
     """Apply TOML config values to *args* where the user didn't supply a CLI value.
 
-    Only overwrites an attribute when it is still at its argparse default.
+    When *explicit_keys* is provided (a frozenset of attribute names that
+    the user explicitly passed on the command line), those attributes are
+    never overwritten — even if the CLI value happens to match the
+    argparse default.
+
+    When *explicit_keys* is ``None`` (legacy callers), the function falls
+    back to the previous heuristic: an attribute is overwritten only when
+    its current value equals the built-in default in ``_ARGPARSE_DEFAULTS``.
+
     Mutates *args* in place.
     """
     for attr, value in config.items():
         if attr not in _ARGPARSE_DEFAULTS:
             continue
-        current = getattr(args, attr, _ARGPARSE_DEFAULTS[attr])
-        if current == _ARGPARSE_DEFAULTS[attr]:
-            setattr(args, attr, value)
+        # If the caller told us exactly which keys the user supplied, use
+        # that set as the ground truth.
+        if explicit_keys is not None:
+            if attr in explicit_keys:
+                continue
+        else:
+            current = getattr(args, attr, _ARGPARSE_DEFAULTS[attr])
+            if current != _ARGPARSE_DEFAULTS[attr]:
+                continue
+        setattr(args, attr, value)
+
+
+def _explicit_keys(
+    parser: argparse.ArgumentParser,
+    argv: Optional[List[str]],
+) -> frozenset[str]:
+    """Return the set of argparse dest names explicitly supplied on the CLI.
+
+    Re-parses *argv* (or ``sys.argv[1:]`` when *argv* is ``None``) against
+    *parser* to discover which options the user actually typed.  The
+    returned frozenset contains attribute (dest) names only for those
+    options.
+    """
+    # Snapshot the parser's default values, then set every optional to
+    # a private sentinel so we can detect which ones the user supplied.
+    sentinel = object()
+    saved: Dict[str, object] = {}
+    for action in parser._actions:
+        if action.option_strings:  # skip positional args
+            saved[action.dest] = action.default
+            action.default = sentinel
+
+    try:
+        ns = parser.parse_args(argv)
+    finally:
+        for action in parser._actions:
+            if action.dest in saved:
+                action.default = saved[action.dest]
+
+    return frozenset(
+        dest for dest, val in vars(ns).items() if val is not sentinel
+    )
 
 
 def _resolve_output_dir(
@@ -234,50 +278,6 @@ def _resolve_output_dir(
         p.mkdir(parents=True, exist_ok=True)
         return p
     return Path(tempfile.mkdtemp(prefix=prefix))
-
-
-def _gcode_ext(ascii_gcode: bool) -> str:
-    """Return the G-code file extension based on format selection.
-
-    Returns ``".gcode"`` for ASCII mode, ``".bgcode"`` for binary (default).
-    """
-    return ".gcode" if ascii_gcode else ".bgcode"
-
-
-def _unique_suffix() -> str:
-    """Return a 5-character hex string for unique filenames.
-
-    Appended to output filenames so that repeated runs with the same
-    parameters do not collide on the printer (PrusaLink returns HTTP 409
-    when a file with the same name already exists).
-    """
-    return secrets.token_hex(3)[:5]
-
-
-def _resolve_filament_preset(args: argparse.Namespace) -> Dict[str, object]:
-    """Look up the filament preset and return resolved slicer settings.
-
-    Returns a dict with keys ``nozzle_temp``, ``bed_temp``, ``fan_speed``.
-    Used by all non-temperature-tower CLIs where only a single nozzle
-    temperature is needed (as opposed to a start/end range).
-    """
-    filament_key = args.filament_type.upper()
-    preset = gl.FILAMENT_PRESETS.get(filament_key)
-
-    if preset is not None:
-        default_nozzle = int(preset["hotend"])
-        default_bed = int(preset["bed"])
-        default_fan = int(preset["fan"])
-    else:
-        default_nozzle = 210
-        default_bed = 60
-        default_fan = 100
-
-    return {
-        "nozzle_temp": args.nozzle_temp if args.nozzle_temp is not _UNSET else default_nozzle,
-        "bed_temp": args.bed_temp if args.bed_temp is not _UNSET else default_bed,
-        "fan_speed": args.fan_speed if args.fan_speed is not _UNSET else default_fan,
-    }
 
 
 def _resolve_preset(args: argparse.Namespace) -> Dict[str, object]:
@@ -382,7 +382,10 @@ def run(args: argparse.Namespace) -> None:
     """
     # Load TOML config and apply defaults before anything else.
     toml_config = load_config(args.config)
-    _apply_config(args, toml_config)
+    _apply_config(
+        args, toml_config,
+        explicit_keys=getattr(args, "_explicit_keys", None),
+    )
 
     if args.verbose:
         cfg_path = _find_config_path(args.config)
@@ -427,10 +430,13 @@ def run(args: argparse.Namespace) -> None:
     printer_name: Optional[str] = None
     bed_shape: Optional[str] = None
     if args.printer is not None:
-        printer_name = resolve_printer(args.printer)
+        try:
+            printer_name = gl.resolve_printer(args.printer)
+        except ValueError as exc:
+            sys.exit(f"error: {exc}")
         if args.bed_center is None:
-            args.bed_center = compute_bed_center(printer_name)
-        bed_shape = compute_bed_shape(printer_name)
+            args.bed_center = gl.compute_bed_center(printer_name)
+        bed_shape = gl.compute_bed_shape(printer_name)
 
     # Derive layer height and extrusion width from nozzle size.
     nozzle_size: float = args.nozzle_size
@@ -452,9 +458,10 @@ def run(args: argparse.Namespace) -> None:
     )
 
     # --- Step 1: Generate STL ---
-    suffix = _unique_suffix()
+    suffix = gl.unique_suffix()
+    safe_type = gl.safe_filename_part(config.filament_type)
     stl_name = (
-        f"temp_tower_{config.filament_type}"
+        f"temp_tower_{safe_type}"
         f"_{config.start_temp}_{config.temp_step}x{config.num_tiers}"
         f"_{suffix}.stl"
     )
@@ -463,7 +470,7 @@ def run(args: argparse.Namespace) -> None:
     generate_tower_stl(config, stl_path)
 
     # --- Step 2: Slice ---
-    gcode_ext = _gcode_ext(args.ascii_gcode)
+    gcode_ext = gl.gcode_ext(binary=not args.ascii_gcode)
     raw_gcode_path = str(out_dir / stl_name.replace(".stl", f"_raw{gcode_ext}"))
     print(f"Slicing → {raw_gcode_path}")
     if args.verbose:
@@ -501,9 +508,9 @@ def run(args: argparse.Namespace) -> None:
     final_gcode_path = str(out_dir / stl_name.replace(".stl", gcode_ext))
     print(f"Inserting temperatures → {final_gcode_path}")
     gf = gl.load(raw_gcode_path)
-    inject_thumbnails(gf, stl_path, DEFAULT_THUMBNAILS, verbose=args.verbose)
+    gl.inject_thumbnails(gf, stl_path, DEFAULT_THUMBNAILS, verbose=args.verbose)
     if printer_name is not None:
-        patch_slicer_metadata(
+        gl.patch_slicer_metadata(
             gf, printer_name, nozzle_size, verbose=args.verbose
         )
     tiers = compute_temp_tiers(
@@ -549,4 +556,5 @@ def main(argv: Optional[List[str]] = None) -> None:
     """Entry point: parse arguments and run the pipeline."""
     parser = build_parser()
     args = parser.parse_args(argv)
+    args._explicit_keys = _explicit_keys(parser, argv)
     run(args)

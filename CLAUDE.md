@@ -41,24 +41,24 @@ src/filament_calibrator/
   em_model.py       # CadQuery parametric cube model for EM calibration
   flow_cli.py       # volumetric-flow argparse CLI, pipeline orchestration
   flow_model.py     # CadQuery parametric serpentine specimen model
-  flow_insert.py    # G-code feedrate override insertion for flow levels
+  flow_insert.py    # G-code feedrate override insertion for flow levels;
+                    #   _is_extrusion_move and flow_to_feedrate imported from gcode-lib
   pa_cli.py         # pressure-advance argparse CLI, pipeline orchestration
   pa_model.py       # CadQuery parametric hollow rectangular tower model
   pa_pattern.py     # CadQuery parametric chevron pattern model for PA calibration
   pa_insert.py      # G-code pressure advance command insertion
-  ini_parser.py     # PrusaSlicer .ini file parser (extract slicer settings)
-  ini_writer.py     # Merge calibration results into PrusaSlicer .ini configs
-  printer_gcode.py  # Printer-specific start/end G-code templates and rendering
-  thumbnail.py      # STL → PNG rendering (VTK), bgcode thumbnail injection,
-                    #   and slicer metadata patching (printer_settings_id)
+  ini_writer.py     # Merge calibration results into PrusaSlicer .ini configs;
+                    #   helpers (replace_ini_value, pa_command,
+                    #   inject_pa_into_start_gcode) imported from gcode-lib
   gui.py            # Streamlit browser GUI wrapping all four CLIs
 ```
 
 ### Key Dependencies
 
 - **cadquery** (>= 2.4): Parametric CAD model generation (OCCT kernel)
-- **gcode-lib** (>= 1.0.0): G-code parsing, PrusaSlicer integration,
-  PrusaLink API, filament presets. Published on PyPI.
+- **gcode-lib** (>= 1.1.0): G-code parsing, PrusaSlicer integration,
+  PrusaLink API, filament presets, printer G-code templates, thumbnail
+  injection, INI parsing/writing helpers, flow/PA helpers. Published on PyPI.
 - **vtk** (>= 9.0): Off-screen STL rendering for bgcode thumbnail
   generation. Transitive dependency; optional at runtime (thumbnails
   skipped if absent).
@@ -149,10 +149,11 @@ thumbnail previews.  Use `--ascii-gcode` on the CLI to switch to text
 - `_UNSET = object()` sentinel for distinguishing "user didn't set" from None
   in argparse
 - Filament preset lookup is case-insensitive (`.upper()`)
-- Shared CLI helpers (`_apply_config`, `_resolve_output_dir`, `_gcode_ext`,
-  `_unique_suffix`, `_resolve_filament_preset`, `_UNSET`, `_KNOWN_TYPES`,
-  `_ARGPARSE_DEFAULTS`) live in `cli.py` and are imported by `em_cli.py`,
-  `flow_cli.py`, and `pa_cli.py`
+- Shared CLI helpers (`_apply_config`, `_resolve_output_dir`, `_UNSET`,
+  `_KNOWN_TYPES`, `_ARGPARSE_DEFAULTS`) live in `cli.py` and are imported
+  by `em_cli.py`, `flow_cli.py`, and `pa_cli.py`.  Generic filename/preset
+  helpers (`unique_suffix`, `safe_filename_part`, `gcode_ext`,
+  `resolve_filament_preset`) are imported from `gcode_lib`.
 
 ## Testing
 

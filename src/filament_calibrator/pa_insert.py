@@ -15,7 +15,7 @@ from typing import List
 
 import gcode_lib as gl
 
-from filament_calibrator.flow_insert import _is_extrusion_move
+from gcode_lib import is_extrusion_move as _is_extrusion_move
 
 
 # ---------------------------------------------------------------------------
@@ -43,19 +43,26 @@ class PALevel:
 # ---------------------------------------------------------------------------
 
 
-def pa_command(pa_value: float) -> str:
-    """Return the Marlin G-code command to set pressure advance.
+def pa_command(pa_value: float, printer: str = "COREONE") -> str:
+    """Return the G-code command to set pressure advance.
+
+    The Prusa Mini uses Linear Advance (``M900 K``).  All other
+    Prusa printers use Pressure Advance (``M572 S``).  This is
+    consistent with :func:`filament_calibrator.ini_writer._pa_command`.
 
     Parameters
     ----------
     pa_value: The pressure advance value.
+    printer:  Printer model name (default ``"COREONE"``).
 
     Returns
     -------
     str
-        The G-code command string (``M900 K<value>``).
+        The G-code command string.
     """
-    return f"M900 K{pa_value:.4f} ; PA calibration level"
+    if printer.upper() == "MINI":
+        return f"M900 K{pa_value:.4f} ; PA calibration level"
+    return f"M572 S{pa_value:.4f} ; PA calibration level"
 
 
 def compute_pa_levels(
@@ -115,6 +122,8 @@ def _level_for_z(z: float, levels: List[PALevel]) -> PALevel | None:
 def insert_pa_commands(
     lines: List[gl.GCodeLine],
     levels: List[PALevel],
+    *,
+    printer: str = "COREONE",
 ) -> List[gl.GCodeLine]:
     """Insert pressure advance commands at level boundaries.
 
@@ -129,6 +138,7 @@ def insert_pa_commands(
     ----------
     lines:    Parsed G-code lines.
     levels:   PA levels from :func:`compute_pa_levels`.
+    printer:  Printer model name (determines M900 vs M572).
     """
     if not levels:
         return list(lines)
@@ -145,7 +155,7 @@ def insert_pa_commands(
             target_pa = prev_pa
 
         if target_pa is not None and target_pa != prev_pa:
-            cmd = pa_command(target_pa)
+            cmd = pa_command(target_pa, printer=printer)
             result.append(gl.parse_line(cmd))
             prev_pa = target_pa
 
@@ -229,6 +239,8 @@ def _region_for_x(
 def insert_pa_pattern_commands(
     lines: List[gl.GCodeLine],
     regions: List[PAPatternRegion],
+    *,
+    printer: str = "COREONE",
 ) -> List[gl.GCodeLine]:
     """Insert PA commands based on the toolpath's X position.
 
@@ -242,6 +254,7 @@ def insert_pa_pattern_commands(
     ----------
     lines:    Parsed G-code lines.
     regions:  Pattern regions from :func:`compute_pa_pattern_regions`.
+    printer:  Printer model name (determines M900 vs M572).
     """
     if not regions:
         return list(lines)
@@ -256,7 +269,7 @@ def insert_pa_pattern_commands(
         if _is_extrusion_move(line):
             region = _region_for_x(state.x, regions)
             if region is not None and region.pa_value != prev_pa:
-                cmd = pa_command(region.pa_value)
+                cmd = pa_command(region.pa_value, printer=printer)
                 result.append(gl.parse_line(cmd))
                 prev_pa = region.pa_value
 

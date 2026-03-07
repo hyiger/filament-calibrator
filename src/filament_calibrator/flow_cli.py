@@ -16,26 +16,17 @@ from filament_calibrator.cli import (
     _KNOWN_TYPES,
     _UNSET,
     _apply_config,
-    _gcode_ext,
-    _resolve_filament_preset as _resolve_preset,
+    _explicit_keys,
     _resolve_output_dir,
-    _unique_suffix,
 )
 from filament_calibrator.config import _find_config_path, load_config
 from filament_calibrator.flow_insert import compute_flow_levels, insert_flow_rates
 from filament_calibrator.flow_model import FlowSpecimenConfig, generate_flow_specimen_stl
-from filament_calibrator.printer_gcode import (
-    KNOWN_PRINTERS,
-    compute_bed_center,
-    compute_bed_shape,
-    resolve_printer,
-)
 from filament_calibrator.slicer import (
     DEFAULT_BED_CENTER,
     DEFAULT_THUMBNAILS,
     slice_flow_specimen,
 )
-from filament_calibrator.thumbnail import inject_thumbnails, patch_slicer_metadata
 
 
 # Maximum number of flow levels to prevent excessively tall prints.
@@ -155,7 +146,7 @@ def build_parser() -> argparse.ArgumentParser:
     )
 
     # --- Printer model ---
-    printer_names = ", ".join(sorted(KNOWN_PRINTERS))
+    printer_names = ", ".join(sorted(gl.KNOWN_PRINTERS))
     p.add_argument(
         "--printer", type=str, default="COREONE",
         help=(
@@ -269,7 +260,10 @@ def run(args: argparse.Namespace) -> None:
     """
     # Load TOML config and apply defaults.
     toml_config = load_config(args.config)
-    _apply_config(args, toml_config)
+    _apply_config(
+        args, toml_config,
+        explicit_keys=getattr(args, "_explicit_keys", None),
+    )
 
     if args.verbose:
         cfg_path = _find_config_path(args.config)
@@ -291,7 +285,12 @@ def run(args: argparse.Namespace) -> None:
     )
 
     # Resolve filament preset for slicer settings.
-    resolved = _resolve_preset(args)
+    resolved = gl.resolve_filament_preset(
+        args.filament_type,
+        nozzle_temp=args.nozzle_temp if args.nozzle_temp is not _UNSET else None,
+        bed_temp=args.bed_temp if args.bed_temp is not _UNSET else None,
+        fan_speed=args.fan_speed if args.fan_speed is not _UNSET else None,
+    )
     nozzle_temp: int = resolved["nozzle_temp"]
     bed_temp: int = resolved["bed_temp"]
     fan_speed: int = resolved["fan_speed"]
@@ -300,10 +299,13 @@ def run(args: argparse.Namespace) -> None:
     printer_name: Optional[str] = None
     bed_shape: Optional[str] = None
     if args.printer is not None:
-        printer_name = resolve_printer(args.printer)
+        try:
+            printer_name = gl.resolve_printer(args.printer)
+        except ValueError as exc:
+            sys.exit(f"error: {exc}")
         if args.bed_center is None:
-            args.bed_center = compute_bed_center(printer_name)
-        bed_shape = compute_bed_shape(printer_name)
+            args.bed_center = gl.compute_bed_center(printer_name)
+        bed_shape = gl.compute_bed_shape(printer_name)
 
     # Derive layer height and extrusion width from nozzle size.
     nozzle_size: float = args.nozzle_size
@@ -353,9 +355,10 @@ def run(args: argparse.Namespace) -> None:
     )
 
     # --- Step 1: Generate STL ---
-    suffix = _unique_suffix()
+    suffix = gl.unique_suffix()
+    safe_type = gl.safe_filename_part(config.filament_type)
     stl_name = (
-        f"flow_specimen_{config.filament_type}"
+        f"flow_specimen_{safe_type}"
         f"_{args.start_speed}_{args.step}x{num_levels}"
         f"_{suffix}.stl"
     )
@@ -364,7 +367,7 @@ def run(args: argparse.Namespace) -> None:
     generate_flow_specimen_stl(config, stl_path)
 
     # --- Step 2: Slice in vase mode ---
-    gcode_ext = _gcode_ext(args.ascii_gcode)
+    gcode_ext = gl.gcode_ext(binary=not args.ascii_gcode)
     raw_gcode_path = str(out_dir / stl_name.replace(".stl", f"_raw{gcode_ext}"))
     print(f"Slicing (vase mode) → {raw_gcode_path}")
     if args.verbose:
@@ -402,9 +405,9 @@ def run(args: argparse.Namespace) -> None:
     final_gcode_path = str(out_dir / stl_name.replace(".stl", gcode_ext))
     print(f"Inserting flow rates → {final_gcode_path}")
     gf = gl.load(raw_gcode_path)
-    inject_thumbnails(gf, stl_path, DEFAULT_THUMBNAILS, verbose=args.verbose)
+    gl.inject_thumbnails(gf, stl_path, DEFAULT_THUMBNAILS, verbose=args.verbose)
     if printer_name is not None:
-        patch_slicer_metadata(
+        gl.patch_slicer_metadata(
             gf, printer_name, nozzle_size, verbose=args.verbose
         )
     levels = compute_flow_levels(
@@ -454,4 +457,5 @@ def main(argv: Optional[List[str]] = None) -> None:
     """Entry point: parse arguments and run the pipeline."""
     parser = build_parser()
     args = parser.parse_args(argv)
+    args._explicit_keys = _explicit_keys(parser, argv)
     run(args)

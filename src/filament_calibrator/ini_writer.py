@@ -1,15 +1,21 @@
 """Merge calibration results into PrusaSlicer .ini config files.
 
 Provides pure functions for line-by-line INI editing that preserves
-comments, ordering, and formatting.  No ``configparser`` is used for
-writing — values are replaced via regex on individual lines so the
-output is a minimal diff from the input.
+comments, ordering, and formatting.  Low-level helpers
+(``replace_ini_value``, ``pa_command``, ``inject_pa_into_start_gcode``)
+are imported from ``gcode_lib`` (>= 1.1.0).
 """
 from __future__ import annotations
 
-import re
 from dataclasses import dataclass
-from typing import List, Optional, Tuple
+from typing import List, Optional
+
+import gcode_lib as gl
+
+# Re-import gcode-lib helpers under the private names used internally.
+_replace_ini_value = gl.replace_ini_value
+_pa_command = gl.pa_command
+_inject_pa_into_start_gcode = gl.inject_pa_into_start_gcode
 
 
 # ---------------------------------------------------------------------------
@@ -39,118 +45,6 @@ class CalibrationResults:
     """Printer model name.  Determines the PA G-code command:
     ``"MINI"`` uses ``M900 K<value>`` (Linear Advance),
     all others use ``M572 S<value>`` (Pressure Advance)."""
-
-
-# ---------------------------------------------------------------------------
-# Low-level helpers
-# ---------------------------------------------------------------------------
-
-def _replace_ini_value(
-    lines: List[str],
-    key: str,
-    new_value: str,
-) -> Tuple[List[str], bool]:
-    """Replace the first occurrence of *key* ``= …`` with *new_value*.
-
-    Returns ``(updated_lines, found)``.  Only the **first** matching line
-    is replaced; subsequent duplicates are left untouched.  The
-    whitespace around ``=`` is preserved from the original line.
-    """
-    pattern = re.compile(
-        rf"^(\s*{re.escape(key)}\s*=\s*)(.*)$",
-    )
-    found = False
-    result: List[str] = []
-    for line in lines:
-        if not found:
-            m = pattern.match(line)
-            if m:
-                result.append(f"{m.group(1)}{new_value}")
-                found = True
-                continue
-        result.append(line)
-    return result, found
-
-
-def _pa_command(pa_value: float, printer: str) -> str:
-    """Return the G-code command string for setting pressure advance.
-
-    The Prusa Mini uses Linear Advance (``M900 K``).  All other
-    Prusa printers use Pressure Advance (``M572 S``).
-    """
-    if printer.upper() == "MINI":
-        return f"M900 K{pa_value:.4f}"
-    return f"M572 S{pa_value:.4f}"
-
-
-_PA_LINE_RE = re.compile(
-    r"(M572\s+S[\d.]+|M900\s+K[\d.]+)",
-    re.IGNORECASE,
-)
-
-
-def _inject_pa_into_start_gcode(
-    lines: List[str],
-    pa_value: float,
-    printer: str,
-) -> List[str]:
-    r"""Insert or replace a PA command inside ``start_filament_gcode``.
-
-    PrusaSlicer stores multi-line G-code values on a single INI line
-    using literal ``\n`` escape sequences, e.g.::
-
-        start_filament_gcode = "M572 S0.04\nG92 E0"
-
-    This function finds the ``start_filament_gcode`` key, then either
-    replaces an existing PA command within the value or prepends one.
-    If the key is absent the line is appended at the end.
-    """
-    pa_cmd = _pa_command(pa_value, printer)
-    key_re = re.compile(r"^(\s*start_filament_gcode\s*=\s*)(.*)$")
-
-    result: List[str] = []
-    found = False
-
-    for line in lines:
-        if not found:
-            m = key_re.match(line)
-            if m:
-                found = True
-                prefix = m.group(1)
-                raw_value = m.group(2)
-                # Unquote if surrounded by quotes.
-                stripped = raw_value.strip()
-                if (
-                    len(stripped) >= 2
-                    and stripped[0] == '"'
-                    and stripped[-1] == '"'
-                ):
-                    inner = stripped[1:-1]
-                    quote = True
-                else:
-                    inner = stripped
-                    quote = False
-
-                if _PA_LINE_RE.search(inner):
-                    # Replace existing PA command.
-                    inner = _PA_LINE_RE.sub(pa_cmd, inner, count=1)
-                elif inner:
-                    # Prepend PA command before existing content.
-                    inner = pa_cmd + "\\n" + inner
-                else:
-                    inner = pa_cmd
-
-                if quote:
-                    result.append(f'{prefix}"{inner}"')
-                else:
-                    result.append(f"{prefix}{inner}")
-                continue
-        result.append(line)
-
-    if not found:
-        result.append(f"start_filament_gcode = {pa_cmd}")
-
-    return result
 
 
 # ---------------------------------------------------------------------------

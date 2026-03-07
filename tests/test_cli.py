@@ -16,8 +16,7 @@ from filament_calibrator.cli import (
     MIN_PRINT_TEMP,
     _apply_config,
     _compute_num_tiers,
-    _gcode_ext,
-    _unique_suffix,
+    _explicit_keys,
     build_parser,
     main,
     _resolve_preset,
@@ -216,6 +215,72 @@ class TestApplyConfig:
         assert args.nozzle_size == 0.6
 
 
+    def test_explicit_keys_prevents_overwrite_of_default_value(self):
+        """Explicit CLI value matching default is NOT overwritten by TOML."""
+        args = argparse.Namespace(
+            printer_url=None, api_key=None, prusaslicer_path=None,
+            config_ini=None, filament_type="PLA", output_dir=None,
+            bed_center=None, nozzle_size=0.4,
+            printer="COREONE",
+        )
+        config = {
+            "printer": "MINI",
+            "filament_type": "ABS",
+        }
+        # With explicit_keys telling us "printer" was explicitly set,
+        # TOML must not overwrite it — even though it matches the default.
+        _apply_config(args, config, explicit_keys=frozenset({"printer"}))
+        assert args.printer == "COREONE"
+        # filament_type was NOT in explicit_keys and equals the default,
+        # so TOML's "ABS" should be applied.
+        assert args.filament_type == "ABS"
+
+    def test_explicit_keys_none_falls_back(self):
+        """When explicit_keys is None, legacy heuristic is used."""
+        args = argparse.Namespace(
+            printer_url=None, api_key=None, prusaslicer_path=None,
+            config_ini=None, filament_type="PLA", output_dir=None,
+            bed_center=None, nozzle_size=0.4,
+            printer="COREONE",
+        )
+        config = {"printer": "MINI"}
+        _apply_config(args, config, explicit_keys=None)
+        # Legacy: current == default → overwritten
+        assert args.printer == "MINI"
+
+
+# ---------------------------------------------------------------------------
+# _explicit_keys
+# ---------------------------------------------------------------------------
+
+
+class TestExplicitKeys:
+    def test_detects_supplied_args(self):
+        parser = build_parser()
+        keys = _explicit_keys(parser, ["--printer", "MINI", "--no-upload"])
+        assert "printer" in keys
+        assert "no_upload" in keys
+
+    def test_unsupplied_args_excluded(self):
+        parser = build_parser()
+        keys = _explicit_keys(parser, ["--no-upload"])
+        assert "printer" not in keys
+        assert "filament_type" not in keys
+
+    def test_default_value_still_detected(self):
+        """Even if user types --printer COREONE (the default), it's detected."""
+        parser = build_parser()
+        keys = _explicit_keys(parser, ["--printer", "COREONE"])
+        assert "printer" in keys
+
+    def test_empty_argv(self):
+        parser = build_parser()
+        keys = _explicit_keys(parser, [])
+        # Only argparse-injected defaults; no user-supplied options
+        assert "printer" not in keys
+        assert "filament_type" not in keys
+
+
 class TestArgparseDefaults:
     def test_covers_config_keys(self):
         """_ARGPARSE_DEFAULTS has an entry for every config-eligible key."""
@@ -250,36 +315,6 @@ class TestResolveOutputDir:
         result = _resolve_output_dir(None, prefix="pressure-advance-")
         assert result.exists()
         assert "pressure-advance-" in str(result)
-
-
-# ---------------------------------------------------------------------------
-# _gcode_ext
-# ---------------------------------------------------------------------------
-
-
-class TestGcodeExt:
-    def test_ascii_returns_gcode(self):
-        assert _gcode_ext(True) == ".gcode"
-
-    def test_binary_returns_bgcode(self):
-        assert _gcode_ext(False) == ".bgcode"
-
-
-# ---------------------------------------------------------------------------
-# _unique_suffix
-# ---------------------------------------------------------------------------
-
-
-class TestUniqueSuffix:
-    def test_returns_5_char_hex(self):
-        result = _unique_suffix()
-        assert len(result) == 5
-        assert all(c in "0123456789abcdef" for c in result)
-
-    def test_different_each_call(self):
-        results = {_unique_suffix() for _ in range(20)}
-        # With 5 hex chars (20 bits) and 20 draws, collisions are vanishingly rare
-        assert len(results) > 1
 
 
 # ---------------------------------------------------------------------------
@@ -497,7 +532,7 @@ class TestBuildTowerConfig:
 class TestRun:
     @pytest.fixture(autouse=True)
     def _fix_suffix(self):
-        with patch("filament_calibrator.cli._unique_suffix", return_value="abc12"):
+        with patch("gcode_lib.unique_suffix", return_value="abc12"):
             yield
 
     def _make_args(self, tmp_path, **overrides):
@@ -518,11 +553,11 @@ class TestRun:
         defaults.update(overrides)
         return argparse.Namespace(**defaults)
 
-    @patch("filament_calibrator.cli.patch_slicer_metadata")
-    @patch("filament_calibrator.cli.inject_thumbnails")
-    @patch("filament_calibrator.cli.compute_bed_shape", return_value="0x0,250x0,250x220,0x220")
-    @patch("filament_calibrator.cli.compute_bed_center", return_value="125,110")
-    @patch("filament_calibrator.cli.resolve_printer", return_value="COREONE")
+    @patch("gcode_lib.patch_slicer_metadata")
+    @patch("gcode_lib.inject_thumbnails")
+    @patch("gcode_lib.compute_bed_shape", return_value="0x0,250x0,250x220,0x220")
+    @patch("gcode_lib.compute_bed_center", return_value="125,110")
+    @patch("gcode_lib.resolve_printer", return_value="COREONE")
     @patch("filament_calibrator.cli.gl.save")
     @patch("filament_calibrator.cli.gl.load")
     @patch("filament_calibrator.cli.insert_temperatures")
@@ -557,11 +592,11 @@ class TestRun:
         mock_insert.assert_called_once()
         mock_save.assert_called_once()
 
-    @patch("filament_calibrator.cli.patch_slicer_metadata")
-    @patch("filament_calibrator.cli.inject_thumbnails")
-    @patch("filament_calibrator.cli.compute_bed_shape", return_value="0x0,250x0,250x220,0x220")
-    @patch("filament_calibrator.cli.compute_bed_center", return_value="125,110")
-    @patch("filament_calibrator.cli.resolve_printer", return_value="COREONE")
+    @patch("gcode_lib.patch_slicer_metadata")
+    @patch("gcode_lib.inject_thumbnails")
+    @patch("gcode_lib.compute_bed_shape", return_value="0x0,250x0,250x220,0x220")
+    @patch("gcode_lib.compute_bed_center", return_value="125,110")
+    @patch("gcode_lib.resolve_printer", return_value="COREONE")
     @patch("filament_calibrator.cli.gl.save")
     @patch("filament_calibrator.cli.gl.load")
     @patch("filament_calibrator.cli.insert_temperatures")
@@ -584,11 +619,11 @@ class TestRun:
             run(args)
         assert exc_info.value.code == 1
 
-    @patch("filament_calibrator.cli.patch_slicer_metadata")
-    @patch("filament_calibrator.cli.inject_thumbnails")
-    @patch("filament_calibrator.cli.compute_bed_shape", return_value="0x0,250x0,250x220,0x220")
-    @patch("filament_calibrator.cli.compute_bed_center", return_value="125,110")
-    @patch("filament_calibrator.cli.resolve_printer", return_value="COREONE")
+    @patch("gcode_lib.patch_slicer_metadata")
+    @patch("gcode_lib.inject_thumbnails")
+    @patch("gcode_lib.compute_bed_shape", return_value="0x0,250x0,250x220,0x220")
+    @patch("gcode_lib.compute_bed_center", return_value="125,110")
+    @patch("gcode_lib.resolve_printer", return_value="COREONE")
     @patch("filament_calibrator.cli.gl.prusalink_upload")
     @patch("filament_calibrator.cli.gl.save")
     @patch("filament_calibrator.cli.gl.load")
@@ -625,11 +660,11 @@ class TestRun:
         assert call_kwargs[1]["print_after_upload"] is True
 
     @patch("filament_calibrator.cli.load_config", return_value={})
-    @patch("filament_calibrator.cli.patch_slicer_metadata")
-    @patch("filament_calibrator.cli.inject_thumbnails")
-    @patch("filament_calibrator.cli.compute_bed_shape", return_value="0x0,250x0,250x220,0x220")
-    @patch("filament_calibrator.cli.compute_bed_center", return_value="125,110")
-    @patch("filament_calibrator.cli.resolve_printer", return_value="COREONE")
+    @patch("gcode_lib.patch_slicer_metadata")
+    @patch("gcode_lib.inject_thumbnails")
+    @patch("gcode_lib.compute_bed_shape", return_value="0x0,250x0,250x220,0x220")
+    @patch("gcode_lib.compute_bed_center", return_value="125,110")
+    @patch("gcode_lib.resolve_printer", return_value="COREONE")
     @patch("filament_calibrator.cli.gl.save")
     @patch("filament_calibrator.cli.gl.load")
     @patch("filament_calibrator.cli.insert_temperatures")
@@ -658,11 +693,11 @@ class TestRun:
             run(args)
         assert exc_info.value.code == 1
 
-    @patch("filament_calibrator.cli.patch_slicer_metadata")
-    @patch("filament_calibrator.cli.inject_thumbnails")
-    @patch("filament_calibrator.cli.compute_bed_shape", return_value="0x0,250x0,250x220,0x220")
-    @patch("filament_calibrator.cli.compute_bed_center", return_value="125,110")
-    @patch("filament_calibrator.cli.resolve_printer", return_value="COREONE")
+    @patch("gcode_lib.patch_slicer_metadata")
+    @patch("gcode_lib.inject_thumbnails")
+    @patch("gcode_lib.compute_bed_shape", return_value="0x0,250x0,250x220,0x220")
+    @patch("gcode_lib.compute_bed_center", return_value="125,110")
+    @patch("gcode_lib.resolve_printer", return_value="COREONE")
     @patch("filament_calibrator.cli.gl.save")
     @patch("filament_calibrator.cli.gl.load")
     @patch("filament_calibrator.cli.insert_temperatures")
@@ -693,11 +728,11 @@ class TestRun:
         assert stl.exists()
         assert raw_gcode.exists()
 
-    @patch("filament_calibrator.cli.patch_slicer_metadata")
-    @patch("filament_calibrator.cli.inject_thumbnails")
-    @patch("filament_calibrator.cli.compute_bed_shape", return_value="0x0,250x0,250x220,0x220")
-    @patch("filament_calibrator.cli.compute_bed_center", return_value="125,110")
-    @patch("filament_calibrator.cli.resolve_printer", return_value="COREONE")
+    @patch("gcode_lib.patch_slicer_metadata")
+    @patch("gcode_lib.inject_thumbnails")
+    @patch("gcode_lib.compute_bed_shape", return_value="0x0,250x0,250x220,0x220")
+    @patch("gcode_lib.compute_bed_center", return_value="125,110")
+    @patch("gcode_lib.resolve_printer", return_value="COREONE")
     @patch("filament_calibrator.cli.gl.save")
     @patch("filament_calibrator.cli.gl.load")
     @patch("filament_calibrator.cli.insert_temperatures")
@@ -727,11 +762,11 @@ class TestRun:
         assert not stl.exists()
         assert not raw_gcode.exists()
 
-    @patch("filament_calibrator.cli.patch_slicer_metadata")
-    @patch("filament_calibrator.cli.inject_thumbnails")
-    @patch("filament_calibrator.cli.compute_bed_shape", return_value="0x0,250x0,250x220,0x220")
-    @patch("filament_calibrator.cli.compute_bed_center", return_value="125,110")
-    @patch("filament_calibrator.cli.resolve_printer", return_value="COREONE")
+    @patch("gcode_lib.patch_slicer_metadata")
+    @patch("gcode_lib.inject_thumbnails")
+    @patch("gcode_lib.compute_bed_shape", return_value="0x0,250x0,250x220,0x220")
+    @patch("gcode_lib.compute_bed_center", return_value="125,110")
+    @patch("gcode_lib.resolve_printer", return_value="COREONE")
     @patch("filament_calibrator.cli.gl.save")
     @patch("filament_calibrator.cli.gl.load")
     @patch("filament_calibrator.cli.insert_temperatures")
@@ -757,11 +792,11 @@ class TestRun:
         assert slice_kwargs["bed_temp"] == 85
         assert slice_kwargs["fan_speed"] == 50
 
-    @patch("filament_calibrator.cli.patch_slicer_metadata")
-    @patch("filament_calibrator.cli.inject_thumbnails")
-    @patch("filament_calibrator.cli.compute_bed_shape", return_value="0x0,250x0,250x220,0x220")
-    @patch("filament_calibrator.cli.compute_bed_center", return_value="125,110")
-    @patch("filament_calibrator.cli.resolve_printer", return_value="COREONE")
+    @patch("gcode_lib.patch_slicer_metadata")
+    @patch("gcode_lib.inject_thumbnails")
+    @patch("gcode_lib.compute_bed_shape", return_value="0x0,250x0,250x220,0x220")
+    @patch("gcode_lib.compute_bed_center", return_value="125,110")
+    @patch("gcode_lib.resolve_printer", return_value="COREONE")
     @patch("filament_calibrator.cli.gl.save")
     @patch("filament_calibrator.cli.gl.load")
     @patch("filament_calibrator.cli.insert_temperatures")
@@ -792,11 +827,11 @@ class TestRun:
         tower_config = gen_call[0][0]
         assert tower_config.filament_type == "PETG"
 
-    @patch("filament_calibrator.cli.patch_slicer_metadata")
-    @patch("filament_calibrator.cli.inject_thumbnails")
-    @patch("filament_calibrator.cli.compute_bed_shape", return_value="0x0,250x0,250x220,0x220")
-    @patch("filament_calibrator.cli.compute_bed_center", return_value="125,110")
-    @patch("filament_calibrator.cli.resolve_printer", return_value="COREONE")
+    @patch("gcode_lib.patch_slicer_metadata")
+    @patch("gcode_lib.inject_thumbnails")
+    @patch("gcode_lib.compute_bed_shape", return_value="0x0,250x0,250x220,0x220")
+    @patch("gcode_lib.compute_bed_center", return_value="125,110")
+    @patch("gcode_lib.resolve_printer", return_value="COREONE")
     @patch("filament_calibrator.cli.gl.save")
     @patch("filament_calibrator.cli.gl.load")
     @patch("filament_calibrator.cli.insert_temperatures")
@@ -828,11 +863,11 @@ class TestRun:
         tower_config = gen_call[0][0]
         assert tower_config.filament_type == "ABS"
 
-    @patch("filament_calibrator.cli.patch_slicer_metadata")
-    @patch("filament_calibrator.cli.inject_thumbnails")
-    @patch("filament_calibrator.cli.compute_bed_shape", return_value="0x0,250x0,250x220,0x220")
-    @patch("filament_calibrator.cli.compute_bed_center", return_value="125,110")
-    @patch("filament_calibrator.cli.resolve_printer", return_value="COREONE")
+    @patch("gcode_lib.patch_slicer_metadata")
+    @patch("gcode_lib.inject_thumbnails")
+    @patch("gcode_lib.compute_bed_shape", return_value="0x0,250x0,250x220,0x220")
+    @patch("gcode_lib.compute_bed_center", return_value="125,110")
+    @patch("gcode_lib.resolve_printer", return_value="COREONE")
     @patch("filament_calibrator.cli.gl.save")
     @patch("filament_calibrator.cli.gl.load")
     @patch("filament_calibrator.cli.insert_temperatures")
@@ -859,11 +894,11 @@ class TestRun:
 
     @patch("filament_calibrator.cli.load_config", return_value={})
     @patch("filament_calibrator.cli._find_config_path", return_value=None)
-    @patch("filament_calibrator.cli.patch_slicer_metadata")
-    @patch("filament_calibrator.cli.inject_thumbnails")
-    @patch("filament_calibrator.cli.compute_bed_shape", return_value="0x0,250x0,250x220,0x220")
-    @patch("filament_calibrator.cli.compute_bed_center", return_value="125,110")
-    @patch("filament_calibrator.cli.resolve_printer", return_value="COREONE")
+    @patch("gcode_lib.patch_slicer_metadata")
+    @patch("gcode_lib.inject_thumbnails")
+    @patch("gcode_lib.compute_bed_shape", return_value="0x0,250x0,250x220,0x220")
+    @patch("gcode_lib.compute_bed_center", return_value="125,110")
+    @patch("gcode_lib.resolve_printer", return_value="COREONE")
     @patch("filament_calibrator.cli.gl.save")
     @patch("filament_calibrator.cli.gl.load")
     @patch("filament_calibrator.cli.insert_temperatures")
@@ -899,11 +934,11 @@ class TestRun:
         assert "PrusaSlicer command:" in captured.out
         assert "Temperature tiers:" in captured.out
 
-    @patch("filament_calibrator.cli.patch_slicer_metadata")
-    @patch("filament_calibrator.cli.inject_thumbnails")
-    @patch("filament_calibrator.cli.compute_bed_shape", return_value="0x0,250x0,250x220,0x220")
-    @patch("filament_calibrator.cli.compute_bed_center", return_value="125,110")
-    @patch("filament_calibrator.cli.resolve_printer", return_value="COREONE")
+    @patch("gcode_lib.patch_slicer_metadata")
+    @patch("gcode_lib.inject_thumbnails")
+    @patch("gcode_lib.compute_bed_shape", return_value="0x0,250x0,250x220,0x220")
+    @patch("gcode_lib.compute_bed_center", return_value="125,110")
+    @patch("gcode_lib.resolve_printer", return_value="COREONE")
     @patch("filament_calibrator.cli.gl.save")
     @patch("filament_calibrator.cli.gl.load")
     @patch("filament_calibrator.cli.insert_temperatures")
@@ -931,11 +966,11 @@ class TestRun:
         captured = capsys.readouterr()
         assert "PrusaSlicer stdout: Slicing complete in 3.2s" in captured.out
 
-    @patch("filament_calibrator.cli.patch_slicer_metadata")
-    @patch("filament_calibrator.cli.inject_thumbnails")
-    @patch("filament_calibrator.cli.compute_bed_shape", return_value="0x0,250x0,250x220,0x220")
-    @patch("filament_calibrator.cli.compute_bed_center", return_value="125,110")
-    @patch("filament_calibrator.cli.resolve_printer", return_value="COREONE")
+    @patch("gcode_lib.patch_slicer_metadata")
+    @patch("gcode_lib.inject_thumbnails")
+    @patch("gcode_lib.compute_bed_shape", return_value="0x0,250x0,250x220,0x220")
+    @patch("gcode_lib.compute_bed_center", return_value="125,110")
+    @patch("gcode_lib.resolve_printer", return_value="COREONE")
     @patch("filament_calibrator.cli.gl.save")
     @patch("filament_calibrator.cli.gl.load")
     @patch("filament_calibrator.cli.insert_temperatures")
@@ -960,11 +995,11 @@ class TestRun:
         captured = capsys.readouterr()
         assert "[DEBUG]" not in captured.out
 
-    @patch("filament_calibrator.cli.patch_slicer_metadata")
-    @patch("filament_calibrator.cli.inject_thumbnails")
-    @patch("filament_calibrator.cli.compute_bed_shape", return_value="0x0,250x0,250x220,0x220")
-    @patch("filament_calibrator.cli.compute_bed_center", return_value="125,110")
-    @patch("filament_calibrator.cli.resolve_printer", return_value="COREONE")
+    @patch("gcode_lib.patch_slicer_metadata")
+    @patch("gcode_lib.inject_thumbnails")
+    @patch("gcode_lib.compute_bed_shape", return_value="0x0,250x0,250x220,0x220")
+    @patch("gcode_lib.compute_bed_center", return_value="125,110")
+    @patch("gcode_lib.resolve_printer", return_value="COREONE")
     @patch("filament_calibrator.cli.gl.save")
     @patch("filament_calibrator.cli.gl.load")
     @patch("filament_calibrator.cli.insert_temperatures")
@@ -996,11 +1031,11 @@ class TestRun:
         assert str(cfg) in captured.out
         assert "Config values:" in captured.out
 
-    @patch("filament_calibrator.cli.patch_slicer_metadata")
-    @patch("filament_calibrator.cli.inject_thumbnails")
-    @patch("filament_calibrator.cli.compute_bed_shape", return_value="0x0,250x0,250x220,0x220")
-    @patch("filament_calibrator.cli.compute_bed_center", return_value="125,110")
-    @patch("filament_calibrator.cli.resolve_printer", return_value="COREONE")
+    @patch("gcode_lib.patch_slicer_metadata")
+    @patch("gcode_lib.inject_thumbnails")
+    @patch("gcode_lib.compute_bed_shape", return_value="0x0,250x0,250x220,0x220")
+    @patch("gcode_lib.compute_bed_center", return_value="125,110")
+    @patch("gcode_lib.resolve_printer", return_value="COREONE")
     @patch("filament_calibrator.cli.gl.prusalink_upload")
     @patch("filament_calibrator.cli.gl.save")
     @patch("filament_calibrator.cli.gl.load")
@@ -1036,11 +1071,11 @@ class TestRun:
         assert "Upload target: http://192.168.1.100" in captured.out
         assert "Print after upload: True" in captured.out
 
-    @patch("filament_calibrator.cli.patch_slicer_metadata")
-    @patch("filament_calibrator.cli.inject_thumbnails")
-    @patch("filament_calibrator.cli.compute_bed_shape", return_value="0x0,250x0,250x220,0x220")
-    @patch("filament_calibrator.cli.compute_bed_center", return_value="125,110")
-    @patch("filament_calibrator.cli.resolve_printer", return_value="COREONE")
+    @patch("gcode_lib.patch_slicer_metadata")
+    @patch("gcode_lib.inject_thumbnails")
+    @patch("gcode_lib.compute_bed_shape", return_value="0x0,250x0,250x220,0x220")
+    @patch("gcode_lib.compute_bed_center", return_value="125,110")
+    @patch("gcode_lib.resolve_printer", return_value="COREONE")
     @patch("filament_calibrator.cli.gl.save")
     @patch("filament_calibrator.cli.gl.load")
     @patch("filament_calibrator.cli.insert_temperatures")
@@ -1068,11 +1103,11 @@ class TestRun:
         assert "not in presets" in captured.out
         assert "fallback defaults" in captured.out
 
-    @patch("filament_calibrator.cli.patch_slicer_metadata")
-    @patch("filament_calibrator.cli.inject_thumbnails")
-    @patch("filament_calibrator.cli.compute_bed_shape", return_value="0x0,250x0,250x220,0x220")
-    @patch("filament_calibrator.cli.compute_bed_center", return_value="125,110")
-    @patch("filament_calibrator.cli.resolve_printer", return_value="COREONE")
+    @patch("gcode_lib.patch_slicer_metadata")
+    @patch("gcode_lib.inject_thumbnails")
+    @patch("gcode_lib.compute_bed_shape", return_value="0x0,250x0,250x220,0x220")
+    @patch("gcode_lib.compute_bed_center", return_value="125,110")
+    @patch("gcode_lib.resolve_printer", return_value="COREONE")
     @patch("filament_calibrator.cli.gl.save")
     @patch("filament_calibrator.cli.gl.load")
     @patch("filament_calibrator.cli.insert_temperatures")
@@ -1108,11 +1143,11 @@ class TestRun:
         assert save_path.endswith(".gcode")
         assert not save_path.endswith(".bgcode")
 
-    @patch("filament_calibrator.cli.patch_slicer_metadata")
-    @patch("filament_calibrator.cli.inject_thumbnails")
-    @patch("filament_calibrator.cli.compute_bed_shape", return_value="0x0,250x0,250x220,0x220")
-    @patch("filament_calibrator.cli.compute_bed_center", return_value="125,110")
-    @patch("filament_calibrator.cli.resolve_printer", return_value="COREONE")
+    @patch("gcode_lib.patch_slicer_metadata")
+    @patch("gcode_lib.inject_thumbnails")
+    @patch("gcode_lib.compute_bed_shape", return_value="0x0,250x0,250x220,0x220")
+    @patch("gcode_lib.compute_bed_center", return_value="125,110")
+    @patch("gcode_lib.resolve_printer", return_value="COREONE")
     @patch("filament_calibrator.cli.gl.save")
     @patch("filament_calibrator.cli.gl.load")
     @patch("filament_calibrator.cli.insert_temperatures")
@@ -1138,11 +1173,11 @@ class TestRun:
         slice_kwargs = mock_slice.call_args[1]
         assert slice_kwargs["binary_gcode"] is True
 
-    @patch("filament_calibrator.cli.patch_slicer_metadata")
-    @patch("filament_calibrator.cli.inject_thumbnails")
-    @patch("filament_calibrator.cli.compute_bed_shape", return_value="0x0,250x0,250x220,0x220")
-    @patch("filament_calibrator.cli.compute_bed_center", return_value="125,110")
-    @patch("filament_calibrator.cli.resolve_printer", return_value="COREONE")
+    @patch("gcode_lib.patch_slicer_metadata")
+    @patch("gcode_lib.inject_thumbnails")
+    @patch("gcode_lib.compute_bed_shape", return_value="0x0,250x0,250x220,0x220")
+    @patch("gcode_lib.compute_bed_center", return_value="125,110")
+    @patch("gcode_lib.resolve_printer", return_value="COREONE")
     @patch("filament_calibrator.cli.gl.save")
     @patch("filament_calibrator.cli.gl.load")
     @patch("filament_calibrator.cli.insert_temperatures")
@@ -1167,6 +1202,13 @@ class TestRun:
 
         slice_kwargs = mock_slice.call_args[1]
         assert slice_kwargs["binary_gcode"] is False
+
+    @patch("gcode_lib.resolve_printer", side_effect=ValueError("Unknown printer 'NOPE'"))
+    def test_invalid_printer_exits(self, mock_resolve, tmp_path):
+        """resolve_printer raising ValueError triggers sys.exit."""
+        args = self._make_args(tmp_path, printer="NOPE")
+        with pytest.raises(SystemExit):
+            run(args)
 
 
 # ---------------------------------------------------------------------------

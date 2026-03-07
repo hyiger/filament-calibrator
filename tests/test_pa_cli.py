@@ -12,7 +12,7 @@ from filament_calibrator.cli import _KNOWN_TYPES, _UNSET
 from filament_calibrator.pa_cli import (
     MAX_LEVELS,
     METHOD_CHOICES,
-    _resolve_preset,
+    _parse_bed_center_x,
     _validate_pa_args,
     build_parser,
     main,
@@ -210,68 +210,32 @@ class TestValidatePAArgs:
 
 
 # ---------------------------------------------------------------------------
-# _resolve_preset
+# _parse_bed_center_x
 # ---------------------------------------------------------------------------
 
 
-class TestResolvePreset:
-    def test_pla_preset(self):
-        pla = gl.FILAMENT_PRESETS["PLA"]
-        args = argparse.Namespace(
-            filament_type="PLA",
-            nozzle_temp=_UNSET,
-            bed_temp=_UNSET,
-            fan_speed=_UNSET,
-        )
-        result = _resolve_preset(args)
-        assert result["nozzle_temp"] == int(pla["hotend"])
-        assert result["bed_temp"] == int(pla["bed"])
-        assert result["fan_speed"] == int(pla["fan"])
+class TestParseBedCenterX:
+    def test_valid_format(self):
+        assert _parse_bed_center_x("125,110") == 125.0
 
-    def test_unknown_filament_fallback(self):
-        args = argparse.Namespace(
-            filament_type="EXOTIC",
-            nozzle_temp=_UNSET,
-            bed_temp=_UNSET,
-            fan_speed=_UNSET,
-        )
-        result = _resolve_preset(args)
-        assert result["nozzle_temp"] == 210
-        assert result["bed_temp"] == 60
-        assert result["fan_speed"] == 100
+    def test_float_values(self):
+        assert _parse_bed_center_x("125.5,110.0") == 125.5
 
-    def test_explicit_overrides(self):
-        args = argparse.Namespace(
-            filament_type="PLA",
-            nozzle_temp=280,
-            bed_temp=90,
-            fan_speed=50,
-        )
-        result = _resolve_preset(args)
-        assert result["nozzle_temp"] == 280
-        assert result["bed_temp"] == 90
-        assert result["fan_speed"] == 50
+    def test_missing_comma_exits(self):
+        with pytest.raises(SystemExit, match="X,Y format"):
+            _parse_bed_center_x("125")
 
-    def test_case_insensitive(self):
-        args = argparse.Namespace(
-            filament_type="pla",
-            nozzle_temp=_UNSET,
-            bed_temp=_UNSET,
-            fan_speed=_UNSET,
-        )
-        result = _resolve_preset(args)
-        assert result["nozzle_temp"] == int(gl.FILAMENT_PRESETS["PLA"]["hotend"])
+    def test_too_many_parts_exits(self):
+        with pytest.raises(SystemExit, match="X,Y format"):
+            _parse_bed_center_x("1,2,3")
 
-    def test_partial_override(self):
-        args = argparse.Namespace(
-            filament_type="PLA",
-            nozzle_temp=250,
-            bed_temp=_UNSET,
-            fan_speed=_UNSET,
-        )
-        result = _resolve_preset(args)
-        assert result["nozzle_temp"] == 250
-        assert result["bed_temp"] == int(gl.FILAMENT_PRESETS["PLA"]["bed"])
+    def test_non_numeric_x_exits(self):
+        with pytest.raises(SystemExit, match="not a number"):
+            _parse_bed_center_x("abc,110")
+
+    def test_empty_string_exits(self):
+        with pytest.raises(SystemExit, match="X,Y format"):
+            _parse_bed_center_x("")
 
 
 # ---------------------------------------------------------------------------
@@ -282,7 +246,7 @@ class TestResolvePreset:
 class TestRun:
     @pytest.fixture(autouse=True)
     def _fix_suffix(self):
-        with patch("filament_calibrator.pa_cli._unique_suffix", return_value="abc12"):
+        with patch("gcode_lib.unique_suffix", return_value="abc12"):
             yield
 
     def _make_args(self, tmp_path, **overrides):
@@ -308,8 +272,8 @@ class TestRun:
         defaults.update(overrides)
         return argparse.Namespace(**defaults)
 
-    @patch("filament_calibrator.pa_cli.patch_slicer_metadata")
-    @patch("filament_calibrator.pa_cli.inject_thumbnails")
+    @patch("gcode_lib.patch_slicer_metadata")
+    @patch("gcode_lib.inject_thumbnails")
     @patch("filament_calibrator.pa_cli.gl.save")
     @patch("filament_calibrator.pa_cli.gl.load")
     @patch("filament_calibrator.pa_cli.insert_pa_commands")
@@ -336,8 +300,8 @@ class TestRun:
         mock_insert.assert_called_once()
         mock_save.assert_called_once()
 
-    @patch("filament_calibrator.pa_cli.patch_slicer_metadata")
-    @patch("filament_calibrator.pa_cli.inject_thumbnails")
+    @patch("gcode_lib.patch_slicer_metadata")
+    @patch("gcode_lib.inject_thumbnails")
     @patch("filament_calibrator.pa_cli.gl.save")
     @patch("filament_calibrator.pa_cli.gl.load")
     @patch("filament_calibrator.pa_cli.insert_pa_commands")
@@ -358,8 +322,8 @@ class TestRun:
             run(args)
         assert exc_info.value.code == 1
 
-    @patch("filament_calibrator.pa_cli.patch_slicer_metadata")
-    @patch("filament_calibrator.pa_cli.inject_thumbnails")
+    @patch("gcode_lib.patch_slicer_metadata")
+    @patch("gcode_lib.inject_thumbnails")
     @patch("filament_calibrator.pa_cli.gl.prusalink_upload")
     @patch("filament_calibrator.pa_cli.gl.save")
     @patch("filament_calibrator.pa_cli.gl.load")
@@ -394,8 +358,8 @@ class TestRun:
         assert call_kwargs["print_after_upload"] is True
 
     @patch("filament_calibrator.pa_cli.load_config", return_value={})
-    @patch("filament_calibrator.pa_cli.patch_slicer_metadata")
-    @patch("filament_calibrator.pa_cli.inject_thumbnails")
+    @patch("gcode_lib.patch_slicer_metadata")
+    @patch("gcode_lib.inject_thumbnails")
     @patch("filament_calibrator.pa_cli.gl.save")
     @patch("filament_calibrator.pa_cli.gl.load")
     @patch("filament_calibrator.pa_cli.insert_pa_commands")
@@ -417,8 +381,8 @@ class TestRun:
             run(args)
         assert exc_info.value.code == 1
 
-    @patch("filament_calibrator.pa_cli.patch_slicer_metadata")
-    @patch("filament_calibrator.pa_cli.inject_thumbnails")
+    @patch("gcode_lib.patch_slicer_metadata")
+    @patch("gcode_lib.inject_thumbnails")
     @patch("filament_calibrator.pa_cli.gl.save")
     @patch("filament_calibrator.pa_cli.gl.load")
     @patch("filament_calibrator.pa_cli.insert_pa_commands")
@@ -446,8 +410,8 @@ class TestRun:
         assert stl.exists()
         assert raw_gcode.exists()
 
-    @patch("filament_calibrator.pa_cli.patch_slicer_metadata")
-    @patch("filament_calibrator.pa_cli.inject_thumbnails")
+    @patch("gcode_lib.patch_slicer_metadata")
+    @patch("gcode_lib.inject_thumbnails")
     @patch("filament_calibrator.pa_cli.gl.save")
     @patch("filament_calibrator.pa_cli.gl.load")
     @patch("filament_calibrator.pa_cli.insert_pa_commands")
@@ -477,8 +441,8 @@ class TestRun:
 
     @patch("filament_calibrator.pa_cli.load_config", return_value={})
     @patch("filament_calibrator.pa_cli._find_config_path", return_value=None)
-    @patch("filament_calibrator.pa_cli.patch_slicer_metadata")
-    @patch("filament_calibrator.pa_cli.inject_thumbnails")
+    @patch("gcode_lib.patch_slicer_metadata")
+    @patch("gcode_lib.inject_thumbnails")
     @patch("filament_calibrator.pa_cli.gl.save")
     @patch("filament_calibrator.pa_cli.gl.load")
     @patch("filament_calibrator.pa_cli.insert_pa_commands")
@@ -511,8 +475,8 @@ class TestRun:
         assert "PrusaSlicer command:" in captured.out
         assert "PA levels:" in captured.out
 
-    @patch("filament_calibrator.pa_cli.patch_slicer_metadata")
-    @patch("filament_calibrator.pa_cli.inject_thumbnails")
+    @patch("gcode_lib.patch_slicer_metadata")
+    @patch("gcode_lib.inject_thumbnails")
     @patch("filament_calibrator.pa_cli.gl.save")
     @patch("filament_calibrator.pa_cli.gl.load")
     @patch("filament_calibrator.pa_cli.insert_pa_commands")
@@ -535,8 +499,8 @@ class TestRun:
         captured = capsys.readouterr()
         assert "[DEBUG]" not in captured.out
 
-    @patch("filament_calibrator.pa_cli.patch_slicer_metadata")
-    @patch("filament_calibrator.pa_cli.inject_thumbnails")
+    @patch("gcode_lib.patch_slicer_metadata")
+    @patch("gcode_lib.inject_thumbnails")
     @patch("filament_calibrator.pa_cli.gl.save")
     @patch("filament_calibrator.pa_cli.gl.load")
     @patch("filament_calibrator.pa_cli.insert_pa_commands")
@@ -562,8 +526,8 @@ class TestRun:
         captured = capsys.readouterr()
         assert "PrusaSlicer stdout: Slicing complete in 2.1s" in captured.out
 
-    @patch("filament_calibrator.pa_cli.patch_slicer_metadata")
-    @patch("filament_calibrator.pa_cli.inject_thumbnails")
+    @patch("gcode_lib.patch_slicer_metadata")
+    @patch("gcode_lib.inject_thumbnails")
     @patch("filament_calibrator.pa_cli.gl.save")
     @patch("filament_calibrator.pa_cli.gl.load")
     @patch("filament_calibrator.pa_cli.insert_pa_commands")
@@ -589,8 +553,8 @@ class TestRun:
         assert "not in presets" in captured.out
         assert "fallback defaults" in captured.out
 
-    @patch("filament_calibrator.pa_cli.patch_slicer_metadata")
-    @patch("filament_calibrator.pa_cli.inject_thumbnails")
+    @patch("gcode_lib.patch_slicer_metadata")
+    @patch("gcode_lib.inject_thumbnails")
     @patch("filament_calibrator.pa_cli.gl.save")
     @patch("filament_calibrator.pa_cli.gl.load")
     @patch("filament_calibrator.pa_cli.insert_pa_commands")
@@ -619,8 +583,8 @@ class TestRun:
         assert "Config file:" in captured.out
         assert str(cfg) in captured.out
 
-    @patch("filament_calibrator.pa_cli.patch_slicer_metadata")
-    @patch("filament_calibrator.pa_cli.inject_thumbnails")
+    @patch("gcode_lib.patch_slicer_metadata")
+    @patch("gcode_lib.inject_thumbnails")
     @patch("filament_calibrator.pa_cli.gl.prusalink_upload")
     @patch("filament_calibrator.pa_cli.gl.save")
     @patch("filament_calibrator.pa_cli.gl.load")
@@ -654,8 +618,8 @@ class TestRun:
         assert "Upload target: http://192.168.1.100" in captured.out
         assert "Print after upload: True" in captured.out
 
-    @patch("filament_calibrator.pa_cli.patch_slicer_metadata")
-    @patch("filament_calibrator.pa_cli.inject_thumbnails")
+    @patch("gcode_lib.patch_slicer_metadata")
+    @patch("gcode_lib.inject_thumbnails")
     @patch("filament_calibrator.pa_cli.gl.save")
     @patch("filament_calibrator.pa_cli.gl.load")
     @patch("filament_calibrator.pa_cli.insert_pa_commands")
@@ -685,8 +649,8 @@ class TestRun:
         assert slice_kwargs["extrusion_width"] == 0.6
         assert slice_kwargs["bed_center"] == "90,90"
 
-    @patch("filament_calibrator.pa_cli.patch_slicer_metadata")
-    @patch("filament_calibrator.pa_cli.inject_thumbnails")
+    @patch("gcode_lib.patch_slicer_metadata")
+    @patch("gcode_lib.inject_thumbnails")
     @patch("filament_calibrator.pa_cli.gl.save")
     @patch("filament_calibrator.pa_cli.gl.load")
     @patch("filament_calibrator.pa_cli.insert_pa_commands")
@@ -713,8 +677,8 @@ class TestRun:
         assert slice_kwargs["bed_temp"] == int(pla["bed"])
         assert slice_kwargs["fan_speed"] == int(pla["fan"])
 
-    @patch("filament_calibrator.pa_cli.patch_slicer_metadata")
-    @patch("filament_calibrator.pa_cli.inject_thumbnails")
+    @patch("gcode_lib.patch_slicer_metadata")
+    @patch("gcode_lib.inject_thumbnails")
     @patch("filament_calibrator.pa_cli.gl.save")
     @patch("filament_calibrator.pa_cli.gl.load")
     @patch("filament_calibrator.pa_cli.insert_pa_commands")
@@ -746,8 +710,8 @@ class TestRun:
         assert slice_kwargs["bed_temp"] == 90
         assert slice_kwargs["fan_speed"] == 50
 
-    @patch("filament_calibrator.pa_cli.patch_slicer_metadata")
-    @patch("filament_calibrator.pa_cli.inject_thumbnails")
+    @patch("gcode_lib.patch_slicer_metadata")
+    @patch("gcode_lib.inject_thumbnails")
     @patch("filament_calibrator.pa_cli.gl.save")
     @patch("filament_calibrator.pa_cli.gl.load")
     @patch("filament_calibrator.pa_cli.insert_pa_commands")
@@ -776,10 +740,10 @@ class TestRun:
 
     # --- --printer tests ---
 
-    @patch("filament_calibrator.pa_cli.patch_slicer_metadata")
-    @patch("filament_calibrator.pa_cli.inject_thumbnails")
-    @patch("filament_calibrator.pa_cli.render_end_gcode")
-    @patch("filament_calibrator.pa_cli.render_start_gcode")
+    @patch("gcode_lib.patch_slicer_metadata")
+    @patch("gcode_lib.inject_thumbnails")
+    @patch("gcode_lib.render_end_gcode")
+    @patch("gcode_lib.render_start_gcode")
     @patch("filament_calibrator.pa_cli.gl.save")
     @patch("filament_calibrator.pa_cli.gl.load")
     @patch("filament_calibrator.pa_cli.insert_pa_commands")
@@ -807,10 +771,10 @@ class TestRun:
         slice_kwargs = mock_slice.call_args[1]
         assert slice_kwargs["bed_center"] == "125,110"
 
-    @patch("filament_calibrator.pa_cli.patch_slicer_metadata")
-    @patch("filament_calibrator.pa_cli.inject_thumbnails")
-    @patch("filament_calibrator.pa_cli.render_end_gcode")
-    @patch("filament_calibrator.pa_cli.render_start_gcode")
+    @patch("gcode_lib.patch_slicer_metadata")
+    @patch("gcode_lib.inject_thumbnails")
+    @patch("gcode_lib.render_end_gcode")
+    @patch("gcode_lib.render_start_gcode")
     @patch("filament_calibrator.pa_cli.gl.save")
     @patch("filament_calibrator.pa_cli.gl.load")
     @patch("filament_calibrator.pa_cli.insert_pa_commands")
@@ -839,10 +803,10 @@ class TestRun:
         slice_kwargs = mock_slice.call_args[1]
         assert slice_kwargs["bed_center"] == "100,100"
 
-    @patch("filament_calibrator.pa_cli.patch_slicer_metadata")
-    @patch("filament_calibrator.pa_cli.inject_thumbnails")
-    @patch("filament_calibrator.pa_cli.render_end_gcode")
-    @patch("filament_calibrator.pa_cli.render_start_gcode")
+    @patch("gcode_lib.patch_slicer_metadata")
+    @patch("gcode_lib.inject_thumbnails")
+    @patch("gcode_lib.render_end_gcode")
+    @patch("gcode_lib.render_start_gcode")
     @patch("filament_calibrator.pa_cli.gl.save")
     @patch("filament_calibrator.pa_cli.gl.load")
     @patch("filament_calibrator.pa_cli.insert_pa_commands")
@@ -872,10 +836,10 @@ class TestRun:
         assert slice_kwargs["start_gcode"] == "G28\nG29\n"
         assert slice_kwargs["end_gcode"] == "M104 S0\nG28 X\n"
 
-    @patch("filament_calibrator.pa_cli.patch_slicer_metadata")
-    @patch("filament_calibrator.pa_cli.inject_thumbnails")
-    @patch("filament_calibrator.pa_cli.render_end_gcode")
-    @patch("filament_calibrator.pa_cli.render_start_gcode")
+    @patch("gcode_lib.patch_slicer_metadata")
+    @patch("gcode_lib.inject_thumbnails")
+    @patch("gcode_lib.render_end_gcode")
+    @patch("gcode_lib.render_start_gcode")
     @patch("filament_calibrator.pa_cli.gl.save")
     @patch("filament_calibrator.pa_cli.gl.load")
     @patch("filament_calibrator.pa_cli.insert_pa_commands")
@@ -905,10 +869,10 @@ class TestRun:
         assert slice_kwargs["start_gcode"] is None
         assert slice_kwargs["end_gcode"] is None
 
-    @patch("filament_calibrator.pa_cli.patch_slicer_metadata")
-    @patch("filament_calibrator.pa_cli.inject_thumbnails")
-    @patch("filament_calibrator.pa_cli.render_end_gcode")
-    @patch("filament_calibrator.pa_cli.render_start_gcode")
+    @patch("gcode_lib.patch_slicer_metadata")
+    @patch("gcode_lib.inject_thumbnails")
+    @patch("gcode_lib.render_end_gcode")
+    @patch("gcode_lib.render_start_gcode")
     @patch("filament_calibrator.pa_cli.gl.save")
     @patch("filament_calibrator.pa_cli.gl.load")
     @patch("filament_calibrator.pa_cli.insert_pa_commands")
@@ -937,10 +901,10 @@ class TestRun:
         render_kwargs = mock_render_start.call_args[1]
         assert render_kwargs["cool_fan"] is False
 
-    @patch("filament_calibrator.pa_cli.patch_slicer_metadata")
-    @patch("filament_calibrator.pa_cli.inject_thumbnails")
-    @patch("filament_calibrator.pa_cli.render_end_gcode")
-    @patch("filament_calibrator.pa_cli.render_start_gcode")
+    @patch("gcode_lib.patch_slicer_metadata")
+    @patch("gcode_lib.inject_thumbnails")
+    @patch("gcode_lib.render_end_gcode")
+    @patch("gcode_lib.render_start_gcode")
     @patch("filament_calibrator.pa_cli.gl.save")
     @patch("filament_calibrator.pa_cli.gl.load")
     @patch("filament_calibrator.pa_cli.insert_pa_commands")
@@ -969,10 +933,10 @@ class TestRun:
         render_kwargs = mock_render_start.call_args[1]
         assert render_kwargs["cool_fan"] is True
 
-    @patch("filament_calibrator.pa_cli.patch_slicer_metadata")
-    @patch("filament_calibrator.pa_cli.inject_thumbnails")
-    @patch("filament_calibrator.pa_cli.render_end_gcode")
-    @patch("filament_calibrator.pa_cli.render_start_gcode")
+    @patch("gcode_lib.patch_slicer_metadata")
+    @patch("gcode_lib.inject_thumbnails")
+    @patch("gcode_lib.render_end_gcode")
+    @patch("gcode_lib.render_start_gcode")
     @patch("filament_calibrator.pa_cli.gl.save")
     @patch("filament_calibrator.pa_cli.gl.load")
     @patch("filament_calibrator.pa_cli.insert_pa_commands")
@@ -1001,10 +965,10 @@ class TestRun:
         render_kwargs = mock_render_start.call_args[1]
         assert render_kwargs["cool_fan"] is True
 
-    @patch("filament_calibrator.pa_cli.patch_slicer_metadata")
-    @patch("filament_calibrator.pa_cli.inject_thumbnails")
-    @patch("filament_calibrator.pa_cli.render_end_gcode")
-    @patch("filament_calibrator.pa_cli.render_start_gcode")
+    @patch("gcode_lib.patch_slicer_metadata")
+    @patch("gcode_lib.inject_thumbnails")
+    @patch("gcode_lib.render_end_gcode")
+    @patch("gcode_lib.render_start_gcode")
     @patch("filament_calibrator.pa_cli.gl.save")
     @patch("filament_calibrator.pa_cli.gl.load")
     @patch("filament_calibrator.pa_cli.insert_pa_commands")
@@ -1037,8 +1001,8 @@ class TestRun:
         assert "bed center: 125,110" in captured.out
         assert "Rendered COREONE start/end G-code" in captured.out
 
-    @patch("filament_calibrator.pa_cli.patch_slicer_metadata")
-    @patch("filament_calibrator.pa_cli.inject_thumbnails")
+    @patch("gcode_lib.patch_slicer_metadata")
+    @patch("gcode_lib.inject_thumbnails")
     @patch("filament_calibrator.pa_cli.gl.save")
     @patch("filament_calibrator.pa_cli.gl.load")
     @patch("filament_calibrator.pa_cli.insert_pa_commands")
@@ -1066,8 +1030,8 @@ class TestRun:
         assert "PA value by height:" in captured.out
         assert "sharpest corners" in captured.out
 
-    @patch("filament_calibrator.pa_cli.patch_slicer_metadata")
-    @patch("filament_calibrator.pa_cli.inject_thumbnails")
+    @patch("gcode_lib.patch_slicer_metadata")
+    @patch("gcode_lib.inject_thumbnails")
     @patch("filament_calibrator.pa_cli.gl.save")
     @patch("filament_calibrator.pa_cli.gl.load")
     @patch("filament_calibrator.pa_cli.insert_pa_commands")
@@ -1091,8 +1055,8 @@ class TestRun:
         slice_kwargs = mock_slice.call_args[1]
         assert slice_kwargs["binary_gcode"] is True
 
-    @patch("filament_calibrator.pa_cli.patch_slicer_metadata")
-    @patch("filament_calibrator.pa_cli.inject_thumbnails")
+    @patch("gcode_lib.patch_slicer_metadata")
+    @patch("gcode_lib.inject_thumbnails")
     @patch("filament_calibrator.pa_cli.gl.save")
     @patch("filament_calibrator.pa_cli.gl.load")
     @patch("filament_calibrator.pa_cli.insert_pa_commands")
@@ -1116,8 +1080,8 @@ class TestRun:
         slice_kwargs = mock_slice.call_args[1]
         assert slice_kwargs["binary_gcode"] is False
 
-    @patch("filament_calibrator.pa_cli.patch_slicer_metadata")
-    @patch("filament_calibrator.pa_cli.inject_thumbnails")
+    @patch("gcode_lib.patch_slicer_metadata")
+    @patch("gcode_lib.inject_thumbnails")
     @patch("filament_calibrator.pa_cli.gl.save")
     @patch("filament_calibrator.pa_cli.gl.load")
     @patch("filament_calibrator.pa_cli.insert_pa_commands")
@@ -1149,6 +1113,13 @@ class TestRun:
         assert save_path.endswith(".gcode")
         assert not save_path.endswith(".bgcode")
 
+    @patch("gcode_lib.resolve_printer", side_effect=ValueError("Unknown printer 'NOPE'"))
+    def test_invalid_printer_exits(self, mock_resolve, tmp_path):
+        """resolve_printer raising ValueError triggers sys.exit."""
+        args = self._make_args(tmp_path, printer="NOPE")
+        with pytest.raises(SystemExit):
+            run(args)
+
 
 # ---------------------------------------------------------------------------
 # Pattern pipeline
@@ -1160,7 +1131,7 @@ class TestRunPattern:
 
     @pytest.fixture(autouse=True)
     def _fix_suffix(self):
-        with patch("filament_calibrator.pa_cli._unique_suffix", return_value="abc12"):
+        with patch("gcode_lib.unique_suffix", return_value="abc12"):
             yield
 
     def _make_args(self, tmp_path, **overrides):
@@ -1185,8 +1156,8 @@ class TestRunPattern:
         defaults.update(overrides)
         return argparse.Namespace(**defaults)
 
-    @patch("filament_calibrator.pa_cli.patch_slicer_metadata")
-    @patch("filament_calibrator.pa_cli.inject_thumbnails")
+    @patch("gcode_lib.patch_slicer_metadata")
+    @patch("gcode_lib.inject_thumbnails")
     @patch("filament_calibrator.pa_cli.gl.save")
     @patch("filament_calibrator.pa_cli.gl.load")
     @patch("filament_calibrator.pa_cli.insert_pa_pattern_commands")
@@ -1212,8 +1183,8 @@ class TestRunPattern:
         mock_regions.assert_called_once()
         mock_insert.assert_called_once()
 
-    @patch("filament_calibrator.pa_cli.patch_slicer_metadata")
-    @patch("filament_calibrator.pa_cli.inject_thumbnails")
+    @patch("gcode_lib.patch_slicer_metadata")
+    @patch("gcode_lib.inject_thumbnails")
     @patch("filament_calibrator.pa_cli.gl.save")
     @patch("filament_calibrator.pa_cli.gl.load")
     @patch("filament_calibrator.pa_cli.insert_pa_pattern_commands")
@@ -1238,8 +1209,8 @@ class TestRunPattern:
             mock_tower_gen.assert_not_called()
             mock_tower_slice.assert_not_called()
 
-    @patch("filament_calibrator.pa_cli.patch_slicer_metadata")
-    @patch("filament_calibrator.pa_cli.inject_thumbnails")
+    @patch("gcode_lib.patch_slicer_metadata")
+    @patch("gcode_lib.inject_thumbnails")
     @patch("filament_calibrator.pa_cli.gl.save")
     @patch("filament_calibrator.pa_cli.gl.load")
     @patch("filament_calibrator.pa_cli.insert_pa_pattern_commands")
@@ -1260,8 +1231,8 @@ class TestRunPattern:
             run(args)
         assert exc_info.value.code == 1
 
-    @patch("filament_calibrator.pa_cli.patch_slicer_metadata")
-    @patch("filament_calibrator.pa_cli.inject_thumbnails")
+    @patch("gcode_lib.patch_slicer_metadata")
+    @patch("gcode_lib.inject_thumbnails")
     @patch("filament_calibrator.pa_cli.gl.prusalink_upload")
     @patch("filament_calibrator.pa_cli.gl.save")
     @patch("filament_calibrator.pa_cli.gl.load")
@@ -1294,8 +1265,8 @@ class TestRunPattern:
         call_kwargs = mock_upload.call_args[1]
         assert call_kwargs["base_url"] == "http://192.168.1.100"
 
-    @patch("filament_calibrator.pa_cli.patch_slicer_metadata")
-    @patch("filament_calibrator.pa_cli.inject_thumbnails")
+    @patch("gcode_lib.patch_slicer_metadata")
+    @patch("gcode_lib.inject_thumbnails")
     @patch("filament_calibrator.pa_cli.gl.save")
     @patch("filament_calibrator.pa_cli.gl.load")
     @patch("filament_calibrator.pa_cli.insert_pa_pattern_commands")
@@ -1319,8 +1290,8 @@ class TestRunPattern:
         slice_kwargs = mock_slice.call_args[1]
         assert slice_kwargs["perimeters"] == 5
 
-    @patch("filament_calibrator.pa_cli.patch_slicer_metadata")
-    @patch("filament_calibrator.pa_cli.inject_thumbnails")
+    @patch("gcode_lib.patch_slicer_metadata")
+    @patch("gcode_lib.inject_thumbnails")
     @patch("filament_calibrator.pa_cli.gl.save")
     @patch("filament_calibrator.pa_cli.gl.load")
     @patch("filament_calibrator.pa_cli.insert_pa_pattern_commands")
@@ -1346,8 +1317,8 @@ class TestRunPattern:
         shifted_centers = region_call_args[1]
         assert shifted_centers == [105.0, 145.0]
 
-    @patch("filament_calibrator.pa_cli.patch_slicer_metadata")
-    @patch("filament_calibrator.pa_cli.inject_thumbnails")
+    @patch("gcode_lib.patch_slicer_metadata")
+    @patch("gcode_lib.inject_thumbnails")
     @patch("filament_calibrator.pa_cli.gl.save")
     @patch("filament_calibrator.pa_cli.gl.load")
     @patch("filament_calibrator.pa_cli.insert_pa_pattern_commands")
@@ -1372,8 +1343,8 @@ class TestRunPattern:
         shifted_centers = region_call_args[1]
         assert shifted_centers == [100.0]
 
-    @patch("filament_calibrator.pa_cli.patch_slicer_metadata")
-    @patch("filament_calibrator.pa_cli.inject_thumbnails")
+    @patch("gcode_lib.patch_slicer_metadata")
+    @patch("gcode_lib.inject_thumbnails")
     @patch("filament_calibrator.pa_cli.gl.save")
     @patch("filament_calibrator.pa_cli.gl.load")
     @patch("filament_calibrator.pa_cli.insert_pa_pattern_commands")
@@ -1403,8 +1374,8 @@ class TestRunPattern:
         assert "Chevron:" in captured.out
         assert "PA regions:" in captured.out
 
-    @patch("filament_calibrator.pa_cli.patch_slicer_metadata")
-    @patch("filament_calibrator.pa_cli.inject_thumbnails")
+    @patch("gcode_lib.patch_slicer_metadata")
+    @patch("gcode_lib.inject_thumbnails")
     @patch("filament_calibrator.pa_cli.gl.save")
     @patch("filament_calibrator.pa_cli.gl.load")
     @patch("filament_calibrator.pa_cli.insert_pa_pattern_commands")
@@ -1428,8 +1399,8 @@ class TestRunPattern:
         assert "PA value by pattern position:" in captured.out
         assert "sharpest corners" in captured.out
 
-    @patch("filament_calibrator.pa_cli.patch_slicer_metadata")
-    @patch("filament_calibrator.pa_cli.inject_thumbnails")
+    @patch("gcode_lib.patch_slicer_metadata")
+    @patch("gcode_lib.inject_thumbnails")
     @patch("filament_calibrator.pa_cli.gl.save")
     @patch("filament_calibrator.pa_cli.gl.load")
     @patch("filament_calibrator.pa_cli.insert_pa_pattern_commands")
@@ -1457,8 +1428,8 @@ class TestRunPattern:
         assert stl.exists()
         assert raw_gcode.exists()
 
-    @patch("filament_calibrator.pa_cli.patch_slicer_metadata")
-    @patch("filament_calibrator.pa_cli.inject_thumbnails")
+    @patch("gcode_lib.patch_slicer_metadata")
+    @patch("gcode_lib.inject_thumbnails")
     @patch("filament_calibrator.pa_cli.gl.save")
     @patch("filament_calibrator.pa_cli.gl.load")
     @patch("filament_calibrator.pa_cli.insert_pa_pattern_commands")
@@ -1486,10 +1457,10 @@ class TestRunPattern:
         assert not stl.exists()
         assert not raw_gcode.exists()
 
-    @patch("filament_calibrator.pa_cli.render_end_gcode")
-    @patch("filament_calibrator.pa_cli.render_start_gcode")
-    @patch("filament_calibrator.pa_cli.patch_slicer_metadata")
-    @patch("filament_calibrator.pa_cli.inject_thumbnails")
+    @patch("gcode_lib.render_end_gcode")
+    @patch("gcode_lib.render_start_gcode")
+    @patch("gcode_lib.patch_slicer_metadata")
+    @patch("gcode_lib.inject_thumbnails")
     @patch("filament_calibrator.pa_cli.gl.save")
     @patch("filament_calibrator.pa_cli.gl.load")
     @patch("filament_calibrator.pa_cli.insert_pa_pattern_commands")
@@ -1520,8 +1491,8 @@ class TestRunPattern:
         assert slice_kwargs["start_gcode"] == "G28\n"
         assert slice_kwargs["end_gcode"] == "M104 S0\n"
 
-    @patch("filament_calibrator.pa_cli.patch_slicer_metadata")
-    @patch("filament_calibrator.pa_cli.inject_thumbnails")
+    @patch("gcode_lib.patch_slicer_metadata")
+    @patch("gcode_lib.inject_thumbnails")
     @patch("filament_calibrator.pa_cli.gl.save")
     @patch("filament_calibrator.pa_cli.gl.load")
     @patch("filament_calibrator.pa_cli.insert_pa_pattern_commands")

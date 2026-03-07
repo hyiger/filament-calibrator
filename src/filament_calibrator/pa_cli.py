@@ -21,10 +21,8 @@ from filament_calibrator.cli import (
     _KNOWN_TYPES,
     _UNSET,
     _apply_config,
-    _gcode_ext,
-    _resolve_filament_preset as _resolve_preset,
+    _explicit_keys,
     _resolve_output_dir,
-    _unique_suffix,
 )
 from filament_calibrator.config import _find_config_path, load_config
 from filament_calibrator.pa_insert import (
@@ -54,21 +52,12 @@ from filament_calibrator.pa_pattern import (
     tip_spacing as pattern_tip_spacing,
     total_height as pattern_total_height,
 )
-from filament_calibrator.printer_gcode import (
-    KNOWN_PRINTERS,
-    compute_bed_center,
-    compute_bed_shape,
-    render_end_gcode,
-    render_start_gcode,
-    resolve_printer,
-)
 from filament_calibrator.slicer import (
     DEFAULT_BED_CENTER,
     DEFAULT_THUMBNAILS,
     slice_pa_pattern,
     slice_pa_specimen,
 )
-from filament_calibrator.thumbnail import inject_thumbnails, patch_slicer_metadata
 
 
 # Maximum number of PA levels to prevent excessively tall prints.
@@ -228,7 +217,7 @@ def build_parser() -> argparse.ArgumentParser:
     )
 
     # --- Printer model ---
-    printer_names = ", ".join(sorted(KNOWN_PRINTERS))
+    printer_names = ", ".join(sorted(gl.KNOWN_PRINTERS))
     p.add_argument(
         "--printer", type=str, default="COREONE",
         help=(
@@ -345,7 +334,12 @@ def _resolve_common(args: argparse.Namespace) -> dict:
     """
     num_levels = _validate_pa_args(args.start_pa, args.end_pa, args.pa_step)
 
-    resolved = _resolve_preset(args)
+    resolved = gl.resolve_filament_preset(
+        args.filament_type,
+        nozzle_temp=args.nozzle_temp if args.nozzle_temp is not _UNSET else None,
+        bed_temp=args.bed_temp if args.bed_temp is not _UNSET else None,
+        fan_speed=args.fan_speed if args.fan_speed is not _UNSET else None,
+    )
     nozzle_temp: int = resolved["nozzle_temp"]
     bed_temp: int = resolved["bed_temp"]
     fan_speed: int = resolved["fan_speed"]
@@ -363,10 +357,13 @@ def _resolve_common(args: argparse.Namespace) -> dict:
     printer_name: Optional[str] = None
     bed_shape: Optional[str] = None
     if args.printer is not None:
-        printer_name = resolve_printer(args.printer)
+        try:
+            printer_name = gl.resolve_printer(args.printer)
+        except ValueError as exc:
+            sys.exit(f"error: {exc}")
         if args.bed_center is None:
-            args.bed_center = compute_bed_center(printer_name)
-        bed_shape = compute_bed_shape(printer_name)
+            args.bed_center = gl.compute_bed_center(printer_name)
+        bed_shape = gl.compute_bed_shape(printer_name)
 
     return {
         "num_levels": num_levels,
@@ -400,7 +397,7 @@ def _render_gcode_templates(
     if filament_preset is not None and filament_preset.get("enclosure"):
         use_cool_fan = False
 
-    start_gcode = render_start_gcode(
+    start_gcode = gl.render_start_gcode(
         printer_name,
         nozzle_dia=nozzle_size,
         bed_temp=bed_temp,
@@ -410,7 +407,7 @@ def _render_gcode_templates(
         model_depth=model_depth,
         cool_fan=use_cool_fan,
     )
-    end_gcode = render_end_gcode(
+    end_gcode = gl.render_end_gcode(
         printer_name,
         max_layer_z=max_z,
     )
@@ -461,9 +458,10 @@ def _run_tower_pipeline(
     )
 
     # --- Step 1: Generate STL ---
-    suffix = _unique_suffix()
+    suffix = gl.unique_suffix()
+    safe_type = gl.safe_filename_part(config.filament_type)
     stl_name = (
-        f"pa_tower_{config.filament_type}"
+        f"pa_tower_{safe_type}"
         f"_{args.start_pa}_{args.pa_step}x{num_levels}"
         f"_{suffix}.stl"
     )
@@ -472,7 +470,7 @@ def _run_tower_pipeline(
     generate_pa_tower_stl(config, stl_path)
 
     # --- Step 2: Slice ---
-    gcode_ext = _gcode_ext(args.ascii_gcode)
+    gcode_ext = gl.gcode_ext(binary=not args.ascii_gcode)
     raw_gcode_path = str(out_dir / stl_name.replace(".stl", f"_raw{gcode_ext}"))
     print(f"Slicing → {raw_gcode_path}")
     if args.verbose:
@@ -520,9 +518,9 @@ def _run_tower_pipeline(
     final_gcode_path = str(out_dir / stl_name.replace(".stl", gcode_ext))
     print(f"Inserting PA commands → {final_gcode_path}")
     gf = gl.load(raw_gcode_path)
-    inject_thumbnails(gf, stl_path, DEFAULT_THUMBNAILS, verbose=args.verbose)
+    gl.inject_thumbnails(gf, stl_path, DEFAULT_THUMBNAILS, verbose=args.verbose)
     if printer_name is not None:
-        patch_slicer_metadata(
+        gl.patch_slicer_metadata(
             gf, printer_name, nozzle_size, verbose=args.verbose
         )
     levels = compute_pa_levels(
@@ -537,7 +535,10 @@ def _run_tower_pipeline(
             print(f"[DEBUG]   Z {lv.z_start:.1f}–{lv.z_end:.1f} mm → "
                   f"PA {lv.pa_value:.4f}")
 
-    gf.lines = insert_pa_commands(gf.lines, levels)
+    gf.lines = insert_pa_commands(
+        gf.lines, levels,
+        printer=printer_name or "COREONE",
+    )
     gl.save(gf, final_gcode_path)
 
     # Print PA level lookup table for the user.
@@ -560,6 +561,26 @@ def _run_tower_pipeline(
 # ---------------------------------------------------------------------------
 # Pattern pipeline
 # ---------------------------------------------------------------------------
+
+
+def _parse_bed_center_x(bed_center: str) -> float:
+    """Extract and validate the X coordinate from a ``--bed-center`` string.
+
+    Expected format is ``"X,Y"`` where both parts are numeric.
+    Calls :func:`sys.exit` with a clear message on malformed input.
+    """
+    parts = bed_center.split(",")
+    if len(parts) != 2:
+        sys.exit(
+            f"error: --bed-center must be in X,Y format (got {bed_center!r})"
+        )
+    try:
+        return float(parts[0])
+    except ValueError:
+        sys.exit(
+            f"error: --bed-center X value is not a number "
+            f"(got {parts[0]!r} from {bed_center!r})"
+        )
 
 
 def _run_pattern_pipeline(
@@ -611,9 +632,10 @@ def _run_pattern_pipeline(
     )
 
     # --- Step 1: Generate STL ---
-    suffix = _unique_suffix()
+    suffix = gl.unique_suffix()
+    safe_type = gl.safe_filename_part(config.filament_type)
     stl_name = (
-        f"pa_pattern_{config.filament_type}"
+        f"pa_pattern_{safe_type}"
         f"_{args.start_pa}_{args.pa_step}x{num_levels}"
         f"_{suffix}.stl"
     )
@@ -626,7 +648,7 @@ def _run_pattern_pipeline(
     _, x_centers = generate_pa_pattern_stl(config, stl_path, pa_values=pa_values)
 
     # --- Step 2: Slice ---
-    gcode_ext = _gcode_ext(args.ascii_gcode)
+    gcode_ext = gl.gcode_ext(binary=not args.ascii_gcode)
     raw_gcode_path = str(out_dir / stl_name.replace(".stl", f"_raw{gcode_ext}"))
     print(f"Slicing → {raw_gcode_path}")
     if args.verbose:
@@ -683,9 +705,9 @@ def _run_pattern_pipeline(
     final_gcode_path = str(out_dir / stl_name.replace(".stl", gcode_ext))
     print(f"Inserting PA commands → {final_gcode_path}")
     gf = gl.load(raw_gcode_path)
-    inject_thumbnails(gf, stl_path, DEFAULT_THUMBNAILS, verbose=args.verbose)
+    gl.inject_thumbnails(gf, stl_path, DEFAULT_THUMBNAILS, verbose=args.verbose)
     if printer_name is not None:
-        patch_slicer_metadata(
+        gl.patch_slicer_metadata(
             gf, printer_name, nozzle_size, verbose=args.verbose
         )
 
@@ -693,7 +715,7 @@ def _run_pattern_pipeline(
     # the model to bed_center, so we must apply the same offset.
     bed_cx = float(DEFAULT_BED_CENTER.split(",")[0])
     if args.bed_center is not None:
-        bed_cx = float(args.bed_center.split(",")[0])
+        bed_cx = _parse_bed_center_x(args.bed_center)
     shifted_centers = [cx + bed_cx for cx in x_centers]
 
     regions = compute_pa_pattern_regions(pa_values, shifted_centers)
@@ -704,7 +726,10 @@ def _run_pattern_pipeline(
             xe = f"{r.x_end:.1f}" if r.x_end != float("inf") else "+inf"
             print(f"[DEBUG]   X {xs} – {xe} → PA {r.pa_value:.4f}")
 
-    gf.lines = insert_pa_pattern_commands(gf.lines, regions)
+    gf.lines = insert_pa_pattern_commands(
+        gf.lines, regions,
+        printer=printer_name or "COREONE",
+    )
     gl.save(gf, final_gcode_path)
 
     # Print PA pattern reference table for the user.
@@ -791,7 +816,10 @@ def run(args: argparse.Namespace) -> None:
     """
     # Load TOML config and apply defaults.
     toml_config = load_config(args.config)
-    _apply_config(args, toml_config)
+    _apply_config(
+        args, toml_config,
+        explicit_keys=getattr(args, "_explicit_keys", None),
+    )
 
     # Fail fast: validate upload requirements.
     if not args.no_upload and (not args.printer_url or not args.api_key):
@@ -810,4 +838,5 @@ def main(argv: Optional[List[str]] = None) -> None:
     """Entry point: parse arguments and run the pipeline."""
     parser = build_parser()
     args = parser.parse_args(argv)
+    args._explicit_keys = _explicit_keys(parser, argv)
     run(args)
