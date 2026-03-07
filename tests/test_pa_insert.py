@@ -298,6 +298,13 @@ class TestPAPatternRegion:
 
 
 class TestComputePaPatternRegions:
+    def test_empty_inputs(self):
+        assert compute_pa_pattern_regions([], []) == []
+
+    def test_length_mismatch_raises(self):
+        with pytest.raises(ValueError, match="same length"):
+            compute_pa_pattern_regions([0.0, 0.1], [100.0])
+
     def test_single_region(self):
         regions = compute_pa_pattern_regions([0.05], [100.0])
         assert len(regions) == 1

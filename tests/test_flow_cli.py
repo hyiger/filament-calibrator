@@ -146,6 +146,14 @@ class TestValidateFlowArgs:
         with pytest.raises(SystemExit, match="--step must be positive"):
             _validate_flow_args(5.0, 20.0, -1.0)
 
+    def test_level_height_zero_exits(self):
+        with pytest.raises(SystemExit, match="--level-height must be positive"):
+            _validate_flow_args(5.0, 20.0, 1.0, 0.0)
+
+    def test_level_height_negative_exits(self):
+        with pytest.raises(SystemExit, match="--level-height must be positive"):
+            _validate_flow_args(5.0, 20.0, 1.0, -1.0)
+
     def test_end_less_than_start_exits(self):
         with pytest.raises(SystemExit, match="must be greater than"):
             _validate_flow_args(20.0, 5.0, 1.0)

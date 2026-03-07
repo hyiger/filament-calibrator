@@ -46,10 +46,9 @@ from filament_calibrator.pa_pattern import (
     DEFAULT_WALL_COUNT,
     DEFAULT_WALL_THICKNESS,
     PAPatternConfig,
-    chevron_x_extent,
-    chevron_y_extent,
     generate_pa_pattern_stl,
-    tip_spacing as pattern_tip_spacing,
+    pattern_x_bounds,
+    pattern_y_bounds,
     total_height as pattern_total_height,
 )
 from filament_calibrator.slicer import (
@@ -290,6 +289,7 @@ def _validate_pa_args(
     start_pa: float,
     end_pa: float,
     pa_step: float,
+    level_height: float = 1.0,
 ) -> int:
     """Validate PA arguments and return the number of levels.
 
@@ -299,6 +299,10 @@ def _validate_pa_args(
         sys.exit(f"error: --start-pa must be non-negative (got {start_pa})")
     if pa_step <= 0:
         sys.exit(f"error: --pa-step must be positive (got {pa_step})")
+    if level_height <= 0:
+        sys.exit(
+            f"error: --level-height must be positive (got {level_height})"
+        )
     if end_pa <= start_pa:
         sys.exit(
             f"error: --end-pa ({end_pa}) must be greater than "
@@ -332,7 +336,9 @@ def _resolve_common(args: argparse.Namespace) -> dict:
 
     Returns a dict with resolved values ready for use.
     """
-    num_levels = _validate_pa_args(args.start_pa, args.end_pa, args.pa_step)
+    num_levels = _validate_pa_args(
+        args.start_pa, args.end_pa, args.pa_step, args.level_height,
+    )
 
     resolved = gl.resolve_filament_preset(
         args.filament_type,
@@ -645,7 +651,7 @@ def _run_pattern_pipeline(
         round(args.start_pa + i * args.pa_step, 4)
         for i in range(num_levels)
     ]
-    _, x_centers = generate_pa_pattern_stl(config, stl_path, pa_values=pa_values)
+    _, x_tips = generate_pa_pattern_stl(config, stl_path, pa_values=pa_values)
 
     # --- Step 2: Slice ---
     gcode_ext = gl.gcode_ext(binary=not args.ascii_gcode)
@@ -656,13 +662,10 @@ def _run_pattern_pipeline(
         print(f"[DEBUG] Bed center: {effective_center}")
 
     model_height = pattern_total_height(config)
-    model_depth = chevron_y_extent(config.arm_length, config.corner_angle)
-    cx_extent = chevron_x_extent(config.arm_length, config.corner_angle)
-    model_width = (
-        cx_extent
-        + (num_levels - 1) * pattern_tip_spacing(config)
-        + 2.0 * config.frame_offset
-    )
+    x_min, x_max = pattern_x_bounds(config, x_tips)
+    model_width = x_max - x_min
+    y_min, y_max = pattern_y_bounds(config, include_labels=True)
+    model_depth = y_max - y_min
 
     start_gcode, end_gcode = _render_gcode_templates(
         args, printer_name, nozzle_size, nozzle_temp, bed_temp,
@@ -711,14 +714,16 @@ def _run_pattern_pipeline(
             gf, printer_name, nozzle_size, verbose=args.verbose
         )
 
-    # x_centers are model-space (centred at 0).  The slicer's --center shifts
-    # the model to bed_center, so we must apply the same offset.
+    # x_tips are model-space coordinates.  PrusaSlicer's --center uses the
+    # model bounding-box center, so we shift tips by the same translation.
     bed_cx = float(DEFAULT_BED_CENTER.split(",")[0])
     if args.bed_center is not None:
         bed_cx = _parse_bed_center_x(args.bed_center)
-    shifted_centers = [cx + bed_cx for cx in x_centers]
+    model_cx = (x_min + x_max) / 2.0
+    x_shift = bed_cx - model_cx
+    shifted_tips = [tx + x_shift for tx in x_tips]
 
-    regions = compute_pa_pattern_regions(pa_values, shifted_centers)
+    regions = compute_pa_pattern_regions(pa_values, shifted_tips)
     if args.verbose:
         print("[DEBUG] PA regions:")
         for r in regions:
@@ -734,7 +739,7 @@ def _run_pattern_pipeline(
 
     # Print PA pattern reference table for the user.
     print("\nPA value by pattern position:")
-    for i, (pa, cx) in enumerate(zip(pa_values, shifted_centers)):
+    for i, (pa, cx) in enumerate(zip(pa_values, shifted_tips)):
         print(f"  Pattern {i + 1:2d} (X ≈ {cx:6.1f} mm)  ->  PA {pa:.4f}")
     print(f"\nInspect which chevron has the sharpest corners to find your optimal PA value.\n")
 

@@ -204,6 +204,14 @@ def compute_pa_pattern_regions(
     List[PAPatternRegion]
         One region per pattern, ordered left to right.
     """
+    if len(pa_values) != len(x_centers):
+        raise ValueError(
+            "pa_values and x_centers must have the same length "
+            f"(got {len(pa_values)} and {len(x_centers)})"
+        )
+    if not pa_values:
+        return []
+
     regions: List[PAPatternRegion] = []
     n = len(pa_values)
     for i in range(n):
