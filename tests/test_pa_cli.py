@@ -189,6 +189,14 @@ class TestValidatePAArgs:
         with pytest.raises(SystemExit, match="positive"):
             _validate_pa_args(0.0, 0.1, -0.01)
 
+    def test_level_height_zero_exits(self):
+        with pytest.raises(SystemExit, match="--level-height must be positive"):
+            _validate_pa_args(0.0, 0.1, 0.01, 0.0)
+
+    def test_level_height_negative_exits(self):
+        with pytest.raises(SystemExit, match="--level-height must be positive"):
+            _validate_pa_args(0.0, 0.1, 0.01, -1.0)
+
     def test_end_pa_equal_exits(self):
         with pytest.raises(SystemExit, match="greater than"):
             _validate_pa_args(0.1, 0.1, 0.01)
@@ -1302,7 +1310,7 @@ class TestRunPattern:
         self, mock_gen, mock_slice, mock_regions,
         mock_insert, mock_load, mock_save, mock_inject, mock_patch_meta, tmp_path
     ):
-        """Model-space x_centers are shifted by bed_center_x for regions."""
+        """Model-space tip X values are shifted by slicer centering translation."""
         mock_gen.return_value = (str(tmp_path / "pattern.stl"), [-20.0, 20.0])
         mock_slice.return_value = MagicMock(ok=True)
         mock_regions.return_value = []
@@ -1312,10 +1320,13 @@ class TestRunPattern:
         args = self._make_args(tmp_path)
         run(args)
 
-        # Default bed center is 125,110 → bed_cx=125.0
+        # Translation is bed_cx - model_bbox_center_x.
+        # For mocked tips [-20, 20] with default geometry this is:
+        #   x_min ≈ -51.8507, x_max ≈ 24.1321, model_cx ≈ -13.8593
+        #   shift ≈ 138.8593, so tips map to ≈ [118.8593, 158.8593].
         region_call_args = mock_regions.call_args[0]
         shifted_centers = region_call_args[1]
-        assert shifted_centers == [105.0, 145.0]
+        assert shifted_centers == pytest.approx([118.8593, 158.8593], abs=1e-4)
 
     @patch("gcode_lib.patch_slicer_metadata")
     @patch("gcode_lib.inject_thumbnails")
@@ -1329,7 +1340,7 @@ class TestRunPattern:
         self, mock_gen, mock_slice, mock_regions,
         mock_insert, mock_load, mock_save, mock_inject, mock_patch_meta, tmp_path
     ):
-        """Custom bed_center shifts x_centers correctly."""
+        """Custom bed_center uses slicer translation, not direct X addition."""
         mock_gen.return_value = (str(tmp_path / "pattern.stl"), [0.0])
         mock_slice.return_value = MagicMock(ok=True)
         mock_regions.return_value = []
@@ -1341,7 +1352,7 @@ class TestRunPattern:
 
         region_call_args = mock_regions.call_args[0]
         shifted_centers = region_call_args[1]
-        assert shifted_centers == [100.0]
+        assert shifted_centers == pytest.approx([113.8593], abs=1e-4)
 
     @patch("gcode_lib.patch_slicer_metadata")
     @patch("gcode_lib.inject_thumbnails")

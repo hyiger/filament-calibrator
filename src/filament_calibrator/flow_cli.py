@@ -217,6 +217,7 @@ def _validate_flow_args(
     start_speed: float,
     end_speed: float,
     step: float,
+    level_height: float = 1.0,
 ) -> int:
     """Validate flow-rate arguments and return the number of levels.
 
@@ -226,6 +227,10 @@ def _validate_flow_args(
         sys.exit(f"error: --start-speed must be positive (got {start_speed})")
     if step <= 0:
         sys.exit(f"error: --step must be positive (got {step})")
+    if level_height <= 0:
+        sys.exit(
+            f"error: --level-height must be positive (got {level_height})"
+        )
     if end_speed <= start_speed:
         sys.exit(
             f"error: --end-speed ({end_speed}) must be greater than "
@@ -281,7 +286,7 @@ def run(args: argparse.Namespace) -> None:
 
     # Validate flow args and compute level count.
     num_levels = _validate_flow_args(
-        args.start_speed, args.end_speed, args.step,
+        args.start_speed, args.end_speed, args.step, args.level_height,
     )
 
     # Resolve filament preset for slicer settings.

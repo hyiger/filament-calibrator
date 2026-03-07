@@ -134,6 +134,52 @@ def pattern_x_tips(config: PAPatternConfig) -> List[float]:
     return [round(start_x + i * dx, 4) for i in range(config.num_patterns)]
 
 
+def pattern_x_bounds(
+    config: PAPatternConfig,
+    x_tips: Optional[List[float]] = None,
+) -> Tuple[float, float]:
+    """Return ``(x_min, x_max)`` bounds of the full pattern model.
+
+    Bounds include the chevrons and frame margin.  If *x_tips* is omitted,
+    they are computed from :func:`pattern_x_tips`.
+    """
+    tips = x_tips if x_tips is not None else pattern_x_tips(config)
+    if not tips:
+        raise ValueError("pattern_x_bounds requires at least one tip position")
+
+    half = math.radians(config.corner_angle / 2)
+    hw = config.wall_thickness / 2.0
+
+    rightmost_tip = max(tips)
+    leftmost_tip = min(tips)
+    arm_lx = leftmost_tip - config.arm_length * math.cos(half)
+
+    x_min = arm_lx - hw * math.sin(half) - config.frame_offset
+    x_max = rightmost_tip + hw / math.sin(half) + config.frame_offset
+    return x_min, x_max
+
+
+def pattern_y_bounds(
+    config: PAPatternConfig,
+    *,
+    include_labels: bool = False,
+) -> Tuple[float, float]:
+    """Return ``(y_min, y_max)`` bounds of the pattern model.
+
+    By default this returns frame/chevron bounds.  Set *include_labels* to
+    include the embossed label strip above the frame.
+    """
+    half = math.radians(config.corner_angle / 2)
+    hw = config.wall_thickness / 2.0
+
+    y_max_arm = config.arm_length * math.sin(half) + hw * math.cos(half)
+    y_min = -(y_max_arm + config.frame_offset)
+    y_max = y_max_arm + config.frame_offset
+    if include_labels:
+        y_max += DEFAULT_LABEL_HEIGHT
+    return y_min, y_max
+
+
 # ---------------------------------------------------------------------------
 # CadQuery model generation
 # ---------------------------------------------------------------------------
@@ -218,22 +264,8 @@ def _make_frame(
     height: float,
 ) -> cq.Workplane:
     """Create the rectangular frame enclosing all chevrons."""
-    half = math.radians(config.corner_angle / 2)
-    hw = config.wall_thickness / 2.0
-
-    # Bounding box of all chevron outlines.
-    rightmost_tip = max(x_tips)
-    leftmost_tip = min(x_tips)
-    arm_lx = leftmost_tip - config.arm_length * math.cos(half)
-
-    # X bounds: from leftmost arm end (minus outer offset) to rightmost tip
-    x_min = arm_lx - hw * math.sin(half) - config.frame_offset
-    x_max = rightmost_tip + hw / math.sin(half) + config.frame_offset
-
-    # Y bounds: from tallest arm extent (plus outer offset).
-    y_max_arm = config.arm_length * math.sin(half) + hw * math.cos(half)
-    y_min = -(y_max_arm + config.frame_offset)
-    y_max = y_max_arm + config.frame_offset
+    x_min, x_max = pattern_x_bounds(config, x_tips)
+    y_min, y_max = pattern_y_bounds(config)
 
     w = config.wall_thickness
 
@@ -270,22 +302,14 @@ def _make_labels(
 ) -> cq.Workplane:
     """Create the label strip with embossed PA values above the frame."""
     half = math.radians(config.corner_angle / 2)
-    hw = config.wall_thickness / 2.0
-
-    # Frame outer top edge Y.
-    y_max_arm = config.arm_length * math.sin(half) + hw * math.cos(half)
-    frame_top = y_max_arm + config.frame_offset
+    _, frame_top = pattern_y_bounds(config)
 
     # Label strip sits above the frame.
     label_strip_height = DEFAULT_LABEL_HEIGHT
     bar_cy = frame_top + label_strip_height / 2.0
 
     # Bar spans the full frame width.
-    leftmost_tip = min(x_tips)
-    rightmost_tip = max(x_tips)
-    arm_lx = leftmost_tip - config.arm_length * math.cos(half)
-    bar_x_min = arm_lx - hw * math.sin(half) - config.frame_offset
-    bar_x_max = rightmost_tip + hw / math.sin(half) + config.frame_offset
+    bar_x_min, bar_x_max = pattern_x_bounds(config, x_tips)
     bar_width = bar_x_max - bar_x_min
     bar_cx = (bar_x_min + bar_x_max) / 2.0
 
