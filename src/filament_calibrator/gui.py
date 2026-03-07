@@ -304,6 +304,59 @@ def build_em_namespace(
     )
 
 
+def build_retraction_namespace(
+    *,
+    filament_type: str,
+    start_retraction: float,
+    end_retraction: float,
+    retraction_step: float,
+    level_height: float = 1.0,
+    nozzle_temp: int,
+    bed_temp: int,
+    fan_speed: int,
+    nozzle_size: float,
+    layer_height: float,
+    extrusion_width: float,
+    printer: str,
+    ascii_gcode: bool,
+    output_dir: str,
+    config_ini: Optional[str],
+    prusaslicer_path: Optional[str],
+    printer_url: Optional[str],
+    api_key: Optional[str],
+    no_upload: bool,
+    print_after_upload: bool,
+) -> argparse.Namespace:
+    """Build an ``argparse.Namespace`` for the retraction-test pipeline."""
+    return argparse.Namespace(
+        filament_type=filament_type,
+        start_retraction=start_retraction,
+        end_retraction=end_retraction,
+        retraction_step=retraction_step,
+        level_height=level_height,
+        nozzle_temp=nozzle_temp,
+        bed_temp=bed_temp,
+        fan_speed=fan_speed,
+        nozzle_size=nozzle_size,
+        layer_height=layer_height,
+        extrusion_width=extrusion_width,
+        printer=printer,
+        ascii_gcode=ascii_gcode,
+        output_dir=output_dir,
+        config_ini=config_ini or None,
+        prusaslicer_path=prusaslicer_path or None,
+        bed_center=None,
+        extra_slicer_args=None,
+        printer_url=printer_url or None,
+        api_key=api_key or None,
+        no_upload=no_upload,
+        print_after_upload=print_after_upload,
+        config=None,
+        keep_files=True,
+        verbose=True,
+    )
+
+
 def _fresh_output_dir(custom_output_dir: str) -> str:
     """Return *custom_output_dir* if set, otherwise a fresh temp directory.
 

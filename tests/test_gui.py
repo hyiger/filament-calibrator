@@ -24,6 +24,7 @@ from filament_calibrator.gui import (
     build_em_namespace,
     build_flow_namespace,
     build_pa_namespace,
+    build_retraction_namespace,
     build_temp_tower_namespace,
     find_output_file,
     get_preset,
@@ -1054,3 +1055,71 @@ class TestBuildCalibrationResults:
         )
         assert r.temperature is None
         assert r.extrusion_multiplier == 0.97
+
+
+# ---------------------------------------------------------------------------
+# build_retraction_namespace
+# ---------------------------------------------------------------------------
+
+class TestBuildRetractionNamespace:
+    """Test build_retraction_namespace()."""
+
+    def test_basic(self) -> None:
+        ns = build_retraction_namespace(
+            filament_type="PLA",
+            start_retraction=0.0,
+            end_retraction=2.0,
+            retraction_step=0.1,
+            level_height=1.0,
+            nozzle_temp=215,
+            bed_temp=60,
+            fan_speed=100,
+            nozzle_size=0.4,
+            layer_height=0.2,
+            extrusion_width=0.45,
+            printer="COREONE",
+            ascii_gcode=False,
+            output_dir="/tmp/retraction",
+            config_ini=None,
+            prusaslicer_path=None,
+            printer_url=None,
+            api_key=None,
+            no_upload=True,
+            print_after_upload=False,
+        )
+        assert ns.start_retraction == 0.0
+        assert ns.end_retraction == 2.0
+        assert ns.retraction_step == 0.1
+        assert ns.level_height == 1.0
+        assert ns.nozzle_temp == 215
+        assert ns.layer_height == 0.2
+        assert ns.extrusion_width == 0.45
+        assert ns.verbose is True
+        assert ns.keep_files is True
+
+    def test_empty_strings_become_none(self) -> None:
+        ns = build_retraction_namespace(
+            filament_type="PETG",
+            start_retraction=0.0,
+            end_retraction=2.0,
+            retraction_step=0.1,
+            nozzle_temp=240,
+            bed_temp=80,
+            fan_speed=50,
+            nozzle_size=0.6,
+            layer_height=0.3,
+            extrusion_width=0.68,
+            printer="MK4S",
+            ascii_gcode=True,
+            output_dir="/tmp/retraction",
+            config_ini="",
+            prusaslicer_path="",
+            printer_url="",
+            api_key="",
+            no_upload=True,
+            print_after_upload=False,
+        )
+        assert ns.config_ini is None
+        assert ns.prusaslicer_path is None
+        assert ns.printer_url is None
+        assert ns.api_key is None

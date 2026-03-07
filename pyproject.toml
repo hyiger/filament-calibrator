@@ -32,6 +32,7 @@ temperature-tower = "filament_calibrator.cli:main"
 extrusion-multiplier = "filament_calibrator.em_cli:main"
 volumetric-flow = "filament_calibrator.flow_cli:main"
 pressure-advance = "filament_calibrator.pa_cli:main"
+retraction-test = "filament_calibrator.retraction_cli:main"
 filament-calibrator-gui = "filament_calibrator.gui:main"
 
 [tool.hatch.build.targets.wheel]
