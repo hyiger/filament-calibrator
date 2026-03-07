@@ -40,6 +40,7 @@ from filament_calibrator.pa_model import (
 from filament_calibrator.pa_pattern import (
     DEFAULT_ARM_LENGTH,
     DEFAULT_CORNER_ANGLE,
+    DEFAULT_FRAME_NUM_LAYERS,
     DEFAULT_FRAME_OFFSET,
     DEFAULT_NUM_LAYERS,
     DEFAULT_PATTERN_SPACING,
@@ -136,6 +137,10 @@ def build_parser() -> argparse.ArgumentParser:
     pat.add_argument(
         "--num-layers", type=int, default=DEFAULT_NUM_LAYERS,
         help=f"Number of layers to print. Default: {DEFAULT_NUM_LAYERS}",
+    )
+    pat.add_argument(
+        "--frame-layers", type=int, default=DEFAULT_FRAME_NUM_LAYERS,
+        help=f"Number of layers for the frame/border. Default: {DEFAULT_FRAME_NUM_LAYERS}",
     )
     pat.add_argument(
         "--pattern-spacing", type=float, default=DEFAULT_PATTERN_SPACING,
@@ -617,6 +622,7 @@ def _run_pattern_pipeline(
         pattern_spacing=args.pattern_spacing,
         wall_thickness=DEFAULT_WALL_THICKNESS,
         frame_offset=args.frame_offset,
+        frame_num_layers=args.frame_layers,
         layer_height=layer_height,
         filament_type=args.filament_type,
     )

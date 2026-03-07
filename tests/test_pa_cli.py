@@ -132,9 +132,10 @@ class TestBuildParser:
         args = p.parse_args(["--start-pa", "0", "--end-pa", "0.1", "--pa-step", "0.01"])
         assert args.corner_angle == 90.0
         assert args.arm_length == 40.0
-        assert args.frame_offset == 3.0
+        assert args.frame_offset == 0.0
         assert args.wall_count == 3
         assert args.num_layers == 4
+        assert args.frame_layers == 1
         assert args.pattern_spacing == 1.6
 
     def test_pattern_options_custom(self):
@@ -147,6 +148,7 @@ class TestBuildParser:
             "--frame-offset", "5",
             "--wall-count", "5",
             "--num-layers", "8",
+            "--frame-layers", "2",
             "--pattern-spacing", "3",
         ])
         assert args.corner_angle == 60.0
@@ -154,6 +156,7 @@ class TestBuildParser:
         assert args.frame_offset == 5.0
         assert args.wall_count == 5
         assert args.num_layers == 8
+        assert args.frame_layers == 2
         assert args.pattern_spacing == 3.0
 
     def test_filament_type_help_lists_presets(self):
@@ -274,8 +277,8 @@ class TestRun:
             ascii_gcode=False,
             config=None, verbose=False,
             # Pattern-specific defaults (used when method="pattern")
-            corner_angle=90.0, arm_length=40.0, frame_offset=3.0,
-            wall_count=3, num_layers=4, pattern_spacing=1.6,
+            corner_angle=90.0, arm_length=40.0, frame_offset=0.0,
+            wall_count=3, num_layers=4, frame_layers=1, pattern_spacing=1.6,
         )
         defaults.update(overrides)
         return argparse.Namespace(**defaults)
@@ -1158,8 +1161,8 @@ class TestRunPattern:
             output_dir=str(tmp_path), keep_files=False,
             ascii_gcode=False,
             config=None, verbose=False,
-            corner_angle=90.0, arm_length=40.0, frame_offset=3.0,
-            wall_count=3, num_layers=4, pattern_spacing=1.6,
+            corner_angle=90.0, arm_length=40.0, frame_offset=0.0,
+            wall_count=3, num_layers=4, frame_layers=1, pattern_spacing=1.6,
         )
         defaults.update(overrides)
         return argparse.Namespace(**defaults)

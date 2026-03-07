@@ -280,9 +280,10 @@ class TestBuildPaNamespace:
         assert ns.level_height == 1.0
         assert ns.corner_angle == 90.0
         assert ns.arm_length == 40.0
-        assert ns.frame_offset == 3.0
+        assert ns.frame_offset == 0.0
         assert ns.wall_count == 3
         assert ns.num_layers == 4
+        assert ns.frame_layers == 1
         assert ns.pattern_spacing == 1.6
 
     def test_method_pattern(self) -> None:
@@ -304,6 +305,7 @@ class TestBuildPaNamespace:
             frame_offset=5.0,
             wall_count=5,
             num_layers=8,
+            frame_layers=2,
             pattern_spacing=3.0,
             printer="MK4S",
             ascii_gcode=True,
@@ -321,6 +323,7 @@ class TestBuildPaNamespace:
         assert ns.frame_offset == 5.0
         assert ns.wall_count == 5
         assert ns.num_layers == 8
+        assert ns.frame_layers == 2
         assert ns.pattern_spacing == 3.0
         assert ns.level_height == 2.0
         assert ns.ascii_gcode is True

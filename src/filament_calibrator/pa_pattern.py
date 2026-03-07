@@ -42,11 +42,25 @@ Defaults to ``DEFAULT_WALL_THICKNESS`` so the gap matches the line width.
 DEFAULT_WALL_THICKNESS: float = 1.6
 """Cross-section thickness of each chevron arm in mm."""
 
-DEFAULT_FRAME_OFFSET: float = 3.0
-"""Margin between outermost chevron arm and inner frame edge in mm."""
+DEFAULT_FRAME_OFFSET: float = 0.0
+"""Margin between outermost chevron arm edge and frame outer edge.
 
-DEFAULT_LABEL_HEIGHT: float = 10.0
+At ``0.0`` the frame outer edge is flush with the arm endpoints so
+the chevron arms extend to the outer border.
+"""
+
+DEFAULT_FRAME_NUM_LAYERS: int = 1
+"""Number of printed layers for the rectangular frame/border."""
+
+DEFAULT_LABEL_HEIGHT: float = 14.0
 """Height of the label strip placed above the frame in mm."""
+
+DEFAULT_CHEVRON_X_INSET: float = 2.0
+"""Horizontal inset of chevron arm endpoints from the left frame edge in mm.
+
+Shifts all chevron tips to the right so the outermost arm endpoints
+do not touch the left frame wall.
+"""
 
 
 # ---------------------------------------------------------------------------
@@ -79,6 +93,7 @@ class PAPatternConfig:
     pattern_spacing: float = DEFAULT_PATTERN_SPACING
     wall_thickness: float = DEFAULT_WALL_THICKNESS
     frame_offset: float = DEFAULT_FRAME_OFFSET
+    frame_num_layers: int = DEFAULT_FRAME_NUM_LAYERS
     layer_height: float = 0.2
     filament_type: str = "PLA"
 
@@ -107,8 +122,13 @@ def chevron_y_extent(arm_length: float, corner_angle: float) -> float:
 
 
 def total_height(config: PAPatternConfig) -> float:
-    """Total Z height of the printed pattern."""
+    """Total Z height of the printed chevrons."""
     return config.num_layers * config.layer_height
+
+
+def frame_height(config: PAPatternConfig) -> float:
+    """Z height of the rectangular frame/border."""
+    return config.frame_num_layers * config.layer_height
 
 
 def tip_spacing(config: PAPatternConfig) -> float:
@@ -299,8 +319,15 @@ def _make_labels(
     x_tips: List[float],
     pa_values: List[float],
     height: float,
+    *,
+    frame_x_tips: Optional[List[float]] = None,
 ) -> cq.Workplane:
-    """Create the label strip with embossed PA values above the frame."""
+    """Create the label strip with embossed PA values above the frame.
+
+    *x_tips* positions the text labels.  If *frame_x_tips* is given, the
+    label-strip bar is sized from those tips instead (so the bar matches a
+    frame that may be wider than the chevron positions).
+    """
     half = math.radians(config.corner_angle / 2)
     _, frame_top = pattern_y_bounds(config)
 
@@ -309,7 +336,8 @@ def _make_labels(
     bar_cy = frame_top + label_strip_height / 2.0
 
     # Bar spans the full frame width.
-    bar_x_min, bar_x_max = pattern_x_bounds(config, x_tips)
+    bar_tips = frame_x_tips if frame_x_tips is not None else x_tips
+    bar_x_min, bar_x_max = pattern_x_bounds(config, bar_tips)
     bar_width = bar_x_max - bar_x_min
     bar_cx = (bar_x_min + bar_x_max) / 2.0
 
@@ -325,7 +353,8 @@ def _make_labels(
     # the top of the frame), not at the tip X.
     arm_end_dx = config.arm_length * math.cos(half)
     label_depth = config.layer_height  # one layer raised
-    font_size = min(3.0, label_strip_height * 0.35)
+    font_size = min(4.0, label_strip_height * 0.25)
+    label_y = bar_cy  # centre text in label strip
     result = bar
     for tx, pa in zip(x_tips, pa_values):
         label_x = tx - arm_end_dx
@@ -333,7 +362,7 @@ def _make_labels(
         text_solid = (
             cq.Workplane("XY")
             .workplane(offset=height)
-            .center(label_x, bar_cy)
+            .center(label_x, label_y)
             .transformed(rotate=(0, 0, 90))
             .text(
                 label_text, font_size, label_depth,
@@ -358,25 +387,36 @@ def generate_pa_pattern_stl(
     Path(output_path).parent.mkdir(parents=True, exist_ok=True)
 
     height = total_height(config)
+    f_height = frame_height(config)
     x_tips = pattern_x_tips(config)
 
-    # Build chevrons.
+    # Shift chevrons to the right so arm endpoints don't touch the left
+    # frame wall.  The frame keeps its original left boundary.
+    inset = DEFAULT_CHEVRON_X_INSET
+    shifted = [round(x + inset, 4) for x in x_tips]
+
+    # Frame tips: original leftmost (left boundary) + shifted (right boundary).
+    frame_tips = [x_tips[0]] + shifted
+
+    # Build chevrons at shifted positions.
     result: cq.Workplane | None = None
-    for tx in x_tips:
+    for tx in shifted:
         chevron = _make_chevron(tx, config, height)
         if result is None:
             result = chevron
         else:
             result = result.union(chevron)
 
-    # Add frame.
-    frame = _make_frame(config, x_tips, height)
+    # Add frame (may be shorter than chevrons).
+    frame = _make_frame(config, frame_tips, f_height)
     result = result.union(frame)
 
     # Add labels if PA values are provided.
-    if pa_values is not None and len(pa_values) == len(x_tips):
-        labels = _make_labels(config, x_tips, pa_values, height)
+    if pa_values is not None and len(pa_values) == len(shifted):
+        labels = _make_labels(
+            config, shifted, pa_values, height, frame_x_tips=frame_tips,
+        )
         result = result.union(labels)
 
     cq.exporters.export(result, output_path, exportType="STL")
-    return output_path, x_tips
+    return output_path, shifted

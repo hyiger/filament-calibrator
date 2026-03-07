@@ -206,8 +206,9 @@ def build_pa_namespace(
     arm_length: float = 40.0,
     wall_count: int = 3,
     num_layers: int = 4,
+    frame_layers: int = 1,
     pattern_spacing: float = 1.6,
-    frame_offset: float = 3.0,
+    frame_offset: float = 0.0,
     printer: str,
     ascii_gcode: bool,
     output_dir: str,
@@ -236,6 +237,7 @@ def build_pa_namespace(
         arm_length=arm_length,
         wall_count=wall_count,
         num_layers=num_layers,
+        frame_layers=frame_layers,
         pattern_spacing=pattern_spacing,
         frame_offset=frame_offset,
         printer=printer,
@@ -1302,8 +1304,9 @@ def _app() -> None:  # pragma: no cover
         pa_arm_length = 40.0
         pa_wall_count = 3
         pa_num_layers = 4
+        pa_frame_layers = 1
         pa_pattern_spacing = 1.6
-        pa_frame_offset = 3.0
+        pa_frame_offset = 0.0
         if method_key == "pattern":
             with st.expander("Pattern Settings"):
                 pa_corner_angle = st.number_input(
@@ -1335,6 +1338,13 @@ def _app() -> None:  # pragma: no cover
                     max_value=20,
                     key="pa_num_layers",
                 )
+                pa_frame_layers = st.number_input(
+                    "Frame Layers",
+                    value=1,
+                    min_value=1,
+                    max_value=10,
+                    key="pa_frame_layers",
+                )
                 pa_pattern_spacing = st.number_input(
                     "Pattern Spacing (mm)",
                     value=1.6,
@@ -1344,7 +1354,7 @@ def _app() -> None:  # pragma: no cover
                 )
                 pa_frame_offset = st.number_input(
                     "Frame Offset (mm)",
-                    value=3.0,
+                    value=0.0,
                     min_value=0.0,
                     step=0.5,
                     key="pa_frame_offset",
@@ -1404,6 +1414,7 @@ def _app() -> None:  # pragma: no cover
                 arm_length=pa_arm_length,
                 wall_count=pa_wall_count,
                 num_layers=pa_num_layers,
+                frame_layers=pa_frame_layers,
                 pattern_spacing=pa_pattern_spacing,
                 frame_offset=pa_frame_offset,
                 printer=printer,

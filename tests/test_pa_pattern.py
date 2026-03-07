@@ -9,6 +9,8 @@ import pytest
 from filament_calibrator.pa_pattern import (
     DEFAULT_ARM_LENGTH,
     DEFAULT_CORNER_ANGLE,
+    DEFAULT_CHEVRON_X_INSET,
+    DEFAULT_FRAME_NUM_LAYERS,
     DEFAULT_FRAME_OFFSET,
     DEFAULT_LABEL_HEIGHT,
     DEFAULT_NUM_LAYERS,
@@ -22,6 +24,7 @@ from filament_calibrator.pa_pattern import (
     _make_labels,
     chevron_x_extent,
     chevron_y_extent,
+    frame_height,
     generate_pa_pattern_stl,
     pattern_x_bounds,
     pattern_x_tips,
@@ -55,10 +58,16 @@ class TestConstants:
         assert DEFAULT_WALL_THICKNESS == 1.6
 
     def test_frame_offset(self):
-        assert DEFAULT_FRAME_OFFSET == 3.0
+        assert DEFAULT_FRAME_OFFSET == 0.0
+
+    def test_frame_num_layers(self):
+        assert DEFAULT_FRAME_NUM_LAYERS == 1
 
     def test_label_height(self):
-        assert DEFAULT_LABEL_HEIGHT == 10.0
+        assert DEFAULT_LABEL_HEIGHT == 14.0
+
+    def test_chevron_x_inset(self):
+        assert DEFAULT_CHEVRON_X_INSET == 2.0
 
 
 # ---------------------------------------------------------------------------
@@ -76,7 +85,8 @@ class TestPAPatternConfig:
         assert cfg.num_layers == 4
         assert cfg.pattern_spacing == 1.6
         assert cfg.wall_thickness == 1.6
-        assert cfg.frame_offset == 3.0
+        assert cfg.frame_offset == 0.0
+        assert cfg.frame_num_layers == 1
         assert cfg.layer_height == 0.2
         assert cfg.filament_type == "PLA"
 
@@ -90,6 +100,7 @@ class TestPAPatternConfig:
             pattern_spacing=3.0,
             wall_thickness=2.0,
             frame_offset=5.0,
+            frame_num_layers=2,
             layer_height=0.1,
             filament_type="PETG",
         )
@@ -101,6 +112,7 @@ class TestPAPatternConfig:
         assert cfg.pattern_spacing == 3.0
         assert cfg.wall_thickness == 2.0
         assert cfg.frame_offset == 5.0
+        assert cfg.frame_num_layers == 2
         assert cfg.layer_height == 0.1
         assert cfg.filament_type == "PETG"
 
@@ -148,6 +160,16 @@ class TestTotalHeight:
     def test_custom(self):
         cfg = PAPatternConfig(num_patterns=3, num_layers=10, layer_height=0.1)
         assert total_height(cfg) == pytest.approx(1.0)
+
+
+class TestFrameHeight:
+    def test_default(self):
+        cfg = PAPatternConfig(num_patterns=3)
+        assert frame_height(cfg) == pytest.approx(1 * 0.2)
+
+    def test_custom(self):
+        cfg = PAPatternConfig(num_patterns=3, frame_num_layers=2, layer_height=0.3)
+        assert frame_height(cfg) == pytest.approx(0.6)
 
 
 # ---------------------------------------------------------------------------
@@ -582,7 +604,7 @@ class TestGeneratePaPatternStl:
 
         assert result_path == out_path
         assert len(x_tips) == 3
-        assert x_tips[1] == pytest.approx(0.0)
+        assert x_tips[1] == pytest.approx(DEFAULT_CHEVRON_X_INSET)
 
     @patch("filament_calibrator.pa_pattern.cq")
     def test_unions_multiple_chevrons_and_frame(self, mock_cq, tmp_path):
