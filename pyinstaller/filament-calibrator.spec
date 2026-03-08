@@ -74,13 +74,11 @@ for pkg in ("streamlit", "cadquery", "OCP", "gcode_lib"):
 
 # Include package metadata (.dist-info) for packages that use
 # importlib.metadata at runtime (e.g. streamlit reads its own version).
-# NOTE: copy_metadata() returns 2-tuples (source, dest_dir) that must be
-# added directly — do NOT run through _to_3_tuples, which would swap the
-# semantics (PyInstaller 6.x interprets 3-tuple as (name, path, typecode),
-# not (path, dest, typecode)).
+# The runtime fallback in gui_entry.py handles the case where metadata
+# still isn't found (e.g. editable installs in CI).
 for pkg in ("streamlit", "filament-calibrator", "gcode-lib"):
     try:
-        a.datas += copy_metadata(pkg)
+        a.datas += _to_3_tuples(copy_metadata(pkg), "DATA")
     except Exception:
         pass
 
