@@ -41,7 +41,9 @@ def _patch_frozen_metadata() -> None:
                 for line in meta_file.read_text().splitlines():
                     if line.lower().startswith("version:"):
                         return line.split(":", 1)[1].strip()
-        raise _meta.PackageNotFoundError(name)
+        # In a frozen bundle all packages are intentionally included;
+        # return a placeholder version rather than crashing.
+        return "0.0.0"
 
     _meta.version = _frozen_version  # type: ignore[assignment]
 
