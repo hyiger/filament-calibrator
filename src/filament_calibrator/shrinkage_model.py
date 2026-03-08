@@ -103,29 +103,37 @@ def _make_cross(config: ShrinkageCrossConfig) -> cq.Workplane:
     interval = WINDOW_INTERVAL
 
     for pos in _window_positions(length, interval, centre_lo, centre_hi):
-        # X arm windows: cut through Y-axis (hole in YZ plane)
+        # X arm windows: cut through the arm in the Y direction.
+        # XZ workplane: offset=(a,b,c) → global (a, -c, b), extrude → -Y.
+        # Arm occupies Y=[0,size], Z=[0,size].  Place rect at Z-centre
+        # (b=half) and start at Y=size (c=-size) so extrude(size) reaches Y=0.
         cross = cross.cut(
             cq.Workplane("XZ")
-            .transformed(offset=(pos, 0, half))
+            .transformed(offset=(pos, half, -size))
             .rect(win, win)
             .extrude(size)
         )
 
     for pos in _window_positions(length, interval, centre_lo, centre_hi):
-        # Y arm windows: cut through X-axis (hole in XZ plane)
+        # Y arm windows: cut through X-axis at the Y arm's X position.
+        # YZ workplane local coords: (globalY, globalZ, globalX).
         y_offset = -(length / 2.0 - half) + pos
         cross = cross.cut(
             cq.Workplane("YZ")
-            .transformed(offset=(0, y_offset, half))
+            .transformed(offset=(y_offset, half, length / 2.0 - half))
             .rect(win, win)
             .extrude(size)
         )
 
     for pos in _window_positions(length, interval, centre_lo, centre_hi):
-        # Z arm windows: cut through Y-axis (hole in XY plane)
+        # Z arm windows: cut through the arm in the Y direction.
+        # XZ workplane: offset=(a,b,c) → global (a, -c, b), extrude → -Y.
+        # Arm occupies X=[length/2-half, length/2+half], Y=[0,size], Z=[0,length].
+        # Place rect at X-centre (a=length/2), Z=pos (b=pos), start at
+        # Y=size (c=-size) so extrude(size) reaches Y=0.
         cross = cross.cut(
-            cq.Workplane("XY")
-            .transformed(offset=(length / 2.0, 0, pos))
+            cq.Workplane("XZ")
+            .transformed(offset=(length / 2.0, pos, -size))
             .rect(win, win)
             .extrude(size)
         )
@@ -139,7 +147,7 @@ def _make_cross(config: ShrinkageCrossConfig) -> cq.Workplane:
     x_label = (
         cq.Workplane("XY")
         .workplane(offset=size)
-        .center(label_offset, 0)
+        .center(label_offset, half)
         .text("X", font, depth, combine=False, halign="center", valign="center")
     )
     cross = cross.union(x_label)
