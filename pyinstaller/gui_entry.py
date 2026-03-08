@@ -48,23 +48,53 @@ def _patch_frozen_metadata() -> None:
     _meta.version = _frozen_version  # type: ignore[assignment]
 
 
-def _patch_streamlit_paths() -> None:
-    """Fix Streamlit's runtime path detection in frozen environments."""
-    if getattr(sys, "frozen", False):
-        bundle_dir = sys._MEIPASS  # type: ignore[attr-defined]
-        os.environ.setdefault(
-            "STREAMLIT_STATIC_PATH",
-            os.path.join(bundle_dir, "streamlit", "static"),
-        )
+def _patch_streamlit_static() -> None:
+    """Force Streamlit to serve static files from the frozen bundle.
+
+    Streamlit checks ``os.path.dirname(streamlit.__file__)`` + ``/static``
+    to decide between production mode (serve files) and development mode
+    (proxy to a Node dev server on port 3000).  In a PyInstaller bundle
+    the static directory may not be found via ``__file__``, so we
+    monkey-patch the server utility that performs this check.
+    """
+    if not getattr(sys, "frozen", False):
+        return
+
+    bundle_dir = sys._MEIPASS  # type: ignore[attr-defined]
+    static_dir = os.path.join(bundle_dir, "streamlit", "static")
+
+    if not os.path.isdir(static_dir):
+        return
+
+    # Patch server_util.get_static_dir (Streamlit >= 1.40)
+    try:
+        from streamlit.web.server import server_util
+
+        server_util.get_static_dir = lambda: static_dir  # type: ignore[attr-defined]
+    except (ImportError, AttributeError):
+        pass
+
+    # Older Streamlit: ensure __file__ points to the extracted package
+    try:
+        import streamlit
+
+        expected = os.path.join(bundle_dir, "streamlit", "__init__.pyc")
+        if not os.path.isfile(expected):
+            expected = os.path.join(bundle_dir, "streamlit", "__init__.py")
+        if os.path.isfile(expected):
+            streamlit.__file__ = expected
+    except Exception:
+        pass
 
 
 def main() -> None:
     """Launch the Streamlit GUI."""
     multiprocessing.freeze_support()  # Required on Windows
     _patch_frozen_metadata()
-    _patch_streamlit_paths()
 
     from streamlit.web.bootstrap import run
+
+    _patch_streamlit_static()
 
     # Resolve the gui.py script path
     if getattr(sys, "frozen", False):
