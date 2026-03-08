@@ -13,7 +13,12 @@ a = Analysis(
     ["gui_entry.py"],
     pathex=[],
     binaries=[],
-    datas=[],
+    datas=[
+        # Streamlit needs the raw .py source to compile and execute.
+        # PyInstaller compiles modules to .pyc in the PYZ archive, so we
+        # must include gui.py as a data file for Streamlit to find it.
+        ("../src/filament_calibrator/gui.py", "filament_calibrator"),
+    ],
     hiddenimports=[
         # --- filament_calibrator package ---
         "filament_calibrator",
