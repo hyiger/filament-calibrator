@@ -615,6 +615,9 @@ def apply_ini_to_session(
         state["em_nozzle_temp"] = nt
         state["flow_nozzle_temp"] = nt
         state["pa_nozzle_temp"] = nt
+        # Derive a temp tower range centred on the INI temperature.
+        state["tt_start_temp"] = nt + 15
+        state["tt_end_temp"] = nt - 15
 
     if "bed_temp" in ini_vals:
         bt = ini_vals["bed_temp"]
@@ -932,6 +935,8 @@ def _app() -> None:  # pragma: no cover
         st.session_state["_preset_nozzle_size"] = nozzle_size
 
     _widget_defaults = {
+        "tt_start_temp": preset["temp_max"],
+        "tt_end_temp": preset["temp_min"],
         "tt_bed_temp": preset["bed"],
         "tt_fan": preset["fan"],
         "em_nozzle_temp": preset["hotend"],
@@ -978,18 +983,18 @@ def _app() -> None:  # pragma: no cover
         with col1:
             start_temp = st.number_input(
                 "Start Temp (\u00b0C) \u2014 bottom",
-                value=preset["temp_max"],
                 min_value=150,
                 max_value=350,
                 step=5,
+                key="tt_start_temp",
             )
         with col2:
             end_temp = st.number_input(
                 "End Temp (\u00b0C) \u2014 top",
-                value=preset["temp_min"],
                 min_value=150,
                 max_value=350,
                 step=5,
+                key="tt_end_temp",
             )
         with col3:
             temp_step = st.number_input(

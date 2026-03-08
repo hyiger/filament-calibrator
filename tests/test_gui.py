@@ -766,10 +766,12 @@ class TestApplyIniToSession:
         }
         apply_ini_to_session(state, ini_vals)
 
-        # Nozzle temp → EM + flow + PA tabs.
+        # Nozzle temp → EM + flow + PA tabs, temp tower range.
         assert state["em_nozzle_temp"] == 220
         assert state["flow_nozzle_temp"] == 220
         assert state["pa_nozzle_temp"] == 220
+        assert state["tt_start_temp"] == 235
+        assert state["tt_end_temp"] == 205
 
         # Bed temp → all four tabs.
         assert state["tt_bed_temp"] == 65
@@ -801,6 +803,8 @@ class TestApplyIniToSession:
         assert state["em_nozzle_temp"] == 210
         assert state["flow_nozzle_temp"] == 210
         assert state["pa_nozzle_temp"] == 210
+        assert state["tt_start_temp"] == 225
+        assert state["tt_end_temp"] == 195
         assert "tt_bed_temp" not in state
         assert "flow_lh" not in state
 
@@ -854,6 +858,8 @@ class TestApplyIniToSession:
         apply_ini_to_session(state, ini_vals, sidebar=False)
         # Tab keys are written.
         assert state["em_nozzle_temp"] == 230
+        assert state["tt_start_temp"] == 245
+        assert state["tt_end_temp"] == 215
         assert state["pa_bed_temp"] == 70
         # Sidebar keys are NOT written.
         assert "sidebar_nozzle_size" not in state
