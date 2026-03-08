@@ -104,6 +104,16 @@ class TestFindConfigPath:
         result = _find_config_path()
         assert result.resolve() == local.resolve()
 
+    def test_home_file(self, tmp_path, monkeypatch):
+        monkeypatch.chdir(tmp_path)  # no local file here
+        home_cfg = tmp_path / "filament-calibrator.toml"
+        home_cfg.write_text("")
+        with patch("filament_calibrator.config.Path.home", return_value=tmp_path):
+            # CWD has no config; home dir does
+            monkeypatch.chdir(tmp_path / "subdir")
+            (tmp_path / "subdir").mkdir()
+            assert _find_config_path() == home_cfg
+
     def test_xdg_file(self, tmp_path, monkeypatch):
         monkeypatch.chdir(tmp_path)  # no local file here
         xdg = tmp_path / ".config" / "filament-calibrator" / "config.toml"
@@ -111,6 +121,28 @@ class TestFindConfigPath:
         xdg.write_text("")
         with patch("filament_calibrator.config.Path.home", return_value=tmp_path):
             assert _find_config_path() == xdg
+
+    def test_local_takes_precedence_over_home(self, tmp_path, monkeypatch):
+        (tmp_path / "subdir").mkdir()
+        monkeypatch.chdir(tmp_path / "subdir")
+        local = tmp_path / "subdir" / "filament-calibrator.toml"
+        local.write_text("")
+        home_cfg = tmp_path / "filament-calibrator.toml"
+        home_cfg.write_text("")
+        with patch("filament_calibrator.config.Path.home", return_value=tmp_path):
+            result = _find_config_path()
+            assert result.resolve() == local.resolve()
+
+    def test_home_takes_precedence_over_xdg(self, tmp_path, monkeypatch):
+        (tmp_path / "subdir").mkdir()
+        monkeypatch.chdir(tmp_path / "subdir")
+        home_cfg = tmp_path / "filament-calibrator.toml"
+        home_cfg.write_text("")
+        xdg = tmp_path / ".config" / "filament-calibrator" / "config.toml"
+        xdg.parent.mkdir(parents=True)
+        xdg.write_text("")
+        with patch("filament_calibrator.config.Path.home", return_value=tmp_path):
+            assert _find_config_path() == home_cfg
 
     def test_local_takes_precedence_over_xdg(self, tmp_path, monkeypatch):
         monkeypatch.chdir(tmp_path)

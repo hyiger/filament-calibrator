@@ -3,7 +3,8 @@
 Lookup order (first found wins):
 1. Explicit ``--config <path>`` CLI flag
 2. ``./filament-calibrator.toml`` (project-local)
-3. ``~/.config/filament-calibrator/config.toml`` (XDG user config)
+3. ``~/filament-calibrator.toml`` (home directory)
+4. ``~/.config/filament-calibrator/config.toml`` (XDG user config)
 """
 from __future__ import annotations
 
@@ -64,7 +65,8 @@ def _find_config_path(explicit: Optional[str] = None) -> Optional[Path]:
     Lookup order:
     1. *explicit* path (from ``--config``)
     2. ``./filament-calibrator.toml``
-    3. ``~/.config/filament-calibrator/config.toml``
+    3. ``~/filament-calibrator.toml``
+    4. ``~/.config/filament-calibrator/config.toml``
     """
     if explicit is not None:
         p = Path(explicit)
@@ -75,6 +77,10 @@ def _find_config_path(explicit: Optional[str] = None) -> Optional[Path]:
     local = Path("filament-calibrator.toml")
     if local.is_file():
         return local
+
+    home = Path.home() / "filament-calibrator.toml"
+    if home.is_file():
+        return home
 
     xdg = Path.home() / ".config" / "filament-calibrator" / "config.toml"
     if xdg.is_file():
