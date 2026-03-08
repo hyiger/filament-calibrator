@@ -16,7 +16,7 @@ jobs:
             artifact: FilamentCalibrator-linux-x86_64
           - os: macos-latest
             artifact: FilamentCalibrator-macos-arm64
-          - os: macos-13
+          - os: macos-14
             artifact: FilamentCalibrator-macos-x86_64
           - os: windows-latest
             artifact: FilamentCalibrator-windows-x86_64
