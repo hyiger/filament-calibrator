@@ -85,6 +85,50 @@ source .venv/bin/activate
 pip install -e .
 ```
 
+## Windows 11
+
+**1. Install uv:**
+
+Open PowerShell and run:
+
+```powershell
+powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 | iex"
+```
+
+Close and reopen PowerShell after installation.
+
+**2. Install PrusaSlicer:**
+
+Download and install PrusaSlicer from
+[prusa3d.com](https://www.prusa3d.com/page/prusaslicer_424/). The installer
+adds it to your PATH automatically.
+
+**3. Install filament-calibrator:**
+
+```powershell
+uv tool install "filament-calibrator[gui]" --python 3.12
+```
+
+The `--python 3.12` flag tells uv to download and use Python 3.12, which
+has `cadquery-ocp` wheels available. Without it, uv may pick a Python
+version that lacks binary wheels (see
+[Python version compatibility](#python-version-compatibility)).
+
+**4. Run:**
+
+```powershell
+filament-calibrator-gui
+```
+
+The CLI tools (`temperature-tower`, `extrusion-multiplier`, `volumetric-flow`,
+`pressure-advance`, `retraction-test`, `shrinkage-test`) are also available
+in any PowerShell or Command Prompt window.
+
+> **Alternative — standalone GUI:** If you prefer not to install Python at
+> all, download the Windows build from
+> [GitHub Releases](https://github.com/hyiger/filament-calibrator/releases),
+> extract the zip, and run `FilamentCalibrator.exe`.
+
 ## Raspberry Pi (Linux ARM64)
 
 The PyPI wheels for `cadquery-ocp` don't include Linux ARM64 builds, so
@@ -111,11 +155,13 @@ source ~/.bashrc
 ```bash
 conda create -n filcal python=3.12 cadquery -c conda-forge
 conda activate filcal
+pip install "ezdxf>=1.0,<1.4"
 pip install "filament-calibrator[gui]"
 ```
 
-Since CadQuery and OCP are already installed by conda, pip will skip those
-dependencies and install the rest (gcode-lib, streamlit, etc.).
+The `ezdxf` upgrade is needed because conda-forge installs a version that is
+too old for CadQuery's DXF exporter. After that, pip installs
+filament-calibrator and its remaining dependencies (gcode-lib, streamlit, etc.).
 
 **3. Run:**
 
@@ -127,9 +173,23 @@ filament-calibrator-gui
 
 You need to `conda activate filcal` each time before using the tools.
 
-> **Note:** PrusaSlicer is also required on your PATH. ARM64 `.AppImage`
-> builds are available from
-> [prusa3d.com](https://www.prusa3d.com/page/prusaslicer_424/).
+**4. Install PrusaSlicer:**
+
+PrusaSlicer is required for slicing. On Raspberry Pi OS, install it via
+[Flatpak](https://flatpak.org/):
+
+```bash
+sudo apt install flatpak
+flatpak remote-add --if-not-exists flathub https://flathub.org/repo/flathub.flatpakrepo
+flatpak install flathub com.prusa3d.PrusaSlicer
+```
+
+Then create a symlink so filament-calibrator can find it (shell aliases
+don't work with subprocess calls):
+
+```bash
+sudo ln -s /var/lib/flatpak/exports/bin/com.prusa3d.PrusaSlicer /usr/local/bin/prusaslicer
+```
 
 ## Conda alternative
 
