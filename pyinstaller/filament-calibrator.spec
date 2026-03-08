@@ -50,15 +50,20 @@ a = Analysis(
 )
 
 # Normalize TOC entries to 3-tuples for PyInstaller 6.x compatibility.
-# collect_all() may return 2-tuples (src, dest) but COLLECT expects
-# 3-tuples (dest_name, src_name, typecode).
+# collect_all() / copy_metadata() return 2-tuples (src_path, dest_dir).
+# COLLECT expects 3-tuples (dest_name, src_path, typecode) where
+# dest_name is the relative path inside the bundle.
+import os
+
 def _to_3_tuples(entries, typecode):
     result = []
     for entry in entries:
         if len(entry) == 3:
             result.append(entry)
         elif len(entry) == 2:
-            result.append((*entry, typecode))
+            src_path, dest_dir = entry
+            dest_name = os.path.join(dest_dir, os.path.basename(src_path))
+            result.append((dest_name, src_path, typecode))
     return result
 
 
