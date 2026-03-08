@@ -85,10 +85,56 @@ source .venv/bin/activate
 pip install -e .
 ```
 
+## Raspberry Pi (Linux ARM64)
+
+The PyPI wheels for `cadquery-ocp` don't include Linux ARM64 builds, so
+`pip install` and `uv tool install` won't work on a Raspberry Pi. Use
+[Miniforge](https://github.com/conda-forge/miniforge) (conda-forge for ARM)
+instead — conda-forge builds OCP for `linux-aarch64`.
+
+**1. Install Miniforge:**
+
+```bash
+curl -L -O https://github.com/conda-forge/miniforge/releases/latest/download/Miniforge3-Linux-aarch64.sh
+bash Miniforge3-Linux-aarch64.sh
+```
+
+Accept the defaults and say **yes** when asked to initialize conda in your
+shell, then restart your shell:
+
+```bash
+source ~/.bashrc
+```
+
+**2. Create an environment with CadQuery and install filament-calibrator:**
+
+```bash
+conda create -n filcal python=3.12 cadquery -c conda-forge
+conda activate filcal
+pip install "filament-calibrator[gui]"
+```
+
+Since CadQuery and OCP are already installed by conda, pip will skip those
+dependencies and install the rest (gcode-lib, streamlit, etc.).
+
+**3. Run:**
+
+```bash
+conda activate filcal
+temperature-tower --help
+filament-calibrator-gui
+```
+
+You need to `conda activate filcal` each time before using the tools.
+
+> **Note:** PrusaSlicer is also required on your PATH. ARM64 `.AppImage`
+> builds are available from
+> [prusa3d.com](https://www.prusa3d.com/page/prusaslicer_424/).
+
 ## Conda alternative
 
-If pip installation doesn't work for your platform, CadQuery can be installed
-via conda-forge:
+If pip installation doesn't work on other platforms, CadQuery can also be
+installed via conda-forge:
 
 ```bash
 conda create -n filament-cal python=3.12
