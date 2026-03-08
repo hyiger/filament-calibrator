@@ -85,6 +85,50 @@ source .venv/bin/activate
 pip install -e .
 ```
 
+## Windows 11
+
+**1. Install uv:**
+
+Open PowerShell and run:
+
+```powershell
+powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 | iex"
+```
+
+Close and reopen PowerShell after installation.
+
+**2. Install PrusaSlicer:**
+
+Download and install PrusaSlicer from
+[prusa3d.com](https://www.prusa3d.com/page/prusaslicer_424/). The installer
+adds it to your PATH automatically.
+
+**3. Install filament-calibrator:**
+
+```powershell
+uv tool install "filament-calibrator[gui]" --python 3.12
+```
+
+The `--python 3.12` flag tells uv to download and use Python 3.12, which
+has `cadquery-ocp` wheels available. Without it, uv may pick a Python
+version that lacks binary wheels (see
+[Python version compatibility](#python-version-compatibility)).
+
+**4. Run:**
+
+```powershell
+filament-calibrator-gui
+```
+
+The CLI tools (`temperature-tower`, `extrusion-multiplier`, `volumetric-flow`,
+`pressure-advance`, `retraction-test`, `shrinkage-test`) are also available
+in any PowerShell or Command Prompt window.
+
+> **Alternative — standalone GUI:** If you prefer not to install Python at
+> all, download the Windows build from
+> [GitHub Releases](https://github.com/hyiger/filament-calibrator/releases),
+> extract the zip, and run `FilamentCalibrator.exe`.
+
 ## Raspberry Pi (Linux ARM64)
 
 The PyPI wheels for `cadquery-ocp` don't include Linux ARM64 builds, so
