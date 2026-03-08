@@ -48,14 +48,21 @@ def _patch_frozen_metadata() -> None:
     _meta.version = _frozen_version  # type: ignore[assignment]
 
 
-def _patch_streamlit_static() -> None:
-    """Force Streamlit to serve static files from the frozen bundle.
+def _patch_streamlit_frozen() -> None:
+    """Force Streamlit into production mode inside a PyInstaller bundle.
 
-    Streamlit checks ``os.path.dirname(streamlit.__file__)`` + ``/static``
-    to decide between production mode (serve files) and development mode
-    (proxy to a Node dev server on port 3000).  In a PyInstaller bundle
-    the static directory may not be found via ``__file__``, so we
-    monkey-patch the server utility that performs this check.
+    Streamlit decides between *production* and *development* mode via the
+    ``global.developmentMode`` config option.  Its default is computed by
+    checking whether ``"site-packages"`` appears in ``streamlit/config.py``'s
+    ``__file__`` path.  In a PyInstaller bundle the path is
+    ``_MEIPASS/streamlit/config.py`` — no ``site-packages`` — so the check
+    returns ``True`` (dev mode) and Streamlit tries to proxy to a Node dev
+    server on port 3000 instead of serving its own static frontend.
+
+    We fix this by:
+    1. Forcing ``global.developmentMode`` to ``False`` in the config system.
+    2. Patching ``file_util.get_static_dir()`` so the Tornado server finds
+       the bundled ``streamlit/static/`` directory.
     """
     if not getattr(sys, "frozen", False):
         return
@@ -63,28 +70,24 @@ def _patch_streamlit_static() -> None:
     bundle_dir = sys._MEIPASS  # type: ignore[attr-defined]
     static_dir = os.path.join(bundle_dir, "streamlit", "static")
 
-    if not os.path.isdir(static_dir):
-        return
-
-    # Patch server_util.get_static_dir (Streamlit >= 1.40)
+    # 1. Disable development mode so the server serves static files itself.
     try:
-        from streamlit.web.server import server_util
+        from streamlit import config
 
-        server_util.get_static_dir = lambda: static_dir  # type: ignore[attr-defined]
-    except (ImportError, AttributeError):
-        pass
-
-    # Older Streamlit: ensure __file__ points to the extracted package
-    try:
-        import streamlit
-
-        expected = os.path.join(bundle_dir, "streamlit", "__init__.pyc")
-        if not os.path.isfile(expected):
-            expected = os.path.join(bundle_dir, "streamlit", "__init__.py")
-        if os.path.isfile(expected):
-            streamlit.__file__ = expected
+        config.set_option(
+            "global.developmentMode", False, where_defined="frozen-bundle"
+        )
     except Exception:
         pass
+
+    # 2. Point file_util.get_static_dir() at the bundled static directory.
+    if os.path.isdir(static_dir):
+        try:
+            from streamlit import file_util
+
+            file_util.get_static_dir = lambda: static_dir  # type: ignore[attr-defined]
+        except (ImportError, AttributeError):
+            pass
 
 
 def main() -> None:
@@ -94,7 +97,7 @@ def main() -> None:
 
     from streamlit.web.bootstrap import run
 
-    _patch_streamlit_static()
+    _patch_streamlit_frozen()
 
     # Resolve the gui.py script path
     if getattr(sys, "frozen", False):
@@ -119,6 +122,7 @@ def main() -> None:
         is_hello=False,
         args=[],
         flag_options={
+            "global.developmentMode": False,
             "server.headless": True,
             "browser.gatherUsageStats": False,
         },
