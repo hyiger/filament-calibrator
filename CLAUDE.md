@@ -3,7 +3,7 @@
 ## Project Overview
 
 **filament-calibrator** is a CLI tool suite for 3D printer filament calibration.
-It contains five tools:
+It contains six tools:
 
 - `temperature-tower` — generates, slices, and uploads temperature tower prints
   to find the optimal printing temperature for a filament.
@@ -27,6 +27,11 @@ It contains five tools:
   height level the firmware retraction length is changed via
   `M207 S<length>`, so the user can inspect stringing at each height to
   find the optimal retraction distance.
+- `shrinkage-test` — generates a parametric 3-axis cross specimen
+  (three perpendicular arms with window cutouts and axis labels),
+  slices it with standard settings, and uploads.  The user prints
+  the cross, measures each arm with calipers, and calculates
+  per-axis shrinkage: `shrinkage % = (nominal − measured) / nominal × 100`.
 
 ## Architecture
 
@@ -41,7 +46,7 @@ src/filament_calibrator/
   model.py          # CadQuery parametric temperature tower model
   slicer.py         # PrusaSlicer CLI wrapper (slice_tower, slice_flow_specimen,
                     #   slice_pa_specimen, slice_em_specimen,
-                    #   slice_retraction_specimen)
+                    #   slice_retraction_specimen, slice_shrinkage_specimen)
   tempinsert.py     # G-code temperature command insertion
   em_cli.py         # extrusion-multiplier argparse CLI, pipeline orchestration
   em_model.py       # CadQuery parametric cube model for EM calibration
@@ -59,7 +64,9 @@ src/filament_calibrator/
   retraction_cli.py   # retraction-test argparse CLI, pipeline orchestration
   retraction_model.py # CadQuery parametric two-tower retraction test model
   retraction_insert.py # G-code M207 retraction length command insertion
-  gui.py            # Streamlit browser GUI wrapping all five CLIs
+  shrinkage_cli.py    # shrinkage-test argparse CLI, pipeline orchestration
+  shrinkage_model.py  # CadQuery parametric 3-axis cross model for shrinkage
+  gui.py            # Streamlit browser GUI wrapping all six CLIs
 ```
 
 ### Key Dependencies
@@ -114,9 +121,16 @@ generate_retraction_tower_stl → slice_retraction_specimen
 patch_slicer_metadata → compute_retraction_levels →
 insert_retraction_commands (M207) → save → optional upload.
 
+**shrinkage-test** (`shrinkage_cli.run()`):
+load_config → apply_config → resolve_preset →
+generate_shrinkage_cross_stl → slice_shrinkage_specimen
+(standard slicing) → load G-code → inject_thumbnails →
+patch_slicer_metadata → save →
+print expected dimensions → optional upload.
+
 ### Filament Preset System
 
-All five CLIs use `--filament-type` to look up defaults from
+All six CLIs use `--filament-type` to look up defaults from
 `gcode_lib.FILAMENT_PRESETS`.  Known presets (PLA, PETG, ABS, ASA, TPU, etc.)
 automatically set nozzle temperature, bed temperature, and fan speed.
 Explicit CLI arguments (`--nozzle-temp`, `--bed-temp`, `--fan-speed`)
@@ -151,6 +165,9 @@ override the preset.  Unknown filament names fall back to safe defaults
   commands to control the retraction length.  Wipe must be disabled
   because PrusaSlicer considers it incompatible with firmware
   retraction.
+- `SHRINKAGE_SLICER_ARGS` — for shrinkage cross slicing (3 perimeters,
+  20% infill, 5 top / 4 bottom solid layers).  Standard slicing for
+  dimensional accuracy — no vase mode, no firmware retraction.
 
 All slicer functions accept `nozzle_diameter` to pass `--nozzle-diameter` to
 PrusaSlicer, and pass `--center` and `--bed-shape` for Prusa MK-series bed
@@ -174,7 +191,8 @@ thumbnail previews.  Use `--ascii-gcode` on the CLI to switch to text
 - Filament preset lookup is case-insensitive (`.upper()`)
 - Shared CLI helpers (`_apply_config`, `_resolve_output_dir`, `_UNSET`,
   `_KNOWN_TYPES`, `_ARGPARSE_DEFAULTS`) live in `cli.py` and are imported
-  by `em_cli.py`, `flow_cli.py`, `pa_cli.py`, and `retraction_cli.py`.
+  by `em_cli.py`, `flow_cli.py`, `pa_cli.py`, `retraction_cli.py`,
+  and `shrinkage_cli.py`.
   Generic filename/preset
   helpers (`unique_suffix`, `safe_filename_part`, `gcode_ext`,
   `resolve_filament_preset`) are imported from `gcode_lib`.
@@ -205,6 +223,7 @@ Entry points:
 - `volumetric-flow` → `filament_calibrator.flow_cli:main`
 - `pressure-advance` → `filament_calibrator.pa_cli:main`
 - `retraction-test` → `filament_calibrator.retraction_cli:main`
+- `shrinkage-test` → `filament_calibrator.shrinkage_cli:main`
 - `filament-calibrator-gui` → `filament_calibrator.gui:main` (requires `[gui]` extra)
 
 ## Common Tasks
@@ -224,10 +243,13 @@ Entry points:
 - **Change retraction tower geometry**: Edit constants in
   `retraction_model.py` (TOWER_DIAMETER, TOWER_SPACING, BASE_LENGTH,
   BASE_WIDTH, BASE_HEIGHT, LEVEL_HEIGHT).
+- **Change shrinkage cross geometry**: Edit constants in
+  `shrinkage_model.py` (ARM_LENGTH, ARM_SIZE, WINDOW_SIZE,
+  WINDOW_INTERVAL, LABEL_DEPTH, LABEL_FONT_SIZE).
 - **Change slicer defaults**: Edit `DEFAULT_SLICER_ARGS` (temp tower),
   `VASE_MODE_SLICER_ARGS` (flow specimen), `PA_SLICER_ARGS` (PA tower),
-  `EM_SLICER_ARGS` (EM cube), or `RETRACTION_SLICER_ARGS` (retraction
-  towers) in `slicer.py`.
+  `EM_SLICER_ARGS` (EM cube), `RETRACTION_SLICER_ARGS` (retraction
+  towers), or `SHRINKAGE_SLICER_ARGS` (shrinkage cross) in `slicer.py`.
 - **Add a new calibration tool**: Create a new module + CLI entry point in
   `pyproject.toml [project.scripts]`.  Import shared helpers from `cli.py`.
 - **Add a new config key**: Add to `CONFIG_KEYS` in `config.py`, add

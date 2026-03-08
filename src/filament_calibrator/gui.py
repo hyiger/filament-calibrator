@@ -406,6 +406,57 @@ def build_retraction_namespace(
     )
 
 
+def build_shrinkage_namespace(
+    *,
+    filament_type: str,
+    arm_length: float,
+    nozzle_temp: int,
+    bed_temp: int,
+    fan_speed: int,
+    nozzle_size: float,
+    nozzle_high_flow: bool = False,
+    nozzle_hardened: bool = False,
+    layer_height: float,
+    extrusion_width: float,
+    printer: str,
+    ascii_gcode: bool,
+    output_dir: str,
+    config_ini: Optional[str],
+    prusaslicer_path: Optional[str],
+    printer_url: Optional[str],
+    api_key: Optional[str],
+    no_upload: bool,
+    print_after_upload: bool,
+) -> argparse.Namespace:
+    """Build an ``argparse.Namespace`` for the shrinkage-test pipeline."""
+    return argparse.Namespace(
+        filament_type=filament_type,
+        arm_length=arm_length,
+        nozzle_temp=nozzle_temp,
+        bed_temp=bed_temp,
+        fan_speed=fan_speed,
+        nozzle_size=nozzle_size,
+        nozzle_high_flow=nozzle_high_flow,
+        nozzle_hardened=nozzle_hardened,
+        layer_height=layer_height,
+        extrusion_width=extrusion_width,
+        printer=printer,
+        ascii_gcode=ascii_gcode,
+        output_dir=output_dir,
+        config_ini=config_ini or None,
+        prusaslicer_path=prusaslicer_path or None,
+        bed_center=None,
+        extra_slicer_args=None,
+        printer_url=printer_url or None,
+        api_key=api_key or None,
+        no_upload=no_upload,
+        print_after_upload=print_after_upload,
+        config=None,
+        keep_files=True,
+        verbose=True,
+    )
+
+
 def _fresh_output_dir(custom_output_dir: str) -> str:
     """Return *custom_output_dir* if set, otherwise a fresh temp directory.
 
@@ -782,6 +833,7 @@ def _app() -> None:  # pragma: no cover
     from filament_calibrator.flow_cli import run as flow_run
     from filament_calibrator.pa_cli import run as pa_run
     from filament_calibrator.retraction_cli import run as retraction_run
+    from filament_calibrator.shrinkage_cli import run as shrinkage_run
 
     st.set_page_config(
         page_title="Filament Calibrator",
@@ -1020,6 +1072,11 @@ def _app() -> None:  # pragma: no cover
         "retraction_fan": preset["fan"],
         "retraction_lh": derived_lh,
         "retraction_ew": derived_ew,
+        "shrinkage_nozzle_temp": preset["hotend"],
+        "shrinkage_bed_temp": preset["bed"],
+        "shrinkage_fan": preset["fan"],
+        "shrinkage_lh": derived_lh,
+        "shrinkage_ew": derived_ew,
     }
     for _wk, _wv in _widget_defaults.items():
         if _wk not in st.session_state or _defaults_changed:
@@ -1032,9 +1089,10 @@ def _app() -> None:  # pragma: no cover
         apply_ini_to_session(st.session_state, _ini_vals, sidebar=False)
 
     # --- Tabs ---
-    tab_temp, tab_em, tab_flow, tab_pa, tab_retraction, tab_results = st.tabs([
+    (tab_temp, tab_em, tab_flow, tab_pa, tab_retraction,
+     tab_shrinkage, tab_results) = st.tabs([
         "Temperature Tower", "Extrusion Multiplier", "Volumetric Flow",
-        "Pressure Advance", "Retraction Test", "Results",
+        "Pressure Advance", "Retraction Test", "Shrinkage", "Results",
     ])
 
     # === Tab 1: Temperature Tower ===
@@ -1781,7 +1839,120 @@ def _app() -> None:  # pragma: no cover
         if _run and _run["tab"] == "retraction":
             _show_results(st, _run)
 
-    # === Tab 6: Calibration Results ===
+    # === Tab 6: Shrinkage ===
+    with tab_shrinkage:
+        st.subheader("Shrinkage Test")
+        st.caption(
+            "Generate a 3-axis calibration cross. Print it, measure each "
+            "arm with calipers, and calculate: "
+            "shrinkage = (nominal \u2212 measured) / nominal \u00d7 100."
+        )
+
+        col1, col2, col3 = st.columns(3)
+        with col1:
+            shrinkage_nozzle_temp = st.number_input(
+                "Nozzle Temp (\u00b0C)",
+                min_value=150,
+                max_value=350,
+                key="shrinkage_nozzle_temp",
+            )
+        with col2:
+            shrinkage_bed_temp = st.number_input(
+                "Bed Temp (\u00b0C)",
+                min_value=0,
+                max_value=150,
+                key="shrinkage_bed_temp",
+            )
+        with col3:
+            shrinkage_fan = st.number_input(
+                "Fan Speed (%)",
+                min_value=0,
+                max_value=100,
+                key="shrinkage_fan",
+            )
+
+        with st.expander("Advanced Slicer Settings"):
+            shrinkage_arm_length = st.number_input(
+                "Arm Length (mm)",
+                value=100.0,
+                min_value=20.0,
+                max_value=200.0,
+                step=10.0,
+                key="shrinkage_arm_length",
+            )
+            shrinkage_layer_height = st.number_input(
+                "Layer Height (mm)",
+                min_value=0.05,
+                max_value=1.0,
+                format="%.2f",
+                key="shrinkage_lh",
+            )
+            shrinkage_extrusion_width = st.number_input(
+                "Extrusion Width (mm)",
+                min_value=0.1,
+                max_value=2.0,
+                format="%.2f",
+                key="shrinkage_ew",
+            )
+
+        st.info(
+            f"Expected dimensions: X={shrinkage_arm_length:.1f}  "
+            f"Y={shrinkage_arm_length:.1f}  "
+            f"Z={shrinkage_arm_length:.1f} mm"
+        )
+
+        if st.button("Generate Shrinkage Cross", type="primary",
+                      key="run_shrinkage"):
+            _temp_err = _check_printer_temps(
+                printer, shrinkage_nozzle_temp, shrinkage_bed_temp,
+            )
+            if _temp_err:
+                st.error(_temp_err)
+                st.stop()
+            run_dir = _fresh_output_dir(custom_output_dir)
+            args = build_shrinkage_namespace(
+                filament_type=filament_type,
+                arm_length=shrinkage_arm_length,
+                nozzle_temp=shrinkage_nozzle_temp,
+                bed_temp=shrinkage_bed_temp,
+                fan_speed=shrinkage_fan,
+                nozzle_size=nozzle_size,
+                nozzle_high_flow=nozzle_high_flow,
+                nozzle_hardened=nozzle_hardened,
+                layer_height=shrinkage_layer_height,
+                extrusion_width=shrinkage_extrusion_width,
+                printer=printer,
+                ascii_gcode=ascii_gcode,
+                output_dir=run_dir,
+                config_ini=config_ini,
+                prusaslicer_path=prusaslicer_path,
+                printer_url=None,
+                api_key=None,
+                no_upload=True,
+                print_after_upload=False,
+            )
+            with st.spinner("Running shrinkage test pipeline..."):
+                success, log = run_pipeline(shrinkage_run, args)
+            st.session_state["_last_run"] = {
+                "output_dir": run_dir,
+                "ascii_gcode": ascii_gcode,
+                "success": success,
+                "log": log,
+                "tab": "shrinkage",
+                "upload_enabled": enable_upload,
+                "printer_url": printer_url,
+                "api_key": api_key,
+            }
+            st.session_state.pop("_upload_status", None)
+            st.session_state.pop("_upload_message", None)
+            st.session_state.pop("_print_after", None)
+            st.session_state.pop("upload_print_after", None)
+
+        _run = st.session_state.get("_last_run")
+        if _run and _run["tab"] == "shrinkage":
+            _show_results(st, _run)
+
+    # === Tab 7: Calibration Results ===
     with tab_results:
         st.subheader("Calibration Results")
         st.markdown(

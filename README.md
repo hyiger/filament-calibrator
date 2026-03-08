@@ -9,6 +9,7 @@ CLI tool suite for 3D printer filament calibration on Prusa printers.
 - **[Volumetric Flow](docs/volumetric-flow.md)** — determine maximum volumetric flow rate for a filament/hotend combination
 - **[Pressure Advance](docs/pressure-advance.md)** — find the optimal PA/Linear Advance value (tower or chevron pattern method)
 - **[Retraction Test](docs/retraction-test.md)** — find the optimal retraction distance by inspecting stringing between two towers
+- **[Shrinkage Test](docs/shrinkage.md)** — measure per-axis shrinkage (X/Y/Z) by printing a 3-axis calibration cross
 
 ## Quick Start
 
@@ -29,7 +30,7 @@ run.
 
 ## GUI
 
-A [Streamlit browser GUI](docs/gui.md) wraps all five tools:
+A [Streamlit browser GUI](docs/gui.md) wraps all six tools:
 
 ```bash
 pip install -e ".[gui]"

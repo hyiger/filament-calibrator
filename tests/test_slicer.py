@@ -15,12 +15,14 @@ from filament_calibrator.slicer import (
     PA_PATTERN_SLICER_ARGS,
     PA_SLICER_ARGS,
     RETRACTION_SLICER_ARGS,
+    SHRINKAGE_SLICER_ARGS,
     VASE_MODE_SLICER_ARGS,
     slice_em_specimen,
     slice_flow_specimen,
     slice_pa_pattern,
     slice_pa_specimen,
     slice_retraction_specimen,
+    slice_shrinkage_specimen,
     slice_tower,
 )
 
@@ -2098,6 +2100,230 @@ class TestSliceRetractionSpecimen:
 
         slice_retraction_specimen(
             "/tmp/t.stl", "/tmp/t.gcode",
+            config_ini="/config.ini",
+            extra_args=["--custom", "val"],
+        )
+
+        req = mock_slice.call_args[0][1]
+        assert "--custom" in req.extra_args
+        assert "val" in req.extra_args
+
+
+# ---------------------------------------------------------------------------
+# SHRINKAGE_SLICER_ARGS
+# ---------------------------------------------------------------------------
+
+
+# ---------------------------------------------------------------------------
+# slice_shrinkage_specimen
+# ---------------------------------------------------------------------------
+
+
+class TestSliceShrinkageSpecimen:
+    @patch("filament_calibrator.slicer.gl.slice_model")
+    @patch("filament_calibrator.slicer.gl.find_prusaslicer_executable")
+    def test_with_config_ini(self, mock_find, mock_slice):
+        mock_find.return_value = "/usr/bin/prusa-slicer"
+        mock_slice.return_value = gl.RunResult(
+            cmd=[], returncode=0, stdout="ok", stderr=""
+        )
+
+        result = slice_shrinkage_specimen(
+            stl_path="/tmp/shrinkage.stl",
+            output_gcode_path="/tmp/shrinkage.gcode",
+            config_ini="/path/to/config.ini",
+        )
+
+        assert result.ok
+        req = mock_slice.call_args[0][1]
+        assert req.config_ini == "/path/to/config.ini"
+        # With config_ini, default slicer args should NOT be added
+        for key in SHRINKAGE_SLICER_ARGS:
+            assert f"--{key}" not in " ".join(req.extra_args)
+
+    @patch("filament_calibrator.slicer.gl.slice_model")
+    @patch("filament_calibrator.slicer.gl.find_prusaslicer_executable")
+    def test_without_config_ini(self, mock_find, mock_slice):
+        mock_find.return_value = "/usr/bin/prusa-slicer"
+        mock_slice.return_value = gl.RunResult(
+            cmd=[], returncode=0, stdout="ok", stderr=""
+        )
+
+        slice_shrinkage_specimen(
+            stl_path="/tmp/shrinkage.stl",
+            output_gcode_path="/tmp/shrinkage.gcode",
+        )
+
+        req = mock_slice.call_args[0][1]
+        # Default args should be applied
+        for key, val in SHRINKAGE_SLICER_ARGS.items():
+            assert f"--{key}={val}" in req.extra_args
+
+    @patch("filament_calibrator.slicer.gl.slice_model")
+    @patch("filament_calibrator.slicer.gl.find_prusaslicer_executable")
+    def test_no_spiral_vase(self, mock_find, mock_slice):
+        """--spiral-vase should NOT be in the CLI args."""
+        mock_find.return_value = "/usr/bin/prusa-slicer"
+        mock_slice.return_value = gl.RunResult(
+            cmd=[], returncode=0, stdout="", stderr=""
+        )
+
+        slice_shrinkage_specimen("/tmp/s.stl", "/tmp/s.gcode")
+
+        req = mock_slice.call_args[0][1]
+        assert "--spiral-vase" not in req.extra_args
+
+    @patch("filament_calibrator.slicer.gl.slice_model")
+    @patch("filament_calibrator.slicer.gl.find_prusaslicer_executable")
+    def test_defaults_used_without_config_ini(self, mock_find, mock_slice):
+        """All SHRINKAGE_SLICER_ARGS present when no config_ini."""
+        mock_find.return_value = "/usr/bin/prusa-slicer"
+        mock_slice.return_value = gl.RunResult(
+            cmd=[], returncode=0, stdout="", stderr=""
+        )
+
+        slice_shrinkage_specimen("/tmp/s.stl", "/tmp/s.gcode")
+
+        req = mock_slice.call_args[0][1]
+        for key, val in SHRINKAGE_SLICER_ARGS.items():
+            assert f"--{key}={val}" in req.extra_args
+
+    @patch("filament_calibrator.slicer.gl.slice_model")
+    @patch("filament_calibrator.slicer.gl.find_prusaslicer_executable")
+    def test_layer_height_and_extrusion_width(self, mock_find, mock_slice):
+        mock_find.return_value = "/usr/bin/prusa-slicer"
+        mock_slice.return_value = gl.RunResult(
+            cmd=[], returncode=0, stdout="", stderr=""
+        )
+
+        slice_shrinkage_specimen(
+            "/tmp/s.stl", "/tmp/s.gcode",
+            layer_height=0.3, extrusion_width=0.68,
+        )
+
+        req = mock_slice.call_args[0][1]
+        assert "--layer-height=0.3" in req.extra_args
+        assert "--extrusion-width=0.68" in req.extra_args
+
+    @patch("filament_calibrator.slicer.gl.slice_model")
+    @patch("filament_calibrator.slicer.gl.find_prusaslicer_executable")
+    def test_temp_bed_fan(self, mock_find, mock_slice):
+        mock_find.return_value = "/usr/bin/prusa-slicer"
+        mock_slice.return_value = gl.RunResult(
+            cmd=[], returncode=0, stdout="", stderr=""
+        )
+
+        slice_shrinkage_specimen(
+            "/tmp/s.stl", "/tmp/s.gcode",
+            nozzle_temp=230, bed_temp=80, fan_speed=50,
+        )
+
+        req = mock_slice.call_args[0][1]
+        assert "--temperature=230" in req.extra_args
+        assert "--first-layer-temperature=230" in req.extra_args
+        assert "--bed-temperature=80" in req.extra_args
+        assert "--first-layer-bed-temperature=80" in req.extra_args
+        assert "--max-fan-speed=50" in req.extra_args
+        assert "--min-fan-speed=50" in req.extra_args
+
+    @patch("filament_calibrator.slicer.gl.slice_model")
+    @patch("filament_calibrator.slicer.gl.find_prusaslicer_executable")
+    def test_bed_center_default(self, mock_find, mock_slice):
+        mock_find.return_value = "/usr/bin/prusa-slicer"
+        mock_slice.return_value = gl.RunResult(
+            cmd=[], returncode=0, stdout="", stderr=""
+        )
+
+        slice_shrinkage_specimen("/tmp/s.stl", "/tmp/s.gcode")
+
+        req = mock_slice.call_args[0][1]
+        assert f"--center={DEFAULT_BED_CENTER}" in req.extra_args
+
+    @patch("filament_calibrator.slicer.gl.slice_model")
+    @patch("filament_calibrator.slicer.gl.find_prusaslicer_executable")
+    def test_bed_center_custom(self, mock_find, mock_slice):
+        mock_find.return_value = "/usr/bin/prusa-slicer"
+        mock_slice.return_value = gl.RunResult(
+            cmd=[], returncode=0, stdout="", stderr=""
+        )
+
+        slice_shrinkage_specimen(
+            "/tmp/s.stl", "/tmp/s.gcode", bed_center="90,90",
+        )
+
+        req = mock_slice.call_args[0][1]
+        assert "--center=90,90" in req.extra_args
+
+    @patch("filament_calibrator.slicer.gl.slice_model")
+    @patch("filament_calibrator.slicer.gl.find_prusaslicer_executable")
+    def test_nozzle_diameter(self, mock_find, mock_slice):
+        mock_find.return_value = "/usr/bin/prusa-slicer"
+        mock_slice.return_value = gl.RunResult(
+            cmd=[], returncode=0, stdout="", stderr=""
+        )
+
+        slice_shrinkage_specimen(
+            "/tmp/s.stl", "/tmp/s.gcode", nozzle_diameter=0.6,
+        )
+
+        req = mock_slice.call_args[0][1]
+        assert "--nozzle-diameter=0.6" in req.extra_args
+
+    @patch("filament_calibrator.slicer.gl.slice_model")
+    @patch("filament_calibrator.slicer.gl.find_prusaslicer_executable")
+    def test_binary_gcode_default(self, mock_find, mock_slice):
+        """binary_gcode defaults to True."""
+        mock_find.return_value = "/usr/bin/prusa-slicer"
+        mock_slice.return_value = gl.RunResult(
+            cmd=[], returncode=0, stdout="", stderr=""
+        )
+
+        slice_shrinkage_specimen("/tmp/s.stl", "/tmp/s.gcode")
+
+        req = mock_slice.call_args[0][1]
+        assert "--binary-gcode" in req.extra_args
+
+    @patch("filament_calibrator.slicer.gl.slice_model")
+    @patch("filament_calibrator.slicer.gl.find_prusaslicer_executable")
+    def test_binary_gcode_false(self, mock_find, mock_slice):
+        """binary_gcode=False → no --binary-gcode."""
+        mock_find.return_value = "/usr/bin/prusa-slicer"
+        mock_slice.return_value = gl.RunResult(
+            cmd=[], returncode=0, stdout="", stderr=""
+        )
+
+        slice_shrinkage_specimen(
+            "/tmp/s.stl", "/tmp/s.gcode", binary_gcode=False,
+        )
+
+        req = mock_slice.call_args[0][1]
+        assert "--binary-gcode" not in req.extra_args
+
+    @patch("filament_calibrator.slicer.gl.slice_model")
+    @patch("filament_calibrator.slicer.gl.find_prusaslicer_executable")
+    def test_printer_model_passed(self, mock_find, mock_slice):
+        mock_find.return_value = "/usr/bin/prusa-slicer"
+        mock_slice.return_value = gl.RunResult(
+            cmd=[], returncode=0, stdout="", stderr=""
+        )
+
+        slice_shrinkage_specimen(
+            "/tmp/s.stl", "/tmp/s.gcode", printer_model="COREONE",
+        )
+
+        req = mock_slice.call_args[0][1]
+        assert "--printer-model=COREONE" in req.extra_args
+
+    @patch("filament_calibrator.slicer.gl.slice_model")
+    @patch("filament_calibrator.slicer.gl.find_prusaslicer_executable")
+    def test_extra_args(self, mock_find, mock_slice):
+        mock_find.return_value = "/usr/bin/prusa-slicer"
+        mock_slice.return_value = gl.RunResult(
+            cmd=[], returncode=0, stdout="", stderr=""
+        )
+
+        slice_shrinkage_specimen(
+            "/tmp/s.stl", "/tmp/s.gcode",
             config_ini="/config.ini",
             extra_args=["--custom", "val"],
         )
