@@ -49,12 +49,25 @@ a = Analysis(
     noarchive=False,
 )
 
+# Normalize TOC entries to 3-tuples for PyInstaller 6.x compatibility.
+# collect_all() may return 2-tuples (src, dest) but COLLECT expects
+# 3-tuples (dest_name, src_name, typecode).
+def _to_3_tuples(entries, typecode):
+    result = []
+    for entry in entries:
+        if len(entry) == 3:
+            result.append(entry)
+        elif len(entry) == 2:
+            result.append((*entry, typecode))
+    return result
+
+
 # Collect data files and binaries for packages with native/static assets.
 for pkg in ("streamlit", "cadquery", "OCP", "gcode_lib"):
     try:
         datas, binaries, hiddenimports = collect_all(pkg)
-        a.datas += datas
-        a.binaries += binaries
+        a.datas += _to_3_tuples(datas, "DATA")
+        a.binaries += _to_3_tuples(binaries, "BINARY")
         a.hiddenimports += hiddenimports
     except Exception:
         pass  # Package may not be installed
