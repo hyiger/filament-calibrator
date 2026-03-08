@@ -62,8 +62,16 @@ def _to_3_tuples(entries, typecode):
             result.append(entry)
         elif len(entry) == 2:
             src_path, dest_dir = entry
-            dest_name = os.path.join(dest_dir, os.path.basename(src_path))
-            result.append((dest_name, src_path, typecode))
+            if os.path.isdir(src_path):
+                # Walk directories (e.g. .dist-info from copy_metadata)
+                for root, _dirs, files in os.walk(src_path):
+                    for f in files:
+                        src_file = os.path.join(root, f)
+                        rel = os.path.relpath(src_file, os.path.dirname(src_path))
+                        result.append((rel, src_file, typecode))
+            else:
+                dest_name = os.path.join(dest_dir, os.path.basename(src_path))
+                result.append((dest_name, src_path, typecode))
     return result
 
 
