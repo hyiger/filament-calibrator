@@ -2,14 +2,51 @@
 
 ## Prerequisites
 
-- **Python 3.10 or 3.12** (see [note on Python versions](#python-version-compatibility)
-  below)
 - **PrusaSlicer** installed and available on your `PATH` (or provide
   `--prusaslicer-path`). Download from
   [prusa3d.com](https://www.prusa3d.com/page/prusaslicer_424/).
 - A Prusa printer with **PrusaLink** enabled (only needed for uploading).
 
-## Install
+## Install from PyPI
+
+The easiest way to install. Requires **Python 3.10 or 3.12** (see
+[note on Python versions](#python-version-compatibility) below).
+
+```bash
+# Recommended — uv installs its own Python, no prerequisites
+uv tool install filament-calibrator
+
+# Alternative — requires Python already installed
+pipx install filament-calibrator
+
+# Or with plain pip in a virtual environment
+pip install filament-calibrator
+```
+
+This makes the `temperature-tower`, `extrusion-multiplier`, `volumetric-flow`,
+`pressure-advance`, `retraction-test`, and `shrinkage-test` commands available
+on your PATH.
+
+To include the browser GUI:
+
+```bash
+uv tool install "filament-calibrator[gui]"
+# or: pipx install "filament-calibrator[gui]"
+```
+
+## Standalone GUI (no Python required)
+
+Download a pre-built binary for your platform from the
+[GitHub Releases](https://github.com/hyiger/filament-calibrator/releases) page.
+Extract the archive and run the `FilamentCalibrator` executable — it opens the
+Streamlit GUI in your browser.
+
+Available for Linux (x86_64), macOS (ARM64 and Intel), and Windows (x86_64).
+
+> **macOS note:** Unsigned binaries are blocked by Gatekeeper. Right-click the
+> app and select "Open" to bypass the warning on first launch.
+
+## Install from source
 
 Create a virtual environment and install:
 
@@ -25,9 +62,9 @@ This pulls all Python dependencies from PyPI automatically:
 manipulation.
 
 The `temperature-tower`, `extrusion-multiplier`, `volumetric-flow`,
-`pressure-advance`, and `retraction-test` commands are available whenever the
-venv is active. To reactivate later, run `source .venv/bin/activate` from the
-project directory.
+`pressure-advance`, `retraction-test`, and `shrinkage-test` commands are
+available whenever the venv is active. To reactivate later, run
+`source .venv/bin/activate` from the project directory.
 
 ## Python version compatibility
 

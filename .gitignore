@@ -35,5 +35,9 @@ output/
 # User config (may contain API keys)
 filament-calibrator.toml
 
+# PyInstaller
+pyinstaller/build/
+pyinstaller/dist/
+
 # Claude Code
 .claude/

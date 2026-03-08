@@ -1,6 +1,6 @@
 # GUI
 
-A Streamlit browser GUI wraps all five CLI tools. Install and run:
+A Streamlit browser GUI wraps all six CLI tools. Install and run:
 
 ```bash
 pip install -e ".[gui]"

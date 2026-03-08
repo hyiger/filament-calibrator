@@ -1,9 +1,9 @@
 """Streamlit GUI for filament calibration tools.
 
-Provides a browser-based interface to the temperature-tower,
-extrusion-multiplier, volumetric-flow, and pressure-advance CLI
-pipelines.  All heavy lifting (CAD, slicing, G-code processing)
-runs server-side.
+Provides a browser-based interface to all six CLI pipelines
+(temperature-tower, extrusion-multiplier, retraction-test,
+pressure-advance, volumetric-flow, shrinkage-test).
+All heavy lifting (CAD, slicing, G-code processing) runs server-side.
 """
 from __future__ import annotations
 

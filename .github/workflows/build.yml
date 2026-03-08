@@ -1,0 +1,64 @@
+name: Build Standalone
+
+on:
+  release:
+    types: [published]
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    strategy:
+      matrix:
+        include:
+          - os: ubuntu-latest
+            artifact: FilamentCalibrator-linux-x86_64
+          - os: macos-latest
+            artifact: FilamentCalibrator-macos-arm64
+          - os: macos-13
+            artifact: FilamentCalibrator-macos-x86_64
+          - os: windows-latest
+            artifact: FilamentCalibrator-windows-x86_64
+    runs-on: ${{ matrix.os }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: |
+          pip install -e ".[gui]"
+          pip install pyinstaller
+
+      - name: Build with PyInstaller
+        working-directory: pyinstaller
+        run: pyinstaller filament-calibrator.spec
+
+      - name: Package (Linux/macOS)
+        if: runner.os != 'Windows'
+        run: |
+          cd pyinstaller/dist
+          tar -czf ${{ matrix.artifact }}.tar.gz FilamentCalibrator/
+
+      - name: Package (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          Compress-Archive -Path pyinstaller\dist\FilamentCalibrator\* `
+            -DestinationPath pyinstaller\dist\${{ matrix.artifact }}.zip
+
+      - name: Upload to Release (Linux/macOS)
+        if: runner.os != 'Windows'
+        uses: softprops/action-gh-release@v2
+        with:
+          files: pyinstaller/dist/${{ matrix.artifact }}.tar.gz
+
+      - name: Upload to Release (Windows)
+        if: runner.os == 'Windows'
+        uses: softprops/action-gh-release@v2
+        with:
+          files: pyinstaller/dist/${{ matrix.artifact }}.zip

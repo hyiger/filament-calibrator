@@ -1,5 +1,8 @@
 # filament-calibrator
 
+[![Tests](https://github.com/hyiger/filament-calibrator/actions/workflows/test.yml/badge.svg)](https://github.com/hyiger/filament-calibrator/actions/workflows/test.yml)
+[![PyPI](https://img.shields.io/pypi/v/filament-calibrator)](https://pypi.org/project/filament-calibrator/)
+
 CLI tool suite for 3D printer filament calibration on Prusa printers.
 
 ## Calibration Tools
@@ -13,14 +16,18 @@ CLI tool suite for 3D printer filament calibration on Prusa printers.
 
 ## Quick Start
 
-Requires **Python 3.10 or 3.12** and **PrusaSlicer** on your PATH. See the
-full [installation guide](docs/installation.md) for details.
+Install from PyPI (requires **Python 3.10 or 3.12** and **PrusaSlicer** on
+your PATH):
 
 ```bash
-python3 -m venv .venv
-source .venv/bin/activate
-pip install -e .
+uv tool install filament-calibrator
 ```
+
+Or download a standalone GUI binary from
+[Releases](https://github.com/hyiger/filament-calibrator/releases) — no
+Python needed.
+
+See the full [installation guide](docs/installation.md) for all options.
 
 ## Configuration
 
