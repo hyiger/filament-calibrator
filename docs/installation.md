@@ -41,7 +41,7 @@ Download a pre-built binary for your platform from the
 Extract the archive and run the `FilamentCalibrator` executable — it opens the
 Streamlit GUI in your browser.
 
-Available for Linux (x86_64), macOS (ARM64 and Intel), and Windows (x86_64).
+Available for Linux (x86_64 and ARM64), macOS (ARM64), and Windows (x86_64).
 
 > **macOS note:** Downloaded binaries are quarantined by Gatekeeper. Remove
 > the quarantine attribute before running:
