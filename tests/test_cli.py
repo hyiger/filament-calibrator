@@ -327,44 +327,49 @@ class TestResolveOutputDir:
 
 
 class TestPatchM862NozzleFlags:
+    @staticmethod
+    def _raws(lines):
+        return [l.raw if isinstance(l, gl.GCodeLine) else l for l in lines]
+
     def test_no_flags(self):
-        lines = ["M862.1 P0.4", "G28"]
+        lines = [gl.parse_line("M862.1 P0.4"), gl.parse_line("G28")]
         result = _patch_m862_nozzle_flags(lines)
-        assert result == ["M862.1 P0.4 A0 F0", "G28"]
+        assert self._raws(result) == ["M862.1 P0.4 A0 F0", "G28"]
 
     def test_hardened_only(self):
-        lines = ["M862.1 P0.4"]
+        lines = [gl.parse_line("M862.1 P0.4")]
         result = _patch_m862_nozzle_flags(lines, nozzle_hardened=True)
-        assert result == ["M862.1 P0.4 A1 F0"]
+        assert self._raws(result) == ["M862.1 P0.4 A1 F0"]
 
     def test_high_flow_only(self):
-        lines = ["M862.1 P0.6"]
+        lines = [gl.parse_line("M862.1 P0.6")]
         result = _patch_m862_nozzle_flags(lines, nozzle_high_flow=True)
-        assert result == ["M862.1 P0.6 A0 F1"]
+        assert self._raws(result) == ["M862.1 P0.6 A0 F1"]
 
     def test_both_flags(self):
-        lines = ["M862.1 P0.4"]
+        lines = [gl.parse_line("M862.1 P0.4")]
         result = _patch_m862_nozzle_flags(
             lines, nozzle_hardened=True, nozzle_high_flow=True,
         )
-        assert result == ["M862.1 P0.4 A1 F1"]
+        assert self._raws(result) == ["M862.1 P0.4 A1 F1"]
 
     def test_no_m862_lines(self):
-        lines = ["G28", "G1 X10 Y10", "M104 S200"]
+        lines = [gl.parse_line("G28"), gl.parse_line("G1 X10 Y10"),
+                 gl.parse_line("M104 S200")]
         result = _patch_m862_nozzle_flags(lines)
         assert result == lines
 
     def test_idempotent_repatch(self):
-        lines = ["M862.1 P0.4 A0 F0"]
+        lines = [gl.parse_line("M862.1 P0.4 A0 F0")]
         result = _patch_m862_nozzle_flags(
             lines, nozzle_hardened=True, nozzle_high_flow=True,
         )
-        assert result == ["M862.1 P0.4 A1 F1"]
+        assert self._raws(result) == ["M862.1 P0.4 A1 F1"]
 
     def test_preserves_trailing_comment(self):
-        lines = ["M862.1 P0.4 ; nozzle check"]
+        lines = [gl.parse_line("M862.1 P0.4 ; nozzle check")]
         result = _patch_m862_nozzle_flags(lines, nozzle_hardened=True)
-        assert result == ["M862.1 P0.4 A1 F0 ; nozzle check"]
+        assert self._raws(result) == ["M862.1 P0.4 A1 F0 ; nozzle check"]
 
     def test_empty_lines(self):
         result = _patch_m862_nozzle_flags([])

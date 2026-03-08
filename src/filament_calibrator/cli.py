@@ -283,11 +283,11 @@ _M862_PATTERN = re.compile(r"(M862\.1\s+P[\d.]+)(?:\s+A\d)?(?:\s+F\d)?(.*)")
 
 
 def _patch_m862_nozzle_flags(
-    lines: List[str],
+    lines: List[gl.GCodeLine],
     *,
     nozzle_hardened: bool = False,
     nozzle_high_flow: bool = False,
-) -> List[str]:
+) -> List[gl.GCodeLine]:
     """Append ``A`` and ``F`` flags to ``M862.1`` nozzle-check commands.
 
     ``A1`` = hardened/abrasive-resistant nozzle, ``F1`` = high-flow nozzle.
@@ -296,11 +296,13 @@ def _patch_m862_nozzle_flags(
     """
     a_flag = 1 if nozzle_hardened else 0
     f_flag = 1 if nozzle_high_flow else 0
-    result: List[str] = []
+    result: List[gl.GCodeLine] = []
     for line in lines:
-        m = _M862_PATTERN.match(line)
+        raw = line.raw if isinstance(line, gl.GCodeLine) else line
+        m = _M862_PATTERN.match(raw)
         if m:
-            result.append(f"{m.group(1)} A{a_flag} F{f_flag}{m.group(2)}")
+            patched = f"{m.group(1)} A{a_flag} F{f_flag}{m.group(2)}"
+            result.append(gl.parse_line(patched))
         else:
             result.append(line)
     return result
