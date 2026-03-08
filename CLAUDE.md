@@ -146,9 +146,11 @@ override the preset.  Unknown filament names fall back to safe defaults
   `--support-material=0`.
 - `RETRACTION_SLICER_ARGS` — for retraction test tower slicing
   (2 perimeters, 15% infill).  `slice_retraction_specimen()` always
-  forces `--use-firmware-retraction` so PrusaSlicer emits G10/G11
-  instead of explicit retract moves, allowing M207 commands to control
-  the retraction length.
+  forces `--use-firmware-retraction` and `--wipe=0` so PrusaSlicer
+  emits G10/G11 instead of explicit retract moves, allowing M207
+  commands to control the retraction length.  Wipe must be disabled
+  because PrusaSlicer considers it incompatible with firmware
+  retraction.
 
 All slicer functions accept `nozzle_diameter` to pass `--nozzle-diameter` to
 PrusaSlicer, and pass `--center` and `--bed-shape` for Prusa MK-series bed

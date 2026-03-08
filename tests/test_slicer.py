@@ -1920,7 +1920,7 @@ class TestSliceRetractionSpecimen:
     @patch("filament_calibrator.slicer.gl.slice_model")
     @patch("filament_calibrator.slicer.gl.find_prusaslicer_executable")
     def test_firmware_retraction_always_enabled(self, mock_find, mock_slice):
-        """--use-firmware-retraction is always added, even with config_ini."""
+        """--use-firmware-retraction and --wipe=0 always added."""
         mock_find.return_value = "/usr/bin/prusa-slicer"
         mock_slice.return_value = gl.RunResult(
             cmd=[], returncode=0, stdout="", stderr=""
@@ -1930,6 +1930,7 @@ class TestSliceRetractionSpecimen:
         slice_retraction_specimen("/tmp/t.stl", "/tmp/t.gcode")
         req = mock_slice.call_args[0][1]
         assert "--use-firmware-retraction" in req.extra_args
+        assert "--wipe=0" in req.extra_args
 
         # With config_ini
         slice_retraction_specimen(
@@ -1937,6 +1938,7 @@ class TestSliceRetractionSpecimen:
         )
         req = mock_slice.call_args[0][1]
         assert "--use-firmware-retraction" in req.extra_args
+        assert "--wipe=0" in req.extra_args
 
     @patch("filament_calibrator.slicer.gl.slice_model")
     @patch("filament_calibrator.slicer.gl.find_prusaslicer_executable")

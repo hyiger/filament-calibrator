@@ -733,6 +733,10 @@ def slice_retraction_specimen(
         # Always force firmware retraction so M207 controls retraction
         # length, even when a user-supplied config.ini is loaded.
         "--use-firmware-retraction",
+        # Wipe is incompatible with firmware retraction in PrusaSlicer;
+        # force it off so user configs that enable wipe don't cause a
+        # slicing error.
+        "--wipe=0",
     ]
     if binary_gcode:
         cli_extra.append("--binary-gcode")
