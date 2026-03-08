@@ -1,5 +1,7 @@
 # Temperature Tower
 
+![Temperature Tower](images/temperature-tower.png)
+
 Generates a parametric temperature tower, slices it with PrusaSlicer, injects
 per-tier temperature changes into the G-code, and optionally uploads the
 result to your printer via PrusaLink.

@@ -1,5 +1,7 @@
 # Volumetric Flow
 
+![Volumetric Flow](images/volumetric-flow.png)
+
 Generates a serpentine wall specimen, slices it in spiral vase mode, and
 injects progressively increasing print speeds to determine the maximum
 volumetric flow rate for a filament/hotend combination.

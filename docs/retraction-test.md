@@ -1,5 +1,7 @@
 # Retraction Test
 
+![Retraction Test](images/retraction-test.png)
+
 Generates two cylindrical towers spaced apart so that PrusaSlicer's travel
 moves between them trigger retraction. At each height level the firmware
 retraction length is changed via `M207 S<length>`, so the user can inspect

@@ -30,6 +30,8 @@ Two calibration methods are available via `--method`:
 
 ### Tower method (default)
 
+![Pressure Advance Tower](images/pressure-advance-tower.png)
+
 1. **Model generation** — CadQuery builds a hollow rectangular tower (60×60 mm,
    1.6 mm wall thickness) with perfectly sharp 90° corners. The tower height
    equals `num_levels × level_height`. Sharp corners are critical — they reveal
@@ -44,6 +46,8 @@ Two calibration methods are available via `--method`:
    inserted at the G-code layer boundaries corresponding to each level.
 
 ### Pattern method
+
+![Pressure Advance Pattern](images/pressure-advance-pattern.png)
 
 1. **Model generation** — CadQuery builds nested chevron (V-shape) outlines
    inside a rectangular frame, with embossed PA value labels. Each chevron is

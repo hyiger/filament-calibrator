@@ -1,5 +1,7 @@
 # Extrusion Multiplier
 
+![Extrusion Multiplier](images/extrusion-multiplier.png)
+
 Generates a 40 mm cube, slices it in vase mode with classic perimeter
 generator, and reports the expected wall thickness. Print the cube, measure
 the wall with calipers, and calculate `EM = expected_width / measured_width`.
