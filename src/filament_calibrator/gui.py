@@ -609,6 +609,12 @@ def apply_toml_to_session(
         if pr in _PRINTER_LIST and "_toml_printer" not in state:
             state["_toml_printer"] = pr
 
+    if "nozzle_high_flow" in toml_cfg and "_toml_nozzle_high_flow" not in state:
+        state["_toml_nozzle_high_flow"] = bool(toml_cfg["nozzle_high_flow"])
+
+    if "nozzle_hardened" in toml_cfg and "_toml_nozzle_hardened" not in state:
+        state["_toml_nozzle_hardened"] = bool(toml_cfg["nozzle_hardened"])
+
 
 # ---------------------------------------------------------------------------
 # INI auto-populate helpers
@@ -692,6 +698,12 @@ def apply_ini_to_session(
     if sidebar and "filament_type" in ini_vals:
         ft = ini_vals["filament_type"].upper()
         state["sidebar_filament_type"] = ft
+
+    if sidebar and "nozzle_high_flow" in ini_vals:
+        state["sidebar_nozzle_high_flow"] = ini_vals["nozzle_high_flow"]
+
+    if sidebar and "nozzle_hardened" in ini_vals:
+        state["sidebar_nozzle_hardened"] = ini_vals["nozzle_hardened"]
 
 
 # ---------------------------------------------------------------------------
@@ -825,6 +837,14 @@ def _app() -> None:  # pragma: no cover
         st.session_state["sidebar_nozzle_size"] = (
             st.session_state.get("_toml_nozzle_size", 0.4)
         )
+    if "sidebar_nozzle_high_flow" not in st.session_state:
+        st.session_state["sidebar_nozzle_high_flow"] = (
+            st.session_state.get("_toml_nozzle_high_flow", False)
+        )
+    if "sidebar_nozzle_hardened" not in st.session_state:
+        st.session_state["sidebar_nozzle_hardened"] = (
+            st.session_state.get("_toml_nozzle_hardened", False)
+        )
 
     # --- Sidebar: shared settings ---
     with st.sidebar:
@@ -859,12 +879,12 @@ def _app() -> None:  # pragma: no cover
         with _nozzle_col:
             nozzle_high_flow = st.checkbox(
                 "High Flow",
-                value=False,
+                key="sidebar_nozzle_high_flow",
                 help="Nozzle is a high-flow variant (sets F flag in M862.1)",
             )
             nozzle_hardened = st.checkbox(
                 "Hardened",
-                value=False,
+                key="sidebar_nozzle_hardened",
                 help="Nozzle is hardened/abrasive-resistant (sets A flag in M862.1)",
             )
 

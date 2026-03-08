@@ -766,6 +766,8 @@ class TestApplyIniToSession:
             "nozzle_diameter": 0.4,
             "printer_model": "COREONE",
             "bed_center": "125,110",
+            "nozzle_high_flow": True,
+            "nozzle_hardened": True,
         }
         apply_ini_to_session(state, ini_vals)
 
@@ -804,6 +806,10 @@ class TestApplyIniToSession:
         # Selectbox widget keys (written directly for Streamlit key= binding).
         assert state["sidebar_nozzle_size"] == 0.4
         assert state["sidebar_printer"] == "COREONE"
+
+        # Nozzle flags → sidebar checkboxes.
+        assert state["sidebar_nozzle_high_flow"] is True
+        assert state["sidebar_nozzle_hardened"] is True
 
     def test_partial_dict_only_temp(self) -> None:
         state: dict = {}
@@ -854,6 +860,21 @@ class TestApplyIniToSession:
         apply_ini_to_session(state, {"filament_type": "POM"})
         assert state["sidebar_filament_type"] == "POM"
 
+    def test_nozzle_flags_set(self) -> None:
+        state: dict = {}
+        apply_ini_to_session(
+            state,
+            {"nozzle_high_flow": True, "nozzle_hardened": False},
+        )
+        assert state["sidebar_nozzle_high_flow"] is True
+        assert state["sidebar_nozzle_hardened"] is False
+
+    def test_nozzle_flags_missing(self) -> None:
+        state: dict = {}
+        apply_ini_to_session(state, {"nozzle_temp": 210})
+        assert "sidebar_nozzle_high_flow" not in state
+        assert "sidebar_nozzle_hardened" not in state
+
     def test_sidebar_false_skips_sidebar_keys(self) -> None:
         """sidebar=False skips sidebar widget keys (post-render re-apply)."""
         state: dict = {}
@@ -863,6 +884,8 @@ class TestApplyIniToSession:
             "nozzle_diameter": 0.6,
             "printer_model": "COREONE",
             "filament_type": "PETG",
+            "nozzle_high_flow": True,
+            "nozzle_hardened": True,
         }
         apply_ini_to_session(state, ini_vals, sidebar=False)
         # Tab keys are written.
@@ -874,6 +897,8 @@ class TestApplyIniToSession:
         assert "sidebar_nozzle_size" not in state
         assert "sidebar_printer" not in state
         assert "sidebar_filament_type" not in state
+        assert "sidebar_nozzle_high_flow" not in state
+        assert "sidebar_nozzle_hardened" not in state
 
 
 # ---------------------------------------------------------------------------
@@ -952,6 +977,25 @@ class TestApplyTomlToSession:
         state = {"_toml_filament_type": "PLA"}
         apply_toml_to_session(state, {"filament_type": "ABS"})
         assert state["_toml_filament_type"] == "PLA"
+
+    def test_nozzle_flags_set(self) -> None:
+        state: dict = {}
+        apply_toml_to_session(
+            state, {"nozzle_high_flow": True, "nozzle_hardened": True}
+        )
+        assert state["_toml_nozzle_high_flow"] is True
+        assert state["_toml_nozzle_hardened"] is True
+
+    def test_nozzle_flags_not_overwritten(self) -> None:
+        state = {
+            "_toml_nozzle_high_flow": False,
+            "_toml_nozzle_hardened": False,
+        }
+        apply_toml_to_session(
+            state, {"nozzle_high_flow": True, "nozzle_hardened": True}
+        )
+        assert state["_toml_nozzle_high_flow"] is False
+        assert state["_toml_nozzle_hardened"] is False
 
 
 # ---------------------------------------------------------------------------
