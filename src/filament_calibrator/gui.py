@@ -1092,7 +1092,7 @@ def _app() -> None:  # pragma: no cover
     (tab_temp, tab_em, tab_flow, tab_pa, tab_retraction,
      tab_shrinkage, tab_results) = st.tabs([
         "Temperature Tower", "Extrusion Multiplier", "Volumetric Flow",
-        "Pressure Advance", "Retraction Test", "Shrinkage", "Results",
+        "Pressure Advance", "Retraction", "Shrinkage", "Results",
     ])
 
     # === Tab 1: Temperature Tower ===
@@ -1692,9 +1692,9 @@ def _app() -> None:  # pragma: no cover
         if _run and _run["tab"] == "pa":
             _show_results(st, _run)
 
-    # === Tab 5: Retraction Test ===
+    # === Tab 5: Retraction ===
     with tab_retraction:
-        st.subheader("Retraction Test")
+        st.subheader("Retraction")
         st.caption(
             "Generate two cylindrical towers spaced apart. Travel moves "
             "between them trigger retraction. Retraction length changes "
@@ -1785,7 +1785,7 @@ def _app() -> None:  # pragma: no cover
                 f"{start_retraction:.1f} \u2192 {end_retraction:.1f} mm"
             )
 
-        if st.button("Generate Retraction Test", type="primary",
+        if st.button("Generate Retraction", type="primary",
                       key="run_retraction"):
             _temp_err = _check_printer_temps(
                 printer, retraction_nozzle_temp, retraction_bed_temp,
