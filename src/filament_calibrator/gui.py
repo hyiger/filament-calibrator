@@ -702,6 +702,7 @@ def apply_ini_to_session(
         state["flow_nozzle_temp"] = nt
         state["pa_nozzle_temp"] = nt
         state["retraction_nozzle_temp"] = nt
+        state["shrinkage_nozzle_temp"] = nt
         # Derive a temp tower range centred on the INI temperature.
         state["tt_start_temp"] = nt + 15
         state["tt_end_temp"] = nt - 15
@@ -713,6 +714,7 @@ def apply_ini_to_session(
         state["flow_bed_temp"] = bt
         state["pa_bed_temp"] = bt
         state["retraction_bed_temp"] = bt
+        state["shrinkage_bed_temp"] = bt
 
     if "fan_speed" in ini_vals:
         fs = ini_vals["fan_speed"]
@@ -721,6 +723,7 @@ def apply_ini_to_session(
         state["flow_fan"] = fs
         state["pa_fan"] = fs
         state["retraction_fan"] = fs
+        state["shrinkage_fan"] = fs
 
     if "layer_height" in ini_vals:
         lh = ini_vals["layer_height"]
@@ -728,6 +731,7 @@ def apply_ini_to_session(
         state["flow_lh"] = lh
         state["pa_lh"] = lh
         state["retraction_lh"] = lh
+        state["shrinkage_lh"] = lh
 
     if "extrusion_width" in ini_vals:
         ew = ini_vals["extrusion_width"]
@@ -735,6 +739,7 @@ def apply_ini_to_session(
         state["flow_ew"] = ew
         state["pa_ew"] = ew
         state["retraction_ew"] = ew
+        state["shrinkage_ew"] = ew
 
     if sidebar and "nozzle_diameter" in ini_vals:
         snapped = snap_nozzle_size(ini_vals["nozzle_diameter"])

@@ -772,37 +772,42 @@ class TestApplyIniToSession:
         }
         apply_ini_to_session(state, ini_vals)
 
-        # Nozzle temp → EM + flow + PA + retraction tabs, temp tower range.
+        # Nozzle temp → EM + flow + PA + retraction + shrinkage tabs, temp tower range.
         assert state["em_nozzle_temp"] == 220
         assert state["flow_nozzle_temp"] == 220
         assert state["pa_nozzle_temp"] == 220
         assert state["retraction_nozzle_temp"] == 220
+        assert state["shrinkage_nozzle_temp"] == 220
         assert state["tt_start_temp"] == 235
         assert state["tt_end_temp"] == 205
 
-        # Bed temp → all five tabs.
+        # Bed temp → all six tabs.
         assert state["tt_bed_temp"] == 65
         assert state["em_bed_temp"] == 65
         assert state["flow_bed_temp"] == 65
         assert state["pa_bed_temp"] == 65
         assert state["retraction_bed_temp"] == 65
+        assert state["shrinkage_bed_temp"] == 65
 
-        # Fan speed → all five tabs.
+        # Fan speed → all six tabs.
         assert state["tt_fan"] == 80
         assert state["em_fan"] == 80
         assert state["flow_fan"] == 80
         assert state["pa_fan"] == 80
         assert state["retraction_fan"] == 80
+        assert state["shrinkage_fan"] == 80
 
-        # Layer height / extrusion width → EM + flow + PA + retraction.
+        # Layer height / extrusion width → EM + flow + PA + retraction + shrinkage.
         assert state["em_lh"] == 0.15
         assert state["flow_lh"] == 0.15
         assert state["pa_lh"] == 0.15
         assert state["retraction_lh"] == 0.15
+        assert state["shrinkage_lh"] == 0.15
         assert state["em_ew"] == 0.45
         assert state["flow_ew"] == 0.45
         assert state["pa_ew"] == 0.45
         assert state["retraction_ew"] == 0.45
+        assert state["shrinkage_ew"] == 0.45
 
         # Selectbox widget keys (written directly for Streamlit key= binding).
         assert state["sidebar_nozzle_size"] == 0.4
@@ -819,6 +824,7 @@ class TestApplyIniToSession:
         assert state["flow_nozzle_temp"] == 210
         assert state["pa_nozzle_temp"] == 210
         assert state["retraction_nozzle_temp"] == 210
+        assert state["shrinkage_nozzle_temp"] == 210
         assert state["tt_start_temp"] == 225
         assert state["tt_end_temp"] == 195
         assert "tt_bed_temp" not in state
