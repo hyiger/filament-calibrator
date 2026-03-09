@@ -198,6 +198,11 @@ def slice_tower(
         if layer_height is not None:
             cli_extra.append(f"--layer-height={layer_height}")
             cli_extra.append(f"--first-layer-height={layer_height}")
+    else:
+        # Clear any post-processing scripts from the loaded config to
+        # prevent PrusaSlicer 2.9+ from blocking on an interactive
+        # confirmation prompt when run headless.
+        cli_extra.extend(["--post-process", ""])
 
     if nozzle_diameter is not None:
         cli_extra.append(f"--nozzle-diameter={nozzle_diameter}")
@@ -306,6 +311,11 @@ def slice_flow_specimen(
             cli_extra.append(f"--{key}={val}")
         cli_extra.append(f"--layer-height={layer_height}")
         cli_extra.append(f"--extrusion-width={extrusion_width}")
+    else:
+        # Clear any post-processing scripts from the loaded config to
+        # prevent PrusaSlicer 2.9+ from blocking on an interactive
+        # confirmation prompt when run headless.
+        cli_extra.extend(["--post-process", ""])
 
     if nozzle_diameter is not None:
         cli_extra.append(f"--nozzle-diameter={nozzle_diameter}")
@@ -408,6 +418,11 @@ def slice_pa_specimen(
             cli_extra.append(f"--{key}={val}")
         cli_extra.append(f"--layer-height={layer_height}")
         cli_extra.append(f"--extrusion-width={extrusion_width}")
+    else:
+        # Clear any post-processing scripts from the loaded config to
+        # prevent PrusaSlicer 2.9+ from blocking on an interactive
+        # confirmation prompt when run headless.
+        cli_extra.extend(["--post-process", ""])
 
     if nozzle_diameter is not None:
         cli_extra.append(f"--nozzle-diameter={nozzle_diameter}")
@@ -509,6 +524,11 @@ def slice_pa_pattern(
         cli_extra.append(f"--perimeters={perimeters}")
         cli_extra.append(f"--layer-height={layer_height}")
         cli_extra.append(f"--extrusion-width={extrusion_width}")
+    else:
+        # Clear any post-processing scripts from the loaded config to
+        # prevent PrusaSlicer 2.9+ from blocking on an interactive
+        # confirmation prompt when run headless.
+        cli_extra.extend(["--post-process", ""])
 
     if nozzle_diameter is not None:
         cli_extra.append(f"--nozzle-diameter={nozzle_diameter}")
@@ -623,6 +643,11 @@ def slice_em_specimen(
             cli_extra.append(f"--{key}={val}")
         cli_extra.append(f"--layer-height={layer_height}")
         cli_extra.append(f"--extrusion-width={extrusion_width}")
+    else:
+        # Clear any post-processing scripts from the loaded config to
+        # prevent PrusaSlicer 2.9+ from blocking on an interactive
+        # confirmation prompt when run headless.
+        cli_extra.extend(["--post-process", ""])
 
     if nozzle_diameter is not None:
         cli_extra.append(f"--nozzle-diameter={nozzle_diameter}")
@@ -746,6 +771,11 @@ def slice_retraction_specimen(
             cli_extra.append(f"--{key}={val}")
         cli_extra.append(f"--layer-height={layer_height}")
         cli_extra.append(f"--extrusion-width={extrusion_width}")
+    else:
+        # Clear any post-processing scripts from the loaded config to
+        # prevent PrusaSlicer 2.9+ from blocking on an interactive
+        # confirmation prompt when run headless.
+        cli_extra.extend(["--post-process", ""])
 
     if nozzle_diameter is not None:
         cli_extra.append(f"--nozzle-diameter={nozzle_diameter}")
@@ -867,6 +897,11 @@ def slice_shrinkage_specimen(
             cli_extra.append(f"--{key}={val}")
         cli_extra.append(f"--layer-height={layer_height}")
         cli_extra.append(f"--extrusion-width={extrusion_width}")
+    else:
+        # Clear any post-processing scripts from the loaded config to
+        # prevent PrusaSlicer 2.9+ from blocking on an interactive
+        # confirmation prompt when run headless.
+        cli_extra.extend(["--post-process", ""])
 
     if nozzle_diameter is not None:
         cli_extra.append(f"--nozzle-diameter={nozzle_diameter}")

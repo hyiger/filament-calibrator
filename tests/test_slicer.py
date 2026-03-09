@@ -104,6 +104,11 @@ class TestSliceTower:
         # With config_ini, default args should NOT be added
         for key, val in DEFAULT_SLICER_ARGS.items():
             assert f"--{key}={val}" not in req.extra_args
+        # Post-process override must be present to prevent PrusaSlicer
+        # 2.9+ from blocking on an interactive confirmation prompt.
+        assert "--post-process" in req.extra_args
+        idx = req.extra_args.index("--post-process")
+        assert req.extra_args[idx + 1] == ""
 
     @patch("filament_calibrator.slicer.gl.slice_model")
     @patch("filament_calibrator.slicer.gl.find_prusaslicer_executable")
@@ -654,6 +659,11 @@ class TestSliceFlowSpecimen:
             assert f"--{key}={val}" not in req.extra_args
         # --spiral-vase still present
         assert "--spiral-vase" in req.extra_args
+        # Post-process override must be present to prevent PrusaSlicer
+        # 2.9+ from blocking on an interactive confirmation prompt.
+        assert "--post-process" in req.extra_args
+        idx = req.extra_args.index("--post-process")
+        assert req.extra_args[idx + 1] == ""
 
     @patch("filament_calibrator.slicer.gl.slice_model")
     @patch("filament_calibrator.slicer.gl.find_prusaslicer_executable")
@@ -972,6 +982,11 @@ class TestSlicePASpecimen:
         req = mock_slice.call_args[0][1]
         for key, val in PA_SLICER_ARGS.items():
             assert f"--{key}={val}" not in req.extra_args
+        # Post-process override must be present to prevent PrusaSlicer
+        # 2.9+ from blocking on an interactive confirmation prompt.
+        assert "--post-process" in req.extra_args
+        idx = req.extra_args.index("--post-process")
+        assert req.extra_args[idx + 1] == ""
 
     @patch("filament_calibrator.slicer.gl.slice_model")
     @patch("filament_calibrator.slicer.gl.find_prusaslicer_executable")
@@ -1389,6 +1404,11 @@ class TestSlicePAPattern:
             assert f"--{key}={val}" not in req.extra_args
         # perimeters also not set when config_ini provided
         assert not any(a.startswith("--perimeters") for a in req.extra_args)
+        # Post-process override must be present to prevent PrusaSlicer
+        # 2.9+ from blocking on an interactive confirmation prompt.
+        assert "--post-process" in req.extra_args
+        idx = req.extra_args.index("--post-process")
+        assert req.extra_args[idx + 1] == ""
 
     @patch("filament_calibrator.slicer.gl.slice_model")
     @patch("filament_calibrator.slicer.gl.find_prusaslicer_executable")
@@ -1661,6 +1681,11 @@ class TestSliceEmSpecimen:
         # --spiral-vase and --perimeter-generator still present
         assert "--spiral-vase" in req.extra_args
         assert "--perimeter-generator=classic" in req.extra_args
+        # Post-process override must be present to prevent PrusaSlicer
+        # 2.9+ from blocking on an interactive confirmation prompt.
+        assert "--post-process" in req.extra_args
+        idx = req.extra_args.index("--post-process")
+        assert req.extra_args[idx + 1] == ""
 
     @patch("filament_calibrator.slicer.gl.slice_model")
     @patch("filament_calibrator.slicer.gl.find_prusaslicer_executable")
@@ -1900,6 +1925,11 @@ class TestSliceRetractionSpecimen:
         # With config_ini, default slicer args should NOT be added
         for key in RETRACTION_SLICER_ARGS:
             assert f"--{key}" not in " ".join(req.extra_args)
+        # Post-process override must be present to prevent PrusaSlicer
+        # 2.9+ from blocking on an interactive confirmation prompt.
+        assert "--post-process" in req.extra_args
+        idx = req.extra_args.index("--post-process")
+        assert req.extra_args[idx + 1] == ""
 
     @patch("filament_calibrator.slicer.gl.slice_model")
     @patch("filament_calibrator.slicer.gl.find_prusaslicer_executable")
@@ -2140,6 +2170,11 @@ class TestSliceShrinkageSpecimen:
         # With config_ini, default slicer args should NOT be added
         for key in SHRINKAGE_SLICER_ARGS:
             assert f"--{key}" not in " ".join(req.extra_args)
+        # Post-process override must be present to prevent PrusaSlicer
+        # 2.9+ from blocking on an interactive confirmation prompt.
+        assert "--post-process" in req.extra_args
+        idx = req.extra_args.index("--post-process")
+        assert req.extra_args[idx + 1] == ""
 
     @patch("filament_calibrator.slicer.gl.slice_model")
     @patch("filament_calibrator.slicer.gl.find_prusaslicer_executable")
