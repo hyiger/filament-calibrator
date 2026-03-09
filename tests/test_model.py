@@ -298,9 +298,10 @@ class TestExportStl:
 
 
 class TestGenerateTowerStl:
+    @patch("filament_calibrator.model._ensure_cq")
     @patch("filament_calibrator.model.export_stl")
     @patch("filament_calibrator.model.make_tower")
-    def test_builds_and_exports(self, mock_make, mock_export, tmp_path):
+    def test_builds_and_exports(self, mock_make, mock_export, _ensure, tmp_path):
         mock_make.return_value = MagicMock()
         config = TowerConfig()
         out = str(tmp_path / "tower.stl")
@@ -315,9 +316,10 @@ class TestGenerateTowerStl:
             (0, 0, 0), (0, 0, 1), 180,
         )
 
+    @patch("filament_calibrator.model._ensure_cq")
     @patch("filament_calibrator.model.export_stl")
     @patch("filament_calibrator.model.make_tower")
-    def test_creates_parent_dirs(self, mock_make, mock_export, tmp_path):
+    def test_creates_parent_dirs(self, mock_make, mock_export, _ensure, tmp_path):
         mock_make.return_value = MagicMock()
         config = TowerConfig()
         nested = tmp_path / "a" / "b" / "c" / "tower.stl"

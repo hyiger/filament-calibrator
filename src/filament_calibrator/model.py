@@ -8,8 +8,23 @@ from __future__ import annotations
 import math
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Any
 
-import cadquery as cq
+# cadquery is imported lazily inside generate_tower_stl() to avoid loading
+# the heavy OCCT/casadi native libraries at module-import time.  This allows
+# CLI and GUI modules to import constants and dataclasses from this module
+# without triggering the native dependency chain.
+cq: Any = None  # populated by _ensure_cq()
+
+
+def _ensure_cq() -> None:
+    """Import cadquery on first use and cache in module globals."""
+    global cq  # noqa: PLW0603
+    if cq is None:
+        import cadquery as _cq
+
+        cq = _cq
+
 
 # ---------------------------------------------------------------------------
 # Geometry constants (matching the OpenSCAD template)
@@ -480,6 +495,7 @@ def generate_tower_stl(config: TowerConfig, output_path: str) -> str:
     str
         The *output_path* (for chaining convenience).
     """
+    _ensure_cq()
     Path(output_path).parent.mkdir(parents=True, exist_ok=True)
     tower = make_tower(config)
     # Rotate 180° around Z so temperature labels face front (-Y direction).

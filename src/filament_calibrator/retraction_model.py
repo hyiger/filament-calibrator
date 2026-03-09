@@ -13,8 +13,20 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Any
 
-import cadquery as cq  # type: ignore[import-untyped]
+# cadquery is imported lazily inside generate_retraction_tower_stl() to avoid
+# loading the heavy OCCT/casadi native libraries at module-import time.
+cq: Any = None  # populated by _ensure_cq()
+
+
+def _ensure_cq() -> None:
+    """Import cadquery on first use and cache in module globals."""
+    global cq  # noqa: PLW0603
+    if cq is None:
+        import cadquery as _cq  # type: ignore[import-untyped]
+
+        cq = _cq
 
 # ---------------------------------------------------------------------------
 # Geometry constants
@@ -149,6 +161,7 @@ def generate_retraction_tower_stl(
     str
         The *output_path* (for chaining convenience).
     """
+    _ensure_cq()
     Path(output_path).parent.mkdir(parents=True, exist_ok=True)
     shape = _make_retraction_towers(config)
     cq.exporters.export(shape, output_path, exportType="STL")

@@ -13,9 +13,20 @@ from __future__ import annotations
 import math
 from dataclasses import dataclass
 from pathlib import Path
-from typing import List, Optional, Tuple
+from typing import Any, List, Optional, Tuple
 
-import cadquery as cq  # type: ignore[import-untyped]
+# cadquery is imported lazily inside generate_pa_pattern_stl() to avoid
+# loading the heavy OCCT/casadi native libraries at module-import time.
+cq: Any = None  # populated by _ensure_cq()
+
+
+def _ensure_cq() -> None:
+    """Import cadquery on first use and cache in module globals."""
+    global cq  # noqa: PLW0603
+    if cq is None:
+        import cadquery as _cq  # type: ignore[import-untyped]
+
+        cq = _cq
 
 # ---------------------------------------------------------------------------
 # Default constants (derived from Ellis PA tool)
@@ -384,6 +395,7 @@ def generate_pa_pattern_stl(
     Returns ``(output_path, x_tips)`` where *x_tips* lists each
     chevron's tip X coordinate (model-space, centred at 0).
     """
+    _ensure_cq()
     Path(output_path).parent.mkdir(parents=True, exist_ok=True)
 
     height = total_height(config)
