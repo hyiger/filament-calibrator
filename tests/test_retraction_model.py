@@ -16,49 +16,12 @@ from filament_calibrator.retraction_model import (
     TOWER_SPACING,
     RetractionTowerConfig,
     _ensure_cq,
-    _stub_casadi,
     _make_base,
     _make_retraction_towers,
     _make_tower,
     generate_retraction_tower_stl,
     total_height,
 )
-
-
-# ---------------------------------------------------------------------------
-# _stub_casadi
-# ---------------------------------------------------------------------------
-
-
-class TestStubCasadi:
-    def test_creates_stub_when_not_loaded(self):
-        import sys
-        import types
-
-        saved = sys.modules.pop("casadi", None)
-        saved_sub = sys.modules.pop("casadi.casadi", None)
-        try:
-            _stub_casadi()
-            fake = sys.modules["casadi"]
-            assert isinstance(fake, types.ModuleType)
-            assert isinstance(sys.modules["casadi.casadi"], types.ModuleType)
-            # __getattr__ returns the stub itself for any attribute access
-            assert fake.Opti is fake
-        finally:
-            sys.modules.pop("casadi", None)
-            sys.modules.pop("casadi.casadi", None)
-            if saved is not None:
-                sys.modules["casadi"] = saved
-            if saved_sub is not None:
-                sys.modules["casadi.casadi"] = saved_sub
-
-    def test_skips_when_already_loaded(self):
-        import sys
-
-        sentinel = MagicMock()
-        with patch.dict(sys.modules, {"casadi": sentinel}):
-            _stub_casadi()
-            assert sys.modules["casadi"] is sentinel
 
 
 # ---------------------------------------------------------------------------
@@ -72,7 +35,7 @@ class TestEnsureCq:
         try:
             mod.cq = None
             mock_cq = MagicMock()
-            with patch.dict("sys.modules", {"cadquery": mock_cq}):
+            with patch.object(mod, "_ensure_cq_impl", return_value=mock_cq):
                 _ensure_cq()
             assert mod.cq is mock_cq
         finally:

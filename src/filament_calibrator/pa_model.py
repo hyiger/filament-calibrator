@@ -15,45 +15,17 @@ from typing import Any
 # the heavy OCCT/casadi native libraries at module-import time.
 cq: Any = None  # populated by _ensure_cq()
 
-
-def _stub_casadi() -> None:
-    """Provide a stub ``casadi`` package when the real one is not yet loaded.
-
-    cadquery unconditionally imports casadi for its assembly constraint
-    solver, but this project uses only basic geometry operations and never
-    invokes the solver.  On Windows PyInstaller bundles the casadi native
-    DLL (``_casadi.pyd``) is typically missing.  Injecting a lightweight
-    stub lets cadquery import cleanly.
-
-    The stub uses a permissive ``__getattr__`` so that any attribute access
-    (``ca.Opti``, ``ca.MX``, etc.) returns a harmless dummy instead of
-    raising ``AttributeError``.
-    """
-    import sys
-
-    if "casadi" not in sys.modules:
-        import types
-
-        class _CasadiStub(types.ModuleType):
-            """Module stub that returns itself for any attribute access."""
-
-            def __getattr__(self, name: str) -> _CasadiStub:
-                return self
-
-        _fake = _CasadiStub("casadi")
-        _fake.__path__ = []  # type: ignore[attr-defined]
-        sys.modules["casadi"] = _fake
-        sys.modules["casadi.casadi"] = _fake
+# Stub/lazy-import helpers live in _cq_compat; thin wrappers here keep
+# existing call sites and test imports working.
+from filament_calibrator._cq_compat import ensure_cq as _ensure_cq_impl
+from filament_calibrator._cq_compat import stub_casadi as _stub_casadi
 
 
 def _ensure_cq() -> None:
     """Import cadquery on first use and cache in module globals."""
     global cq  # noqa: PLW0603
     if cq is None:
-        _stub_casadi()
-        import cadquery as _cq
-
-        cq = _cq
+        cq = _ensure_cq_impl()
 
 # ---------------------------------------------------------------------------
 # Geometry constants (defaults for the PA tower)
