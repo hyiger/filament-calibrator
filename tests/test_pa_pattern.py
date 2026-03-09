@@ -6,6 +6,8 @@ from unittest.mock import MagicMock, call, patch
 
 import pytest
 
+import filament_calibrator.pa_pattern as mod
+
 from filament_calibrator.pa_pattern import (
     DEFAULT_ARM_LENGTH,
     DEFAULT_CORNER_ANGLE,
@@ -19,6 +21,7 @@ from filament_calibrator.pa_pattern import (
     DEFAULT_WALL_THICKNESS,
     PAPatternConfig,
     _chevron_outline,
+    _ensure_cq,
     _make_chevron,
     _make_frame,
     _make_labels,
@@ -31,6 +34,24 @@ from filament_calibrator.pa_pattern import (
     tip_spacing,
     total_height,
 )
+
+
+# ---------------------------------------------------------------------------
+# _ensure_cq
+# ---------------------------------------------------------------------------
+
+
+class TestEnsureCq:
+    def test_imports_cadquery_when_none(self):
+        saved = mod.cq
+        try:
+            mod.cq = None
+            mock_cq = MagicMock()
+            with patch.dict("sys.modules", {"cadquery": mock_cq}):
+                _ensure_cq()
+            assert mod.cq is mock_cq
+        finally:
+            mod.cq = saved
 
 
 # ---------------------------------------------------------------------------

@@ -5,6 +5,8 @@ from unittest.mock import MagicMock, patch, call
 
 import pytest
 
+import filament_calibrator.model as model_mod
+
 from filament_calibrator.model import (
     BASE_FILLET,
     BASE_HEIGHT,
@@ -41,6 +43,7 @@ from filament_calibrator.model import (
     TIER_WIDTH,
     TEXT_DEPTH,
     TowerConfig,
+    _ensure_cq,
     export_stl,
     generate_tower_stl,
     make_base,
@@ -49,6 +52,36 @@ from filament_calibrator.model import (
     tier_temperature,
     total_height,
 )
+
+
+# ---------------------------------------------------------------------------
+# _ensure_cq (lazy cadquery import)
+# ---------------------------------------------------------------------------
+
+
+class TestEnsureCq:
+    def test_imports_cadquery_when_none(self):
+        """_ensure_cq loads cadquery into module globals on first call."""
+        saved = model_mod.cq
+        try:
+            model_mod.cq = None
+            mock_cq = MagicMock()
+            with patch.dict("sys.modules", {"cadquery": mock_cq}):
+                _ensure_cq()
+            assert model_mod.cq is mock_cq
+        finally:
+            model_mod.cq = saved
+
+    def test_skips_when_already_loaded(self):
+        """_ensure_cq is a no-op when cq is already set."""
+        saved = model_mod.cq
+        try:
+            sentinel = MagicMock()
+            model_mod.cq = sentinel
+            _ensure_cq()
+            assert model_mod.cq is sentinel
+        finally:
+            model_mod.cq = saved
 
 
 # ---------------------------------------------------------------------------

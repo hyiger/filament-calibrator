@@ -3,6 +3,8 @@ from __future__ import annotations
 
 from unittest.mock import MagicMock, call, patch
 
+import filament_calibrator.shrinkage_model as mod
+
 from filament_calibrator.shrinkage_model import (
     ARM_LENGTH,
     ARM_SIZE,
@@ -11,10 +13,29 @@ from filament_calibrator.shrinkage_model import (
     WINDOW_INTERVAL,
     WINDOW_SIZE,
     ShrinkageCrossConfig,
+    _ensure_cq,
     _make_cross,
     _window_positions,
     generate_shrinkage_cross_stl,
 )
+
+
+# ---------------------------------------------------------------------------
+# _ensure_cq
+# ---------------------------------------------------------------------------
+
+
+class TestEnsureCq:
+    def test_imports_cadquery_when_none(self):
+        saved = mod.cq
+        try:
+            mod.cq = None
+            mock_cq = MagicMock()
+            with patch.dict("sys.modules", {"cadquery": mock_cq}):
+                _ensure_cq()
+            assert mod.cq is mock_cq
+        finally:
+            mod.cq = saved
 
 
 # ---------------------------------------------------------------------------

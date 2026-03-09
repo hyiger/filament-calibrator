@@ -108,10 +108,10 @@ class TestFindConfigPath:
         monkeypatch.chdir(tmp_path)  # no local file here
         home_cfg = tmp_path / "filament-calibrator.toml"
         home_cfg.write_text("")
+        (tmp_path / "subdir").mkdir()
         with patch("filament_calibrator.config.Path.home", return_value=tmp_path):
             # CWD has no config; home dir does
             monkeypatch.chdir(tmp_path / "subdir")
-            (tmp_path / "subdir").mkdir()
             assert _find_config_path() == home_cfg
 
     def test_xdg_file(self, tmp_path, monkeypatch):

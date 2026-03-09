@@ -5,6 +5,8 @@ from unittest.mock import MagicMock, patch, call
 
 import pytest
 
+import filament_calibrator.flow_model as mod
+
 from filament_calibrator.flow_model import (
     ARM_THICKNESS,
     GAP_WIDTH,
@@ -12,11 +14,30 @@ from filament_calibrator.flow_model import (
     NUM_ARMS,
     SPECIMEN_WIDTH,
     FlowSpecimenConfig,
+    _ensure_cq,
     generate_flow_specimen_stl,
     specimen_depth,
     total_height,
     _make_serpentine,
 )
+
+
+# ---------------------------------------------------------------------------
+# _ensure_cq
+# ---------------------------------------------------------------------------
+
+
+class TestEnsureCq:
+    def test_imports_cadquery_when_none(self):
+        saved = mod.cq
+        try:
+            mod.cq = None
+            mock_cq = MagicMock()
+            with patch.dict("sys.modules", {"cadquery": mock_cq}):
+                _ensure_cq()
+            assert mod.cq is mock_cq
+        finally:
+            mod.cq = saved
 
 
 # ---------------------------------------------------------------------------

@@ -5,6 +5,8 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
+import filament_calibrator.retraction_model as mod
+
 from filament_calibrator.retraction_model import (
     BASE_HEIGHT,
     BASE_LENGTH,
@@ -13,12 +15,31 @@ from filament_calibrator.retraction_model import (
     TOWER_DIAMETER,
     TOWER_SPACING,
     RetractionTowerConfig,
+    _ensure_cq,
     _make_base,
     _make_retraction_towers,
     _make_tower,
     generate_retraction_tower_stl,
     total_height,
 )
+
+
+# ---------------------------------------------------------------------------
+# _ensure_cq
+# ---------------------------------------------------------------------------
+
+
+class TestEnsureCq:
+    def test_imports_cadquery_when_none(self):
+        saved = mod.cq
+        try:
+            mod.cq = None
+            mock_cq = MagicMock()
+            with patch.dict("sys.modules", {"cadquery": mock_cq}):
+                _ensure_cq()
+            assert mod.cq is mock_cq
+        finally:
+            mod.cq = saved
 
 
 # ---------------------------------------------------------------------------

@@ -5,16 +5,37 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
+import filament_calibrator.pa_model as mod
+
 from filament_calibrator.pa_model import (
     LEVEL_HEIGHT,
     TOWER_DEPTH,
     TOWER_WIDTH,
     WALL_THICKNESS,
     PATowerConfig,
+    _ensure_cq,
     generate_pa_tower_stl,
     total_height,
     _make_hollow_tower,
 )
+
+
+# ---------------------------------------------------------------------------
+# _ensure_cq
+# ---------------------------------------------------------------------------
+
+
+class TestEnsureCq:
+    def test_imports_cadquery_when_none(self):
+        saved = mod.cq
+        try:
+            mod.cq = None
+            mock_cq = MagicMock()
+            with patch.dict("sys.modules", {"cadquery": mock_cq}):
+                _ensure_cq()
+            assert mod.cq is mock_cq
+        finally:
+            mod.cq = saved
 
 
 # ---------------------------------------------------------------------------

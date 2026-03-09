@@ -3,12 +3,33 @@ from __future__ import annotations
 
 from unittest.mock import MagicMock, patch
 
+import filament_calibrator.em_model as mod
+
 from filament_calibrator.em_model import (
     CUBE_SIZE,
     EMCubeConfig,
+    _ensure_cq,
     _make_cube,
     generate_em_cube_stl,
 )
+
+
+# ---------------------------------------------------------------------------
+# _ensure_cq
+# ---------------------------------------------------------------------------
+
+
+class TestEnsureCq:
+    def test_imports_cadquery_when_none(self):
+        saved = mod.cq
+        try:
+            mod.cq = None
+            mock_cq = MagicMock()
+            with patch.dict("sys.modules", {"cadquery": mock_cq}):
+                _ensure_cq()
+            assert mod.cq is mock_cq
+        finally:
+            mod.cq = saved
 
 
 # ---------------------------------------------------------------------------
