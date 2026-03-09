@@ -29,8 +29,11 @@ class TestStubCasadi:
         saved_sub = sys.modules.pop("casadi.casadi", None)
         try:
             _stub_casadi()
-            assert isinstance(sys.modules["casadi"], types.ModuleType)
+            fake = sys.modules["casadi"]
+            assert isinstance(fake, types.ModuleType)
             assert isinstance(sys.modules["casadi.casadi"], types.ModuleType)
+            # __getattr__ returns the stub itself for any attribute access
+            assert fake.Opti is fake
         finally:
             sys.modules.pop("casadi", None)
             sys.modules.pop("casadi.casadi", None)

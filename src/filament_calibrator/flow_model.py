@@ -23,13 +23,23 @@ def _stub_casadi() -> None:
     invokes the solver.  On Windows PyInstaller bundles the casadi native
     DLL (``_casadi.pyd``) is typically missing.  Injecting a lightweight
     stub lets cadquery import cleanly.
+
+    The stub uses a permissive ``__getattr__`` so that any attribute access
+    (``ca.Opti``, ``ca.MX``, etc.) returns a harmless dummy instead of
+    raising ``AttributeError``.
     """
     import sys
 
     if "casadi" not in sys.modules:
         import types
 
-        _fake = types.ModuleType("casadi")
+        class _CasadiStub(types.ModuleType):
+            """Module stub that returns itself for any attribute access."""
+
+            def __getattr__(self, name: str) -> _CasadiStub:
+                return self
+
+        _fake = _CasadiStub("casadi")
         _fake.__path__ = []  # type: ignore[attr-defined]
         sys.modules["casadi"] = _fake
         sys.modules["casadi.casadi"] = _fake
