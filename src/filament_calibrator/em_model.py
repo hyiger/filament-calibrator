@@ -16,10 +16,31 @@ from typing import Any
 cq: Any = None  # populated by _ensure_cq()
 
 
+def _stub_casadi() -> None:
+    """Provide a stub ``casadi`` package when the real one is not yet loaded.
+
+    cadquery unconditionally imports casadi for its assembly constraint
+    solver, but this project uses only basic geometry operations and never
+    invokes the solver.  On Windows PyInstaller bundles the casadi native
+    DLL (``_casadi.pyd``) is typically missing.  Injecting a lightweight
+    stub lets cadquery import cleanly.
+    """
+    import sys
+
+    if "casadi" not in sys.modules:
+        import types
+
+        _fake = types.ModuleType("casadi")
+        _fake.__path__ = []  # type: ignore[attr-defined]
+        sys.modules["casadi"] = _fake
+        sys.modules["casadi.casadi"] = _fake
+
+
 def _ensure_cq() -> None:
     """Import cadquery on first use and cache in module globals."""
     global cq  # noqa: PLW0603
     if cq is None:
+        _stub_casadi()
         import cadquery as _cq
 
         cq = _cq

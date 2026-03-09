@@ -9,9 +9,43 @@ from filament_calibrator.em_model import (
     CUBE_SIZE,
     EMCubeConfig,
     _ensure_cq,
+    _stub_casadi,
     _make_cube,
     generate_em_cube_stl,
 )
+
+
+# ---------------------------------------------------------------------------
+# _stub_casadi
+# ---------------------------------------------------------------------------
+
+
+class TestStubCasadi:
+    def test_creates_stub_when_not_loaded(self):
+        import sys
+        import types
+
+        saved = sys.modules.pop("casadi", None)
+        saved_sub = sys.modules.pop("casadi.casadi", None)
+        try:
+            _stub_casadi()
+            assert isinstance(sys.modules["casadi"], types.ModuleType)
+            assert isinstance(sys.modules["casadi.casadi"], types.ModuleType)
+        finally:
+            sys.modules.pop("casadi", None)
+            sys.modules.pop("casadi.casadi", None)
+            if saved is not None:
+                sys.modules["casadi"] = saved
+            if saved_sub is not None:
+                sys.modules["casadi.casadi"] = saved_sub
+
+    def test_skips_when_already_loaded(self):
+        import sys
+
+        sentinel = MagicMock()
+        with patch.dict(sys.modules, {"casadi": sentinel}):
+            _stub_casadi()
+            assert sys.modules["casadi"] is sentinel
 
 
 # ---------------------------------------------------------------------------
