@@ -22,6 +22,7 @@ from filament_calibrator.pa_pattern import (
     PAPatternConfig,
     _chevron_outline,
     _ensure_cq,
+    _stub_casadi,
     _make_chevron,
     _make_frame,
     _make_labels,
@@ -34,6 +35,39 @@ from filament_calibrator.pa_pattern import (
     tip_spacing,
     total_height,
 )
+
+
+# ---------------------------------------------------------------------------
+# _stub_casadi
+# ---------------------------------------------------------------------------
+
+
+class TestStubCasadi:
+    def test_creates_stub_when_not_loaded(self):
+        import sys
+        import types
+
+        saved = sys.modules.pop("casadi", None)
+        saved_sub = sys.modules.pop("casadi.casadi", None)
+        try:
+            _stub_casadi()
+            assert isinstance(sys.modules["casadi"], types.ModuleType)
+            assert isinstance(sys.modules["casadi.casadi"], types.ModuleType)
+        finally:
+            sys.modules.pop("casadi", None)
+            sys.modules.pop("casadi.casadi", None)
+            if saved is not None:
+                sys.modules["casadi"] = saved
+            if saved_sub is not None:
+                sys.modules["casadi.casadi"] = saved_sub
+
+    def test_skips_when_already_loaded(self):
+        import sys
+
+        sentinel = MagicMock()
+        with patch.dict(sys.modules, {"casadi": sentinel}):
+            _stub_casadi()
+            assert sys.modules["casadi"] is sentinel
 
 
 # ---------------------------------------------------------------------------
