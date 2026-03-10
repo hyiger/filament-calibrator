@@ -58,15 +58,23 @@ src/filament_calibrator/
   pa_model.py       # CadQuery parametric hollow rectangular tower model
   pa_pattern.py     # CadQuery parametric chevron pattern model for PA calibration
   pa_insert.py      # G-code pressure advance command insertion
-  ini_writer.py     # Merge calibration results into PrusaSlicer .ini configs;
-                    #   helpers (replace_ini_value, pa_command,
+  ini_writer.py     # Merge calibration results into PrusaSlicer .ini configs.
+                    #   CalibrationResults dataclass: temperature,
+                    #   max_volumetric_speed, pa_value, extrusion_multiplier,
+                    #   retraction_length, xy_shrinkage, z_shrinkage.
+                    #   Helpers (replace_ini_value, pa_command,
                     #   inject_pa_into_start_gcode) imported from gcode-lib
   retraction_cli.py   # retraction-test argparse CLI, pipeline orchestration
   retraction_model.py # CadQuery parametric two-tower retraction test model
   retraction_insert.py # G-code M207 retraction length command insertion
   shrinkage_cli.py    # shrinkage-test argparse CLI, pipeline orchestration
   shrinkage_model.py  # CadQuery parametric 3-axis cross model for shrinkage
-  gui.py            # Streamlit browser GUI wrapping all six CLIs
+  gui.py            # Streamlit browser GUI wrapping all six CLIs.
+                    #   Calibration results persistence (load_saved_results,
+                    #   save_results, results_to_dict,
+                    #   apply_saved_results_to_session) to
+                    #   ~/.config/filament-calibrator/results.json keyed by
+                    #   filament_type|nozzle_size|printer
 ```
 
 ### Key Dependencies
@@ -254,3 +262,9 @@ Entry points:
   `pyproject.toml [project.scripts]`.  Import shared helpers from `cli.py`.
 - **Add a new config key**: Add to `CONFIG_KEYS` in `config.py`, add
   corresponding entry in `_ARGPARSE_DEFAULTS` in `cli.py`.
+- **Access persisted calibration results**: Results for each
+  (filament, nozzle, printer) combination are auto-saved to
+  `~/.config/filament-calibrator/results.json` and restored when
+  switching combinations in the GUI sidebar.  Key format:
+  `"FILAMENT|nozzle_size|PRINTER"`.  Use `load_saved_results()` /
+  `save_results()` for programmatic access.
