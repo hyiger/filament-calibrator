@@ -1,3 +1,5 @@
+[← Back to README](../README.md)
+
 # GUI
 
 ![Filament Calibrator GUI](images/gui/gui-overview.png)
