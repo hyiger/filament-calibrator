@@ -2,8 +2,10 @@
 from __future__ import annotations
 
 import argparse
+import json
 import subprocess
 import sys
+from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 import gcode_lib as gl
@@ -13,16 +15,20 @@ from filament_calibrator.gui import (
     _FALLBACK_PRESET,
     _NOZZLE_SIZES,
     _PRINTER_LIST,
+    _RESULTS_STATE_MAPPING,
     _check_printer_temps,
     _fresh_output_dir,
     _open_directory_dialog,
     _open_file_dialog,
     _osascript_directory_dialog,
     _osascript_file_dialog,
+    _results_file_path,
+    _results_key,
     _run_osascript,
     _tkinter_directory_dialog,
     _tkinter_file_dialog,
     apply_ini_to_session,
+    apply_saved_results_to_session,
     apply_toml_to_session,
     build_calibration_results,
     build_em_namespace,
@@ -33,7 +39,10 @@ from filament_calibrator.gui import (
     build_temp_tower_namespace,
     find_output_file,
     get_preset,
+    load_saved_results,
+    results_to_dict,
     run_pipeline,
+    save_results,
     snap_nozzle_size,
     upload_to_printer,
 )
@@ -1108,6 +1117,7 @@ class TestBuildCalibrationResults:
             set_pa=True, pa_value=0.04,
             set_em=True, extrusion_multiplier=0.95,
             set_retraction=True, retraction_length=0.6,
+            set_shrinkage=True, xy_shrinkage=0.5, z_shrinkage=0.3,
             printer="COREONE",
         )
         assert r.temperature == 215
@@ -1115,6 +1125,8 @@ class TestBuildCalibrationResults:
         assert r.pa_value == 0.04
         assert r.extrusion_multiplier == 0.95
         assert r.retraction_length == 0.6
+        assert r.xy_shrinkage == 0.5
+        assert r.z_shrinkage == 0.3
         assert r.printer == "COREONE"
 
     def test_none_set(self) -> None:
@@ -1124,6 +1136,7 @@ class TestBuildCalibrationResults:
             set_pa=False, pa_value=0.04,
             set_em=False, extrusion_multiplier=0.95,
             set_retraction=False, retraction_length=0.8,
+            set_shrinkage=False, xy_shrinkage=0.5, z_shrinkage=0.3,
             printer="COREONE",
         )
         assert r.temperature is None
@@ -1131,6 +1144,8 @@ class TestBuildCalibrationResults:
         assert r.pa_value is None
         assert r.extrusion_multiplier is None
         assert r.retraction_length is None
+        assert r.xy_shrinkage is None
+        assert r.z_shrinkage is None
         assert r.printer == "COREONE"
 
     def test_partial_temp_only(self) -> None:
@@ -1140,6 +1155,7 @@ class TestBuildCalibrationResults:
             set_pa=False, pa_value=0.04,
             set_em=False, extrusion_multiplier=1.0,
             set_retraction=False, retraction_length=0.8,
+            set_shrinkage=False, xy_shrinkage=0.0, z_shrinkage=0.0,
             printer="MINI",
         )
         assert r.temperature == 230
@@ -1147,6 +1163,8 @@ class TestBuildCalibrationResults:
         assert r.pa_value is None
         assert r.extrusion_multiplier is None
         assert r.retraction_length is None
+        assert r.xy_shrinkage is None
+        assert r.z_shrinkage is None
         assert r.printer == "MINI"
 
     def test_partial_em_only(self) -> None:
@@ -1156,11 +1174,13 @@ class TestBuildCalibrationResults:
             set_pa=False, pa_value=0.04,
             set_em=True, extrusion_multiplier=0.97,
             set_retraction=False, retraction_length=0.8,
+            set_shrinkage=False, xy_shrinkage=0.0, z_shrinkage=0.0,
             printer="COREONE",
         )
         assert r.temperature is None
         assert r.extrusion_multiplier == 0.97
         assert r.retraction_length is None
+        assert r.xy_shrinkage is None
 
     def test_partial_retraction_only(self) -> None:
         r = build_calibration_results(
@@ -1169,10 +1189,27 @@ class TestBuildCalibrationResults:
             set_pa=False, pa_value=0.04,
             set_em=False, extrusion_multiplier=1.0,
             set_retraction=True, retraction_length=0.6,
+            set_shrinkage=False, xy_shrinkage=0.0, z_shrinkage=0.0,
             printer="COREONE",
         )
         assert r.temperature is None
         assert r.retraction_length == 0.6
+        assert r.xy_shrinkage is None
+
+    def test_partial_shrinkage_only(self) -> None:
+        r = build_calibration_results(
+            set_temp=False, temperature=215,
+            set_flow=False, max_volumetric_speed=11.0,
+            set_pa=False, pa_value=0.04,
+            set_em=False, extrusion_multiplier=1.0,
+            set_retraction=False, retraction_length=0.8,
+            set_shrinkage=True, xy_shrinkage=0.5, z_shrinkage=0.3,
+            printer="COREONE",
+        )
+        assert r.temperature is None
+        assert r.retraction_length is None
+        assert r.xy_shrinkage == 0.5
+        assert r.z_shrinkage == 0.3
 
 
 # ---------------------------------------------------------------------------
@@ -1348,3 +1385,220 @@ class TestCheckPrinterTemps:
         with patch("gcode_lib.resolve_printer", return_value="NEWPRINTER"), \
              patch.dict(gl.PRINTER_PRESETS, {}, clear=True):
             assert _check_printer_temps("NEWPRINTER", 999, 999) is None
+
+
+# ---------------------------------------------------------------------------
+# _results_key
+# ---------------------------------------------------------------------------
+
+
+class TestResultsKey:
+    """Test _results_key() composite key builder."""
+
+    def test_basic(self) -> None:
+        assert _results_key("PCTG", 0.4, "COREONE") == "PCTG|0.4|COREONE"
+
+    def test_case_normalization(self) -> None:
+        assert _results_key("pctg", 0.4, "coreone") == "PCTG|0.4|COREONE"
+
+    def test_different_nozzle(self) -> None:
+        assert _results_key("PLA", 0.6, "MK4S") == "PLA|0.6|MK4S"
+
+
+# ---------------------------------------------------------------------------
+# results_to_dict
+# ---------------------------------------------------------------------------
+
+
+class TestResultsToDict:
+    """Test results_to_dict() serialization."""
+
+    def test_all_fields(self) -> None:
+        d = results_to_dict(
+            set_temp=True, temperature=215,
+            set_em=True, extrusion_multiplier=0.95,
+            set_retraction=True, retraction_length=0.6,
+            set_pa=True, pa_value=0.04,
+            set_flow=True, max_volumetric_speed=12.5,
+            set_shrinkage=True, xy_shrinkage=0.5, z_shrinkage=0.3,
+        )
+        assert d["set_temp"] is True
+        assert d["temperature"] == 215
+        assert d["set_em"] is True
+        assert d["extrusion_multiplier"] == 0.95
+        assert d["set_retraction"] is True
+        assert d["retraction_length"] == 0.6
+        assert d["set_pa"] is True
+        assert d["pa_value"] == 0.04
+        assert d["set_flow"] is True
+        assert d["max_volumetric_speed"] == 12.5
+        assert d["set_shrinkage"] is True
+        assert d["xy_shrinkage"] == 0.5
+        assert d["z_shrinkage"] == 0.3
+
+    def test_all_disabled(self) -> None:
+        d = results_to_dict(
+            set_temp=False, temperature=200,
+            set_em=False, extrusion_multiplier=1.0,
+            set_retraction=False, retraction_length=0.8,
+            set_pa=False, pa_value=0.04,
+            set_flow=False, max_volumetric_speed=11.0,
+            set_shrinkage=False, xy_shrinkage=0.0, z_shrinkage=0.0,
+        )
+        assert d["set_temp"] is False
+        assert d["set_shrinkage"] is False
+        # Values are still serialized (booleans gate usage at restore time).
+        assert d["temperature"] == 200
+        assert d["xy_shrinkage"] == 0.0
+
+
+# ---------------------------------------------------------------------------
+# apply_saved_results_to_session
+# ---------------------------------------------------------------------------
+
+
+class TestApplySavedResultsToSession:
+    """Test apply_saved_results_to_session() state update."""
+
+    def test_full_restore(self) -> None:
+        state: dict = {}
+        saved = {
+            "set_temp": True, "temperature": 230,
+            "set_em": True, "extrusion_multiplier": 0.93,
+            "set_retraction": True, "retraction_length": 0.6,
+            "set_pa": True, "pa_value": 0.05,
+            "set_flow": True, "max_volumetric_speed": 14.0,
+            "set_shrinkage": True, "xy_shrinkage": 0.5, "z_shrinkage": 0.3,
+        }
+        apply_saved_results_to_session(state, saved)
+        assert state["res_set_temp"] is True
+        assert state["res_temp"] == 230
+        assert state["res_set_em"] is True
+        assert state["res_em"] == 0.93
+        assert state["res_set_retraction"] is True
+        assert state["res_retraction"] == 0.6
+        assert state["res_set_pa"] is True
+        assert state["res_pa"] == 0.05
+        assert state["res_set_flow"] is True
+        assert state["res_flow"] == 14.0
+        assert state["res_set_shrinkage"] is True
+        assert state["res_xy_shrinkage"] == 0.5
+        assert state["res_z_shrinkage"] == 0.3
+
+    def test_partial_restore(self) -> None:
+        state: dict = {}
+        saved = {"set_temp": True, "temperature": 220}
+        apply_saved_results_to_session(state, saved)
+        assert state["res_set_temp"] is True
+        assert state["res_temp"] == 220
+        # Other keys not set.
+        assert "res_set_em" not in state
+        assert "res_set_shrinkage" not in state
+
+    def test_empty_dict(self) -> None:
+        state: dict = {}
+        apply_saved_results_to_session(state, {})
+        assert len(state) == 0
+
+    def test_mapping_coverage(self) -> None:
+        """Every _RESULTS_STATE_MAPPING key is exercised."""
+        saved = {k: 42 for k in _RESULTS_STATE_MAPPING}
+        state: dict = {}
+        apply_saved_results_to_session(state, saved)
+        for json_key, state_key in _RESULTS_STATE_MAPPING.items():
+            assert state[state_key] == 42
+
+
+# ---------------------------------------------------------------------------
+# load_saved_results / save_results
+# ---------------------------------------------------------------------------
+
+
+class TestLoadSaveResults:
+    """Test load_saved_results() and save_results() persistence."""
+
+    def test_round_trip(self, tmp_path: Path) -> None:
+        fake_path = tmp_path / "results.json"
+        with patch(
+            "filament_calibrator.gui._results_file_path",
+            return_value=fake_path,
+        ):
+            values = {"set_temp": True, "temperature": 230}
+            save_results("PCTG", 0.4, "COREONE", values)
+            loaded = load_saved_results("PCTG", 0.4, "COREONE")
+            assert loaded == values
+
+    def test_missing_file(self, tmp_path: Path) -> None:
+        fake_path = tmp_path / "nonexistent" / "results.json"
+        with patch(
+            "filament_calibrator.gui._results_file_path",
+            return_value=fake_path,
+        ):
+            assert load_saved_results("PLA", 0.4, "MK4S") is None
+
+    def test_corrupt_json(self, tmp_path: Path) -> None:
+        fake_path = tmp_path / "results.json"
+        fake_path.write_text("not valid json {{{", encoding="utf-8")
+        with patch(
+            "filament_calibrator.gui._results_file_path",
+            return_value=fake_path,
+        ):
+            assert load_saved_results("PLA", 0.4, "MK4S") is None
+
+    def test_missing_key(self, tmp_path: Path) -> None:
+        fake_path = tmp_path / "results.json"
+        fake_path.write_text('{"OTHER|0.4|MK4S": {}}', encoding="utf-8")
+        with patch(
+            "filament_calibrator.gui._results_file_path",
+            return_value=fake_path,
+        ):
+            assert load_saved_results("PLA", 0.4, "MK4S") is None
+
+    def test_creates_parent_dirs(self, tmp_path: Path) -> None:
+        fake_path = tmp_path / "a" / "b" / "results.json"
+        with patch(
+            "filament_calibrator.gui._results_file_path",
+            return_value=fake_path,
+        ):
+            save_results("PLA", 0.4, "MK4S", {"set_temp": True})
+            assert fake_path.is_file()
+            data = json.loads(fake_path.read_text(encoding="utf-8"))
+            assert "PLA|0.4|MK4S" in data
+
+    def test_merges_entries(self, tmp_path: Path) -> None:
+        fake_path = tmp_path / "results.json"
+        with patch(
+            "filament_calibrator.gui._results_file_path",
+            return_value=fake_path,
+        ):
+            save_results("PLA", 0.4, "MK4S", {"set_temp": True})
+            save_results("PETG", 0.4, "COREONE", {"set_em": True})
+            data = json.loads(fake_path.read_text(encoding="utf-8"))
+            assert "PLA|0.4|MK4S" in data
+            assert "PETG|0.4|COREONE" in data
+
+    def test_non_dict_entry_returns_none(self, tmp_path: Path) -> None:
+        fake_path = tmp_path / "results.json"
+        fake_path.write_text('{"PLA|0.4|MK4S": "not a dict"}',
+                             encoding="utf-8")
+        with patch(
+            "filament_calibrator.gui._results_file_path",
+            return_value=fake_path,
+        ):
+            assert load_saved_results("PLA", 0.4, "MK4S") is None
+
+    def test_save_overwrites_corrupt_file(self, tmp_path: Path) -> None:
+        fake_path = tmp_path / "results.json"
+        fake_path.write_text("corrupt!", encoding="utf-8")
+        with patch(
+            "filament_calibrator.gui._results_file_path",
+            return_value=fake_path,
+        ):
+            save_results("PLA", 0.4, "MK4S", {"set_temp": True})
+            loaded = load_saved_results("PLA", 0.4, "MK4S")
+            assert loaded == {"set_temp": True}
+
+    def test_results_file_path(self) -> None:
+        path = _results_file_path()
+        assert path.name == "results.json"
+        assert "filament-calibrator" in str(path)

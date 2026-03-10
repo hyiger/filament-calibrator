@@ -118,6 +118,39 @@ class TestMergeResultsIntoIni:
         merged = merge_results_into_ini(ini, results)
         assert "retract_length = 0.8" in merged
 
+    def test_only_xy_shrinkage(self) -> None:
+        ini = "temperature = 200\n"
+        results = CalibrationResults(xy_shrinkage=0.5)
+        merged = merge_results_into_ini(ini, results)
+        assert "shrinkage_compensation = 100.5%,100.5%,100.0%" in merged
+
+    def test_only_z_shrinkage(self) -> None:
+        ini = "temperature = 200\n"
+        results = CalibrationResults(z_shrinkage=0.3)
+        merged = merge_results_into_ini(ini, results)
+        assert "shrinkage_compensation = 100.0%,100.0%,100.3%" in merged
+
+    def test_both_shrinkage(self) -> None:
+        ini = "temperature = 200\n"
+        results = CalibrationResults(xy_shrinkage=0.5, z_shrinkage=0.3)
+        merged = merge_results_into_ini(ini, results)
+        assert "shrinkage_compensation = 100.5%,100.5%,100.3%" in merged
+
+    def test_shrinkage_replaces_existing(self) -> None:
+        ini = "shrinkage_compensation = 100%,100%,100%\n"
+        results = CalibrationResults(xy_shrinkage=1.0, z_shrinkage=0.5)
+        merged = merge_results_into_ini(ini, results)
+        assert "shrinkage_compensation = 101.0%,101.0%,100.5%" in merged
+        # Original value should be gone.
+        assert "100%,100%,100%" not in merged
+
+    def test_shrinkage_appended_when_missing(self) -> None:
+        ini = "temperature = 200\n"
+        results = CalibrationResults(xy_shrinkage=0.2)
+        merged = merge_results_into_ini(ini, results)
+        lines = merged.splitlines()
+        assert lines[-1] == "shrinkage_compensation = 100.2%,100.2%,100.0%"
+
     def test_empty_input(self) -> None:
         results = CalibrationResults()
         merged = merge_results_into_ini("", results)
@@ -182,3 +215,35 @@ class TestBuildChangeSummary:
         assert "0.6 mm" in summary
         assert "retract_length" in summary
         assert "temperature" not in summary.lower()
+
+    def test_partial_shrinkage_xy_only(self) -> None:
+        results = CalibrationResults(xy_shrinkage=0.5)
+        summary = build_change_summary(results)
+        assert "100.5%, 100.5%, 100.0%" in summary
+        assert "shrinkage_compensation" in summary
+        assert "temperature" not in summary.lower()
+
+    def test_partial_shrinkage_both(self) -> None:
+        results = CalibrationResults(xy_shrinkage=0.5, z_shrinkage=0.3)
+        summary = build_change_summary(results)
+        assert "100.5%, 100.5%, 100.3%" in summary
+        assert "shrinkage_compensation" in summary
+
+    def test_all_set_includes_shrinkage(self) -> None:
+        results = CalibrationResults(
+            temperature=215,
+            max_volumetric_speed=12.5,
+            pa_value=0.04,
+            extrusion_multiplier=0.95,
+            retraction_length=0.6,
+            xy_shrinkage=0.5,
+            z_shrinkage=0.3,
+            printer="COREONE",
+        )
+        summary = build_change_summary(results)
+        assert "215 °C" in summary
+        assert "12.5 mm³/s" in summary
+        assert "M572 S0.0400" in summary
+        assert "0.95" in summary
+        assert "0.6 mm" in summary
+        assert "100.5%, 100.5%, 100.3%" in summary

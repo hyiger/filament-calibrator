@@ -44,6 +44,16 @@ class CalibrationResults:
     retraction_length: Optional[float] = None
     """Retraction length in mm."""
 
+    xy_shrinkage: Optional[float] = None
+    """XY shrinkage compensation in %.  Value is the measured shrinkage
+    (e.g. ``0.5`` means 0.5 %).  Written to the INI as ``100 + value``
+    for the X and Y axes."""
+
+    z_shrinkage: Optional[float] = None
+    """Z shrinkage compensation in %.  Value is the measured shrinkage
+    (e.g. ``0.3`` means 0.3 %).  Written to the INI as ``100 + value``
+    for the Z axis."""
+
     printer: str = "COREONE"
     """Printer model name.  Determines the PA G-code command:
     ``"MINI"`` uses ``M900 K<value>`` (Linear Advance),
@@ -110,6 +120,17 @@ def merge_results_into_ini(
         if not found:
             lines.append(f"retract_length = {rl_str}")
 
+    # --- Shrinkage compensation ---
+    if results.xy_shrinkage is not None or results.z_shrinkage is not None:
+        xy_comp = 100.0 + (results.xy_shrinkage or 0.0)
+        z_comp = 100.0 + (results.z_shrinkage or 0.0)
+        comp_str = f"{xy_comp:.1f}%,{xy_comp:.1f}%,{z_comp:.1f}%"
+        lines, found = _replace_ini_value(
+            lines, "shrinkage_compensation", comp_str,
+        )
+        if not found:
+            lines.append(f"shrinkage_compensation = {comp_str}")
+
     return "\n".join(lines) + "\n" if lines else ""
 
 
@@ -149,6 +170,15 @@ def build_change_summary(results: CalibrationResults) -> str:
             f"- **Retraction length:** "
             f"{results.retraction_length:.1f} mm "
             f"(`retract_length`)"
+        )
+
+    if results.xy_shrinkage is not None or results.z_shrinkage is not None:
+        xy_comp = 100.0 + (results.xy_shrinkage or 0.0)
+        z_comp = 100.0 + (results.z_shrinkage or 0.0)
+        parts.append(
+            f"- **Shrinkage compensation:** "
+            f"{xy_comp:.1f}%, {xy_comp:.1f}%, {z_comp:.1f}% "
+            f"(X, Y, Z) (`shrinkage_compensation`)"
         )
 
     if not parts:

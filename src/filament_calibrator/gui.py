@@ -815,6 +815,9 @@ def build_calibration_results(
     extrusion_multiplier: float,
     set_retraction: bool,
     retraction_length: float,
+    set_shrinkage: bool,
+    xy_shrinkage: float,
+    z_shrinkage: float,
     printer: str,
 ) -> CalibrationResults:
     """Build a :class:`CalibrationResults` from GUI widget values.
@@ -830,8 +833,146 @@ def build_calibration_results(
         pa_value=pa_value if set_pa else None,
         extrusion_multiplier=extrusion_multiplier if set_em else None,
         retraction_length=retraction_length if set_retraction else None,
+        xy_shrinkage=xy_shrinkage if set_shrinkage else None,
+        z_shrinkage=z_shrinkage if set_shrinkage else None,
         printer=printer,
     )
+
+
+# ---------------------------------------------------------------------------
+# Calibration results persistence
+# ---------------------------------------------------------------------------
+
+_RESULTS_FILENAME = "results.json"
+
+
+def _results_file_path() -> Path:
+    """Return the path to the calibration results JSON file.
+
+    Located at ``~/.config/filament-calibrator/results.json``.
+    """
+    return Path.home() / ".config" / "filament-calibrator" / _RESULTS_FILENAME
+
+
+def _results_key(filament_type: str, nozzle_size: float, printer: str) -> str:
+    """Build the composite key for a results entry."""
+    return f"{filament_type.upper()}|{nozzle_size}|{printer.upper()}"
+
+
+def load_saved_results(
+    filament_type: str,
+    nozzle_size: float,
+    printer: str,
+) -> Optional[Dict[str, Any]]:
+    """Load saved results for a (filament, nozzle, printer) combo.
+
+    Returns ``None`` if no file exists or no entry matches.
+    """
+    path = _results_file_path()
+    if not path.is_file():
+        return None
+    try:
+        with open(path, "r", encoding="utf-8") as f:
+            data = json.load(f)
+    except (json.JSONDecodeError, OSError):
+        return None
+    key = _results_key(filament_type, nozzle_size, printer)
+    entry = data.get(key)
+    if isinstance(entry, dict):
+        return entry
+    return None
+
+
+def save_results(
+    filament_type: str,
+    nozzle_size: float,
+    printer: str,
+    values: Dict[str, Any],
+) -> None:
+    """Persist results for a (filament, nozzle, printer) combo.
+
+    Creates the parent directory and file if they don't exist.
+    Merges into existing data so other combos are preserved.
+    """
+    path = _results_file_path()
+    data: Dict[str, Any] = {}
+    if path.is_file():
+        try:
+            with open(path, "r", encoding="utf-8") as f:
+                data = json.load(f)
+        except (json.JSONDecodeError, OSError):
+            data = {}
+    key = _results_key(filament_type, nozzle_size, printer)
+    data[key] = values
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with open(path, "w", encoding="utf-8") as f:
+        json.dump(data, f, indent=2, sort_keys=True)
+
+
+def results_to_dict(
+    *,
+    set_temp: bool,
+    temperature: int,
+    set_em: bool,
+    extrusion_multiplier: float,
+    set_retraction: bool,
+    retraction_length: float,
+    set_pa: bool,
+    pa_value: float,
+    set_flow: bool,
+    max_volumetric_speed: float,
+    set_shrinkage: bool,
+    xy_shrinkage: float,
+    z_shrinkage: float,
+) -> Dict[str, Any]:
+    """Serialize the current results tab values to a dict for persistence."""
+    return {
+        "set_temp": set_temp,
+        "temperature": temperature,
+        "set_em": set_em,
+        "extrusion_multiplier": extrusion_multiplier,
+        "set_retraction": set_retraction,
+        "retraction_length": retraction_length,
+        "set_pa": set_pa,
+        "pa_value": pa_value,
+        "set_flow": set_flow,
+        "max_volumetric_speed": max_volumetric_speed,
+        "set_shrinkage": set_shrinkage,
+        "xy_shrinkage": xy_shrinkage,
+        "z_shrinkage": z_shrinkage,
+    }
+
+
+#: Maps JSON persistence keys to Streamlit session-state widget keys.
+_RESULTS_STATE_MAPPING: Dict[str, str] = {
+    "set_temp": "res_set_temp",
+    "temperature": "res_temp",
+    "set_em": "res_set_em",
+    "extrusion_multiplier": "res_em",
+    "set_retraction": "res_set_retraction",
+    "retraction_length": "res_retraction",
+    "set_pa": "res_set_pa",
+    "pa_value": "res_pa",
+    "set_flow": "res_set_flow",
+    "max_volumetric_speed": "res_flow",
+    "set_shrinkage": "res_set_shrinkage",
+    "xy_shrinkage": "res_xy_shrinkage",
+    "z_shrinkage": "res_z_shrinkage",
+}
+
+
+def apply_saved_results_to_session(
+    state: Dict[str, Any],
+    saved: Dict[str, Any],
+) -> None:
+    """Write saved results dict into Streamlit session-state widget keys.
+
+    Maps JSON keys to the ``res_*`` session state keys used by the
+    Results tab widgets.
+    """
+    for json_key, state_key in _RESULTS_STATE_MAPPING.items():
+        if json_key in saved:
+            state[state_key] = saved[json_key]
 
 
 # ---------------------------------------------------------------------------
@@ -1101,6 +1242,28 @@ def _app() -> None:  # pragma: no cover
     # already been instantiated and Streamlit forbids setting their keys.
     if _ini_vals:
         apply_ini_to_session(st.session_state, _ini_vals, sidebar=False)
+
+    # Auto-restore saved calibration results when the sidebar key
+    # (filament, nozzle, printer) changes.
+    _prev_res_ft = st.session_state.get("_res_filament_type")
+    _prev_res_ns = st.session_state.get("_res_nozzle_size")
+    _prev_res_pr = st.session_state.get("_res_printer")
+    _results_key_changed = (
+        _prev_res_ft != filament_type
+        or _prev_res_ns != nozzle_size
+        or _prev_res_pr != printer
+    )
+    if _results_key_changed:
+        st.session_state["_res_filament_type"] = filament_type
+        st.session_state["_res_nozzle_size"] = nozzle_size
+        st.session_state["_res_printer"] = printer
+        saved = load_saved_results(filament_type, nozzle_size, printer)
+        if saved is not None:
+            apply_saved_results_to_session(st.session_state, saved)
+        else:
+            for _rk in ("res_set_temp", "res_set_em", "res_set_retraction",
+                         "res_set_pa", "res_set_flow", "res_set_shrinkage"):
+                st.session_state[_rk] = False
 
     # --- Tabs ---
     (tab_temp, tab_em, tab_retraction, tab_pa, tab_flow,
@@ -2022,6 +2185,26 @@ def _app() -> None:  # pragma: no cover
             step=0.5, disabled=not set_flow, key="res_flow",
         )
 
+        # Shrinkage compensation result
+        set_shrinkage = st.checkbox(
+            "Set shrinkage compensation", key="res_set_shrinkage",
+        )
+        _col_xy, _col_z = st.columns(2)
+        with _col_xy:
+            res_xy_shrinkage = st.number_input(
+                "XY shrinkage (%)", 0.0, 5.0, 0.0,
+                step=0.1, format="%.1f",
+                disabled=not set_shrinkage, key="res_xy_shrinkage",
+                help="Measured XY shrinkage. Compensation = 100 + this value.",
+            )
+        with _col_z:
+            res_z_shrinkage = st.number_input(
+                "Z shrinkage (%)", 0.0, 5.0, 0.0,
+                step=0.1, format="%.1f",
+                disabled=not set_shrinkage, key="res_z_shrinkage",
+                help="Measured Z shrinkage. Compensation = 100 + this value.",
+            )
+
         # Build results object
         results = build_calibration_results(
             set_temp=set_temp, temperature=int(res_temp),
@@ -2030,7 +2213,27 @@ def _app() -> None:  # pragma: no cover
             set_em=set_em, extrusion_multiplier=float(res_em),
             set_retraction=set_retraction,
             retraction_length=float(res_retraction),
+            set_shrinkage=set_shrinkage,
+            xy_shrinkage=float(res_xy_shrinkage),
+            z_shrinkage=float(res_z_shrinkage),
             printer=printer,
+        )
+
+        # Auto-save results for this filament/nozzle/printer combo.
+        save_results(
+            filament_type, nozzle_size, printer,
+            results_to_dict(
+                set_temp=set_temp, temperature=int(res_temp),
+                set_em=set_em, extrusion_multiplier=float(res_em),
+                set_retraction=set_retraction,
+                retraction_length=float(res_retraction),
+                set_pa=set_pa, pa_value=float(res_pa),
+                set_flow=set_flow,
+                max_volumetric_speed=float(res_flow),
+                set_shrinkage=set_shrinkage,
+                xy_shrinkage=float(res_xy_shrinkage),
+                z_shrinkage=float(res_z_shrinkage),
+            ),
         )
 
         # Show change summary
@@ -2040,6 +2243,8 @@ def _app() -> None:  # pragma: no cover
             or results.pa_value is not None
             or results.extrusion_multiplier is not None
             or results.retraction_length is not None
+            or results.xy_shrinkage is not None
+            or results.z_shrinkage is not None
         )
         if has_any:
             summary = build_change_summary(results)
