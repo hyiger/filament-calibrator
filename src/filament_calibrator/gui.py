@@ -1699,7 +1699,7 @@ def _app() -> None:  # pragma: no cover
             st.session_state.pop("_upload_status", None)
             st.session_state.pop("_upload_message", None)
             st.session_state.pop("_print_after", None)
-            st.session_state.pop("upload_print_after", None)
+            st.session_state.pop("upload_print_after_temp", None)
 
         _run = st.session_state.get("_last_run")
         if _run and _run["tab"] == "temp":
@@ -1808,7 +1808,7 @@ def _app() -> None:  # pragma: no cover
             st.session_state.pop("_upload_status", None)
             st.session_state.pop("_upload_message", None)
             st.session_state.pop("_print_after", None)
-            st.session_state.pop("upload_print_after", None)
+            st.session_state.pop("upload_print_after_em", None)
 
         _run = st.session_state.get("_last_run")
         if _run and _run["tab"] == "em":
@@ -1965,7 +1965,7 @@ def _app() -> None:  # pragma: no cover
                 st.session_state.pop("_upload_status", None)
                 st.session_state.pop("_upload_message", None)
                 st.session_state.pop("_print_after", None)
-                st.session_state.pop("upload_print_after", None)
+                st.session_state.pop("upload_print_after_retraction", None)
 
             _run = st.session_state.get("_last_run")
             if _run and _run["tab"] == "retraction":
@@ -2130,7 +2130,7 @@ def _app() -> None:  # pragma: no cover
                 st.session_state.pop("_upload_status", None)
                 st.session_state.pop("_upload_message", None)
                 st.session_state.pop("_print_after", None)
-                st.session_state.pop("upload_print_after", None)
+                st.session_state.pop("upload_print_after_retraction_speed", None)
 
             _run = st.session_state.get("_last_run")
             if _run and _run["tab"] == "retraction_speed":
@@ -2362,7 +2362,7 @@ def _app() -> None:  # pragma: no cover
             st.session_state.pop("_upload_status", None)
             st.session_state.pop("_upload_message", None)
             st.session_state.pop("_print_after", None)
-            st.session_state.pop("upload_print_after", None)
+            st.session_state.pop("upload_print_after_pa", None)
 
         _run = st.session_state.get("_last_run")
         if _run and _run["tab"] == "pa":
@@ -2504,7 +2504,7 @@ def _app() -> None:  # pragma: no cover
             st.session_state.pop("_upload_status", None)
             st.session_state.pop("_upload_message", None)
             st.session_state.pop("_print_after", None)
-            st.session_state.pop("upload_print_after", None)
+            st.session_state.pop("upload_print_after_flow", None)
 
         _run = st.session_state.get("_last_run")
         if _run and _run["tab"] == "flow":
@@ -2617,7 +2617,7 @@ def _app() -> None:  # pragma: no cover
             st.session_state.pop("_upload_status", None)
             st.session_state.pop("_upload_message", None)
             st.session_state.pop("_print_after", None)
-            st.session_state.pop("upload_print_after", None)
+            st.session_state.pop("upload_print_after_shrinkage", None)
 
         _run = st.session_state.get("_last_run")
         if _run and _run["tab"] == "shrinkage":
@@ -2723,7 +2723,7 @@ def _app() -> None:  # pragma: no cover
             st.session_state.pop("_upload_status", None)
             st.session_state.pop("_upload_message", None)
             st.session_state.pop("_print_after", None)
-            st.session_state.pop("upload_print_after", None)
+            st.session_state.pop("upload_print_after_tolerance", None)
 
         _run = st.session_state.get("_last_run")
         if _run and _run["tab"] == "tolerance":
@@ -2839,7 +2839,7 @@ def _app() -> None:  # pragma: no cover
             st.session_state.pop("_upload_status", None)
             st.session_state.pop("_upload_message", None)
             st.session_state.pop("_print_after", None)
-            st.session_state.pop("upload_print_after", None)
+            st.session_state.pop("upload_print_after_bridge", None)
 
         _run = st.session_state.get("_last_run")
         if _run and _run["tab"] == "bridge":
@@ -2945,7 +2945,7 @@ def _app() -> None:  # pragma: no cover
             st.session_state.pop("_upload_status", None)
             st.session_state.pop("_upload_message", None)
             st.session_state.pop("_print_after", None)
-            st.session_state.pop("upload_print_after", None)
+            st.session_state.pop("upload_print_after_overhang", None)
 
         _run = st.session_state.get("_last_run")
         if _run and _run["tab"] == "overhang":
@@ -3097,7 +3097,7 @@ def _app() -> None:  # pragma: no cover
             st.session_state.pop("_upload_status", None)
             st.session_state.pop("_upload_message", None)
             st.session_state.pop("_print_after", None)
-            st.session_state.pop("upload_print_after", None)
+            st.session_state.pop("upload_print_after_cooling", None)
 
         _run = st.session_state.get("_last_run")
         if _run and _run["tab"] == "cooling":
@@ -3271,6 +3271,7 @@ def _show_results(
     ascii_gcode = run_info["ascii_gcode"]
     success = run_info["success"]
     log = run_info["log"]
+    tab_id = run_info.get("tab", "default")
 
     if success:
         st.success("Pipeline completed!")
@@ -3286,7 +3287,7 @@ def _show_results(
                 data=fh.read(),
                 file_name=gcode_path.name,
                 mime="application/octet-stream",
-                key="download_gcode",
+                key=f"download_gcode_{tab_id}",
             )
 
     # Thumbnail preview (use most recent STL for shared output dirs).
@@ -3315,7 +3316,7 @@ def _show_results(
         and run_info.get("upload_enabled")
         and gcode_path is not None
     ):
-        _show_upload_section(st, run_info, gcode_path)
+        _show_upload_section(st, run_info, gcode_path, tab_id)
 
     # Pipeline log
     with st.expander("Pipeline Log", expanded=not success):
@@ -3326,6 +3327,7 @@ def _show_upload_section(
     st: Any,
     run_info: Dict[str, Any],
     gcode_path: Path,
+    tab_id: str = "default",
 ) -> None:  # pragma: no cover
     """Show upload confirmation, progress, and result."""
     upload_status = st.session_state.get("_upload_status")
@@ -3343,18 +3345,19 @@ def _show_upload_section(
             )
             print_after = st.checkbox(
                 "Print after upload", value=False,
-                key="upload_print_after",
+                key=f"upload_print_after_{tab_id}",
             )
             col_up, col_skip, _pad = st.columns([1, 1, 4])
             with col_up:
                 if st.button(
-                    "Upload", type="primary", key="do_upload",
+                    "Upload", type="primary",
+                    key=f"do_upload_{tab_id}",
                 ):
                     st.session_state["_print_after"] = print_after
                     st.session_state["_upload_status"] = "uploading"
                     st.rerun()
             with col_skip:
-                if st.button("Skip", key="skip_upload"):
+                if st.button("Skip", key=f"skip_upload_{tab_id}"):
                     st.session_state["_upload_status"] = "skipped"
                     st.rerun()
 
