@@ -1,8 +1,9 @@
 """Streamlit GUI for filament calibration tools.
 
-Provides a browser-based interface to all six CLI pipelines
+Provides a browser-based interface to all CLI pipelines
 (temperature-tower, extrusion-multiplier, retraction-test,
-pressure-advance, volumetric-flow, shrinkage-test).
+retraction-speed, pressure-advance, volumetric-flow, shrinkage-test,
+tolerance-test, bridging-test, overhang-test, cooling-test).
 All heavy lifting (CAD, slicing, G-code processing) runs server-side.
 """
 from __future__ import annotations
@@ -466,6 +467,282 @@ def build_shrinkage_namespace(
     )
 
 
+def build_retraction_speed_namespace(
+    *,
+    filament_type: str,
+    retraction_length: float,
+    start_speed: float,
+    end_speed: float,
+    speed_step: float,
+    level_height: float,
+    nozzle_temp: int,
+    bed_temp: int,
+    fan_speed: int,
+    nozzle_size: float,
+    nozzle_high_flow: bool = False,
+    nozzle_hardened: bool = False,
+    layer_height: float,
+    extrusion_width: float,
+    printer: str,
+    ascii_gcode: bool,
+    output_dir: str,
+    config_ini: Optional[str],
+    prusaslicer_path: Optional[str],
+    printer_url: Optional[str],
+    api_key: Optional[str],
+    no_upload: bool,
+    print_after_upload: bool,
+) -> argparse.Namespace:
+    """Build an ``argparse.Namespace`` for the retraction-speed pipeline."""
+    return argparse.Namespace(
+        filament_type=filament_type,
+        retraction_length=retraction_length,
+        start_speed=start_speed,
+        end_speed=end_speed,
+        speed_step=speed_step,
+        level_height=level_height,
+        nozzle_temp=nozzle_temp,
+        bed_temp=bed_temp,
+        fan_speed=fan_speed,
+        nozzle_size=nozzle_size,
+        nozzle_high_flow=nozzle_high_flow,
+        nozzle_hardened=nozzle_hardened,
+        layer_height=layer_height,
+        extrusion_width=extrusion_width,
+        printer=printer,
+        ascii_gcode=ascii_gcode,
+        output_dir=output_dir,
+        config_ini=config_ini or None,
+        prusaslicer_path=prusaslicer_path or None,
+        bed_center=None,
+        extra_slicer_args=None,
+        printer_url=printer_url or None,
+        api_key=api_key or None,
+        no_upload=no_upload,
+        print_after_upload=print_after_upload,
+        _explicit_keys=_GUI_EXPLICIT_KEYS,
+        config=None,
+        keep_files=True,
+        verbose=True,
+    )
+
+
+def build_bridge_namespace(
+    *,
+    filament_type: str,
+    spans: str,
+    pillar_height: float,
+    nozzle_temp: int,
+    bed_temp: int,
+    fan_speed: int,
+    nozzle_size: float,
+    nozzle_high_flow: bool = False,
+    nozzle_hardened: bool = False,
+    layer_height: float,
+    extrusion_width: float,
+    printer: str,
+    ascii_gcode: bool,
+    output_dir: str,
+    config_ini: Optional[str],
+    prusaslicer_path: Optional[str],
+    printer_url: Optional[str],
+    api_key: Optional[str],
+    no_upload: bool,
+    print_after_upload: bool,
+) -> argparse.Namespace:
+    """Build an ``argparse.Namespace`` for the bridging-test pipeline."""
+    return argparse.Namespace(
+        filament_type=filament_type,
+        spans=spans,
+        pillar_height=pillar_height,
+        nozzle_temp=nozzle_temp,
+        bed_temp=bed_temp,
+        fan_speed=fan_speed,
+        nozzle_size=nozzle_size,
+        nozzle_high_flow=nozzle_high_flow,
+        nozzle_hardened=nozzle_hardened,
+        layer_height=layer_height,
+        extrusion_width=extrusion_width,
+        printer=printer,
+        ascii_gcode=ascii_gcode,
+        output_dir=output_dir,
+        config_ini=config_ini or None,
+        prusaslicer_path=prusaslicer_path or None,
+        bed_center=None,
+        extra_slicer_args=None,
+        printer_url=printer_url or None,
+        api_key=api_key or None,
+        no_upload=no_upload,
+        print_after_upload=print_after_upload,
+        _explicit_keys=_GUI_EXPLICIT_KEYS,
+        config=None,
+        keep_files=True,
+        verbose=True,
+    )
+
+
+def build_overhang_namespace(
+    *,
+    filament_type: str,
+    angles: str,
+    nozzle_temp: int,
+    bed_temp: int,
+    fan_speed: int,
+    nozzle_size: float,
+    nozzle_high_flow: bool = False,
+    nozzle_hardened: bool = False,
+    layer_height: float,
+    extrusion_width: float,
+    printer: str,
+    ascii_gcode: bool,
+    output_dir: str,
+    config_ini: Optional[str],
+    prusaslicer_path: Optional[str],
+    printer_url: Optional[str],
+    api_key: Optional[str],
+    no_upload: bool,
+    print_after_upload: bool,
+) -> argparse.Namespace:
+    """Build an ``argparse.Namespace`` for the overhang-test pipeline."""
+    return argparse.Namespace(
+        filament_type=filament_type,
+        angles=angles,
+        nozzle_temp=nozzle_temp,
+        bed_temp=bed_temp,
+        fan_speed=fan_speed,
+        nozzle_size=nozzle_size,
+        nozzle_high_flow=nozzle_high_flow,
+        nozzle_hardened=nozzle_hardened,
+        layer_height=layer_height,
+        extrusion_width=extrusion_width,
+        printer=printer,
+        ascii_gcode=ascii_gcode,
+        output_dir=output_dir,
+        config_ini=config_ini or None,
+        prusaslicer_path=prusaslicer_path or None,
+        bed_center=None,
+        extra_slicer_args=None,
+        printer_url=printer_url or None,
+        api_key=api_key or None,
+        no_upload=no_upload,
+        print_after_upload=print_after_upload,
+        _explicit_keys=_GUI_EXPLICIT_KEYS,
+        config=None,
+        keep_files=True,
+        verbose=True,
+    )
+
+
+def build_tolerance_namespace(
+    *,
+    filament_type: str,
+    diameters: str,
+    nozzle_temp: int,
+    bed_temp: int,
+    fan_speed: int,
+    nozzle_size: float,
+    nozzle_high_flow: bool = False,
+    nozzle_hardened: bool = False,
+    layer_height: float,
+    extrusion_width: float,
+    printer: str,
+    ascii_gcode: bool,
+    output_dir: str,
+    config_ini: Optional[str],
+    prusaslicer_path: Optional[str],
+    printer_url: Optional[str],
+    api_key: Optional[str],
+    no_upload: bool,
+    print_after_upload: bool,
+) -> argparse.Namespace:
+    """Build an ``argparse.Namespace`` for the tolerance-test pipeline."""
+    return argparse.Namespace(
+        filament_type=filament_type,
+        diameters=diameters,
+        nozzle_temp=nozzle_temp,
+        bed_temp=bed_temp,
+        fan_speed=fan_speed,
+        nozzle_size=nozzle_size,
+        nozzle_high_flow=nozzle_high_flow,
+        nozzle_hardened=nozzle_hardened,
+        layer_height=layer_height,
+        extrusion_width=extrusion_width,
+        printer=printer,
+        ascii_gcode=ascii_gcode,
+        output_dir=output_dir,
+        config_ini=config_ini or None,
+        prusaslicer_path=prusaslicer_path or None,
+        bed_center=None,
+        extra_slicer_args=None,
+        printer_url=printer_url or None,
+        api_key=api_key or None,
+        no_upload=no_upload,
+        print_after_upload=print_after_upload,
+        _explicit_keys=_GUI_EXPLICIT_KEYS,
+        config=None,
+        keep_files=True,
+        verbose=True,
+    )
+
+
+def build_cooling_namespace(
+    *,
+    filament_type: str,
+    start_fan: int,
+    end_fan: int,
+    fan_step: int,
+    level_height: float,
+    nozzle_temp: int,
+    bed_temp: int,
+    fan_speed: int,
+    nozzle_size: float,
+    nozzle_high_flow: bool = False,
+    nozzle_hardened: bool = False,
+    layer_height: float,
+    extrusion_width: float,
+    printer: str,
+    ascii_gcode: bool,
+    output_dir: str,
+    config_ini: Optional[str],
+    prusaslicer_path: Optional[str],
+    printer_url: Optional[str],
+    api_key: Optional[str],
+    no_upload: bool,
+    print_after_upload: bool,
+) -> argparse.Namespace:
+    """Build an ``argparse.Namespace`` for the cooling-test pipeline."""
+    return argparse.Namespace(
+        filament_type=filament_type,
+        start_fan=start_fan,
+        end_fan=end_fan,
+        fan_step=fan_step,
+        level_height=level_height,
+        nozzle_temp=nozzle_temp,
+        bed_temp=bed_temp,
+        fan_speed=fan_speed,
+        nozzle_size=nozzle_size,
+        nozzle_high_flow=nozzle_high_flow,
+        nozzle_hardened=nozzle_hardened,
+        layer_height=layer_height,
+        extrusion_width=extrusion_width,
+        printer=printer,
+        ascii_gcode=ascii_gcode,
+        output_dir=output_dir,
+        config_ini=config_ini or None,
+        prusaslicer_path=prusaslicer_path or None,
+        bed_center=None,
+        extra_slicer_args=None,
+        printer_url=printer_url or None,
+        api_key=api_key or None,
+        no_upload=no_upload,
+        print_after_upload=print_after_upload,
+        _explicit_keys=_GUI_EXPLICIT_KEYS,
+        config=None,
+        keep_files=True,
+        verbose=True,
+    )
+
+
 def _fresh_output_dir(custom_output_dir: str) -> str:
     """Return *custom_output_dir* if set, otherwise a fresh temp directory.
 
@@ -815,6 +1092,8 @@ def build_calibration_results(
     extrusion_multiplier: float,
     set_retraction: bool,
     retraction_length: float,
+    set_retraction_speed: bool,
+    retraction_speed: float,
     set_shrinkage: bool,
     xy_shrinkage: float,
     z_shrinkage: float,
@@ -833,6 +1112,7 @@ def build_calibration_results(
         pa_value=pa_value if set_pa else None,
         extrusion_multiplier=extrusion_multiplier if set_em else None,
         retraction_length=retraction_length if set_retraction else None,
+        retraction_speed=retraction_speed if set_retraction_speed else None,
         xy_shrinkage=xy_shrinkage if set_shrinkage else None,
         z_shrinkage=z_shrinkage if set_shrinkage else None,
         printer=printer,
@@ -917,6 +1197,8 @@ def results_to_dict(
     extrusion_multiplier: float,
     set_retraction: bool,
     retraction_length: float,
+    set_retraction_speed: bool,
+    retraction_speed: float,
     set_pa: bool,
     pa_value: float,
     set_flow: bool,
@@ -933,6 +1215,8 @@ def results_to_dict(
         "extrusion_multiplier": extrusion_multiplier,
         "set_retraction": set_retraction,
         "retraction_length": retraction_length,
+        "set_retraction_speed": set_retraction_speed,
+        "retraction_speed": retraction_speed,
         "set_pa": set_pa,
         "pa_value": pa_value,
         "set_flow": set_flow,
@@ -951,6 +1235,8 @@ _RESULTS_STATE_MAPPING: Dict[str, str] = {
     "extrusion_multiplier": "res_em",
     "set_retraction": "res_set_retraction",
     "retraction_length": "res_retraction",
+    "set_retraction_speed": "res_set_retraction_speed",
+    "retraction_speed": "res_retraction_speed",
     "set_pa": "res_set_pa",
     "pa_value": "res_pa",
     "set_flow": "res_set_flow",
@@ -983,12 +1269,17 @@ def _app() -> None:  # pragma: no cover
     """Main Streamlit application."""
     import streamlit as st
 
+    from filament_calibrator.bridge_cli import run as bridge_run
     from filament_calibrator.cli import run as temp_run
+    from filament_calibrator.cooling_cli import run as cooling_run
     from filament_calibrator.em_cli import run as em_run
     from filament_calibrator.flow_cli import run as flow_run
+    from filament_calibrator.overhang_cli import run as overhang_run
     from filament_calibrator.pa_cli import run as pa_run
     from filament_calibrator.retraction_cli import run as retraction_run
+    from filament_calibrator.retraction_speed_cli import run as retraction_speed_run
     from filament_calibrator.shrinkage_cli import run as shrinkage_run
+    from filament_calibrator.tolerance_cli import run as tolerance_run
 
     st.set_page_config(
         page_title="Filament Calibrator",
@@ -1232,6 +1523,31 @@ def _app() -> None:  # pragma: no cover
         "shrinkage_fan": preset["fan"],
         "shrinkage_lh": derived_lh,
         "shrinkage_ew": derived_ew,
+        "rs_nozzle_temp": preset["hotend"],
+        "rs_bed_temp": preset["bed"],
+        "rs_fan": preset["fan"],
+        "rs_lh": derived_lh,
+        "rs_ew": derived_ew,
+        "tol_nozzle_temp": preset["hotend"],
+        "tol_bed_temp": preset["bed"],
+        "tol_fan": preset["fan"],
+        "tol_lh": derived_lh,
+        "tol_ew": derived_ew,
+        "br_nozzle_temp": preset["hotend"],
+        "br_bed_temp": preset["bed"],
+        "br_fan": preset["fan"],
+        "br_lh": derived_lh,
+        "br_ew": derived_ew,
+        "oh_nozzle_temp": preset["hotend"],
+        "oh_bed_temp": preset["bed"],
+        "oh_fan": preset["fan"],
+        "oh_lh": derived_lh,
+        "oh_ew": derived_ew,
+        "cool_nozzle_temp": preset["hotend"],
+        "cool_bed_temp": preset["bed"],
+        "cool_fan_speed": preset["fan"],
+        "cool_lh": derived_lh,
+        "cool_ew": derived_ew,
     }
     for _wk, _wv in _widget_defaults.items():
         if _wk not in st.session_state or _defaults_changed:
@@ -1262,14 +1578,17 @@ def _app() -> None:  # pragma: no cover
             apply_saved_results_to_session(st.session_state, saved)
         else:
             for _rk in ("res_set_temp", "res_set_em", "res_set_retraction",
+                         "res_set_retraction_speed",
                          "res_set_pa", "res_set_flow", "res_set_shrinkage"):
                 st.session_state[_rk] = False
 
     # --- Tabs ---
     (tab_temp, tab_em, tab_retraction, tab_pa, tab_flow,
-     tab_shrinkage, tab_results) = st.tabs([
+     tab_shrinkage, tab_bridge_overhang, tab_cooling,
+     tab_results) = st.tabs([
         "Temperature Tower", "Extrusion Multiplier", "Retraction",
-        "Pressure Advance", "Volumetric Flow", "Shrinkage", "Results",
+        "Pressure Advance", "Volumetric Flow", "Shrinkage & Tolerance",
+        "Bridging & Overhang", "Cooling", "Results",
     ])
 
     # === Tab 1: Temperature Tower ===
@@ -1498,149 +1817,324 @@ def _app() -> None:  # pragma: no cover
     # === Tab 3: Retraction ===
     with tab_retraction:
         st.subheader("Retraction")
-        st.caption(
-            "Generate two cylindrical towers spaced apart. Travel moves "
-            "between them trigger retraction. Retraction length changes "
-            "at each height level so you can inspect stringing."
+
+        retraction_mode = st.radio(
+            "Mode", ["Distance", "Speed"],
+            horizontal=True, key="retraction_mode",
         )
 
-        col1, col2, col3 = st.columns(3)
-        with col1:
-            start_retraction = st.number_input(
-                "Start Retraction (mm)",
-                value=0.0,
+        if retraction_mode == "Distance":
+            st.caption(
+                "Generate two cylindrical towers spaced apart. Travel moves "
+                "between them trigger retraction. Retraction length changes "
+                "at each height level so you can inspect stringing."
+            )
+
+            col1, col2, col3 = st.columns(3)
+            with col1:
+                start_retraction = st.number_input(
+                    "Start Retraction (mm)",
+                    value=0.0,
+                    min_value=0.0,
+                    step=0.1,
+                    format="%.1f",
+                )
+            with col2:
+                end_retraction = st.number_input(
+                    "End Retraction (mm)",
+                    value=2.0,
+                    min_value=0.0,
+                    step=0.1,
+                    format="%.1f",
+                )
+            with col3:
+                retraction_step_val = st.number_input(
+                    "Step (mm)",
+                    value=0.1,
+                    min_value=0.01,
+                    step=0.1,
+                    format="%.2f",
+                )
+
+            col4, col5, col6 = st.columns(3)
+            with col4:
+                retraction_nozzle_temp = st.number_input(
+                    "Nozzle Temp (\u00b0C)",
+                    min_value=150,
+                    max_value=350,
+                    key="retraction_nozzle_temp",
+                )
+            with col5:
+                retraction_bed_temp = st.number_input(
+                    "Bed Temp (\u00b0C)",
+                    min_value=0,
+                    max_value=150,
+                    key="retraction_bed_temp",
+                )
+            with col6:
+                retraction_fan = st.number_input(
+                    "Fan Speed (%)",
+                    min_value=0,
+                    max_value=100,
+                    key="retraction_fan",
+                )
+
+            retraction_level_height = 1.0
+            with st.expander("Advanced Slicer Settings"):
+                retraction_level_height = st.number_input(
+                    "Level Height (mm)",
+                    value=1.0,
+                    min_value=0.2,
+                    step=0.5,
+                    key="retraction_level_height",
+                )
+                retraction_layer_height = st.number_input(
+                    "Layer Height (mm)",
+                    min_value=0.05,
+                    max_value=1.0,
+                    format="%.2f",
+                    key="retraction_lh",
+                )
+                retraction_extrusion_width = st.number_input(
+                    "Extrusion Width (mm)",
+                    min_value=0.1,
+                    max_value=2.0,
+                    format="%.2f",
+                    key="retraction_ew",
+                )
+
+            # Level count preview
+            if end_retraction > start_retraction and retraction_step_val > 0:
+                num_levels = (
+                    round(
+                        (end_retraction - start_retraction)
+                        / retraction_step_val
+                    )
+                    + 1
+                )
+                st.info(
+                    f"{num_levels} levels: "
+                    f"{start_retraction:.1f} \u2192 {end_retraction:.1f} mm"
+                )
+
+            if st.button("Generate Retraction", type="primary",
+                          key="run_retraction"):
+                _temp_err = _check_printer_temps(
+                    printer, retraction_nozzle_temp, retraction_bed_temp,
+                )
+                if _temp_err:
+                    st.error(_temp_err)
+                    st.stop()
+                run_dir = _fresh_output_dir(custom_output_dir)
+                args = build_retraction_namespace(
+                    filament_type=filament_type,
+                    start_retraction=start_retraction,
+                    end_retraction=end_retraction,
+                    retraction_step=retraction_step_val,
+                    level_height=retraction_level_height,
+                    nozzle_temp=retraction_nozzle_temp,
+                    bed_temp=retraction_bed_temp,
+                    fan_speed=retraction_fan,
+                    nozzle_size=nozzle_size,
+                    nozzle_high_flow=nozzle_high_flow,
+                    nozzle_hardened=nozzle_hardened,
+                    layer_height=retraction_layer_height,
+                    extrusion_width=retraction_extrusion_width,
+                    printer=printer,
+                    ascii_gcode=ascii_gcode,
+                    output_dir=run_dir,
+                    config_ini=config_ini,
+                    prusaslicer_path=prusaslicer_path,
+                    printer_url=None,
+                    api_key=None,
+                    no_upload=True,
+                    print_after_upload=False,
+                )
+                with st.spinner("Running retraction test pipeline..."):
+                    success, log = run_pipeline(retraction_run, args)
+                st.session_state["_last_run"] = {
+                    "output_dir": run_dir,
+                    "ascii_gcode": ascii_gcode,
+                    "success": success,
+                    "log": log,
+                    "tab": "retraction",
+                    "upload_enabled": enable_upload,
+                    "printer_url": printer_url,
+                    "api_key": api_key,
+                }
+                st.session_state.pop("_upload_status", None)
+                st.session_state.pop("_upload_message", None)
+                st.session_state.pop("_print_after", None)
+                st.session_state.pop("upload_print_after", None)
+
+            _run = st.session_state.get("_last_run")
+            if _run and _run["tab"] == "retraction":
+                _show_results(st, _run)
+
+        else:
+            # --- Speed mode ---
+            st.caption(
+                "Generate two cylindrical towers with a fixed retraction "
+                "length. Retraction speed changes at each height level "
+                "so you can find the optimal retraction speed."
+            )
+
+            rs_retraction_length = st.number_input(
+                "Retraction Length (mm)",
+                value=0.8,
                 min_value=0.0,
                 step=0.1,
                 format="%.1f",
-            )
-        with col2:
-            end_retraction = st.number_input(
-                "End Retraction (mm)",
-                value=2.0,
-                min_value=0.0,
-                step=0.1,
-                format="%.1f",
-            )
-        with col3:
-            retraction_step_val = st.number_input(
-                "Step (mm)",
-                value=0.1,
-                min_value=0.01,
-                step=0.1,
-                format="%.2f",
+                key="rs_retraction_length",
             )
 
-        col4, col5, col6 = st.columns(3)
-        with col4:
-            retraction_nozzle_temp = st.number_input(
-                "Nozzle Temp (\u00b0C)",
-                min_value=150,
-                max_value=350,
-                key="retraction_nozzle_temp",
-            )
-        with col5:
-            retraction_bed_temp = st.number_input(
-                "Bed Temp (\u00b0C)",
-                min_value=0,
-                max_value=150,
-                key="retraction_bed_temp",
-            )
-        with col6:
-            retraction_fan = st.number_input(
-                "Fan Speed (%)",
-                min_value=0,
-                max_value=100,
-                key="retraction_fan",
-            )
+            col1, col2, col3 = st.columns(3)
+            with col1:
+                rs_start_speed = st.number_input(
+                    "Start Speed (mm/s)",
+                    value=10.0,
+                    min_value=1.0,
+                    step=5.0,
+                    format="%.1f",
+                    key="rs_start_speed",
+                )
+            with col2:
+                rs_end_speed = st.number_input(
+                    "End Speed (mm/s)",
+                    value=70.0,
+                    min_value=1.0,
+                    step=5.0,
+                    format="%.1f",
+                    key="rs_end_speed",
+                )
+            with col3:
+                rs_speed_step = st.number_input(
+                    "Speed Step (mm/s)",
+                    value=5.0,
+                    min_value=1.0,
+                    step=1.0,
+                    format="%.1f",
+                    key="rs_speed_step",
+                )
 
-        retraction_level_height = 1.0
-        with st.expander("Advanced Slicer Settings"):
-            retraction_level_height = st.number_input(
-                "Level Height (mm)",
-                value=1.0,
-                min_value=0.2,
-                step=0.5,
-                key="retraction_level_height",
-            )
-            retraction_layer_height = st.number_input(
-                "Layer Height (mm)",
-                min_value=0.05,
-                max_value=1.0,
-                format="%.2f",
-                key="retraction_lh",
-            )
-            retraction_extrusion_width = st.number_input(
-                "Extrusion Width (mm)",
-                min_value=0.1,
-                max_value=2.0,
-                format="%.2f",
-                key="retraction_ew",
-            )
+            col4, col5, col6 = st.columns(3)
+            with col4:
+                rs_nozzle_temp = st.number_input(
+                    "Nozzle Temp (\u00b0C)",
+                    min_value=150,
+                    max_value=350,
+                    key="rs_nozzle_temp",
+                )
+            with col5:
+                rs_bed_temp = st.number_input(
+                    "Bed Temp (\u00b0C)",
+                    min_value=0,
+                    max_value=150,
+                    key="rs_bed_temp",
+                )
+            with col6:
+                rs_fan = st.number_input(
+                    "Fan Speed (%)",
+                    min_value=0,
+                    max_value=100,
+                    key="rs_fan",
+                )
 
-        # Level count preview
-        if end_retraction > start_retraction and retraction_step_val > 0:
-            num_levels = (
-                round((end_retraction - start_retraction) / retraction_step_val)
-                + 1
-            )
-            st.info(
-                f"{num_levels} levels: "
-                f"{start_retraction:.1f} \u2192 {end_retraction:.1f} mm"
-            )
+            rs_level_height = 1.0
+            with st.expander("Advanced Slicer Settings"):
+                rs_level_height = st.number_input(
+                    "Level Height (mm)",
+                    value=1.0,
+                    min_value=0.2,
+                    step=0.5,
+                    key="rs_level_height",
+                )
+                rs_layer_height = st.number_input(
+                    "Layer Height (mm)",
+                    min_value=0.05,
+                    max_value=1.0,
+                    format="%.2f",
+                    key="rs_lh",
+                )
+                rs_extrusion_width = st.number_input(
+                    "Extrusion Width (mm)",
+                    min_value=0.1,
+                    max_value=2.0,
+                    format="%.2f",
+                    key="rs_ew",
+                )
 
-        if st.button("Generate Retraction", type="primary",
-                      key="run_retraction"):
-            _temp_err = _check_printer_temps(
-                printer, retraction_nozzle_temp, retraction_bed_temp,
-            )
-            if _temp_err:
-                st.error(_temp_err)
-                st.stop()
-            run_dir = _fresh_output_dir(custom_output_dir)
-            args = build_retraction_namespace(
-                filament_type=filament_type,
-                start_retraction=start_retraction,
-                end_retraction=end_retraction,
-                retraction_step=retraction_step_val,
-                level_height=retraction_level_height,
-                nozzle_temp=retraction_nozzle_temp,
-                bed_temp=retraction_bed_temp,
-                fan_speed=retraction_fan,
-                nozzle_size=nozzle_size,
-                nozzle_high_flow=nozzle_high_flow,
-                nozzle_hardened=nozzle_hardened,
-                layer_height=retraction_layer_height,
-                extrusion_width=retraction_extrusion_width,
-                printer=printer,
-                ascii_gcode=ascii_gcode,
-                output_dir=run_dir,
-                config_ini=config_ini,
-                prusaslicer_path=prusaslicer_path,
-                printer_url=None,
-                api_key=None,
-                no_upload=True,
-                print_after_upload=False,
-            )
-            with st.spinner("Running retraction test pipeline..."):
-                success, log = run_pipeline(retraction_run, args)
-            st.session_state["_last_run"] = {
-                "output_dir": run_dir,
-                "ascii_gcode": ascii_gcode,
-                "success": success,
-                "log": log,
-                "tab": "retraction",
-                "upload_enabled": enable_upload,
-                "printer_url": printer_url,
-                "api_key": api_key,
-            }
-            st.session_state.pop("_upload_status", None)
-            st.session_state.pop("_upload_message", None)
-            st.session_state.pop("_print_after", None)
-            st.session_state.pop("upload_print_after", None)
+            # Level count preview
+            if rs_end_speed > rs_start_speed and rs_speed_step > 0:
+                num_levels = (
+                    round(
+                        (rs_end_speed - rs_start_speed) / rs_speed_step
+                    )
+                    + 1
+                )
+                st.info(
+                    f"{num_levels} levels: "
+                    f"{rs_start_speed:.1f} \u2192 {rs_end_speed:.1f} mm/s"
+                )
 
-        _run = st.session_state.get("_last_run")
-        if _run and _run["tab"] == "retraction":
-            _show_results(st, _run)
+            if st.button("Generate Retraction Speed",
+                          type="primary", key="run_retraction_speed"):
+                _temp_err = _check_printer_temps(
+                    printer, rs_nozzle_temp, rs_bed_temp,
+                )
+                if _temp_err:
+                    st.error(_temp_err)
+                    st.stop()
+                run_dir = _fresh_output_dir(custom_output_dir)
+                args = build_retraction_speed_namespace(
+                    filament_type=filament_type,
+                    retraction_length=rs_retraction_length,
+                    start_speed=rs_start_speed,
+                    end_speed=rs_end_speed,
+                    speed_step=rs_speed_step,
+                    level_height=rs_level_height,
+                    nozzle_temp=rs_nozzle_temp,
+                    bed_temp=rs_bed_temp,
+                    fan_speed=rs_fan,
+                    nozzle_size=nozzle_size,
+                    nozzle_high_flow=nozzle_high_flow,
+                    nozzle_hardened=nozzle_hardened,
+                    layer_height=rs_layer_height,
+                    extrusion_width=rs_extrusion_width,
+                    printer=printer,
+                    ascii_gcode=ascii_gcode,
+                    output_dir=run_dir,
+                    config_ini=config_ini,
+                    prusaslicer_path=prusaslicer_path,
+                    printer_url=None,
+                    api_key=None,
+                    no_upload=True,
+                    print_after_upload=False,
+                )
+                with st.spinner(
+                    "Running retraction speed test pipeline..."
+                ):
+                    success, log = run_pipeline(
+                        retraction_speed_run, args,
+                    )
+                st.session_state["_last_run"] = {
+                    "output_dir": run_dir,
+                    "ascii_gcode": ascii_gcode,
+                    "success": success,
+                    "log": log,
+                    "tab": "retraction_speed",
+                    "upload_enabled": enable_upload,
+                    "printer_url": printer_url,
+                    "api_key": api_key,
+                }
+                st.session_state.pop("_upload_status", None)
+                st.session_state.pop("_upload_message", None)
+                st.session_state.pop("_print_after", None)
+                st.session_state.pop("upload_print_after", None)
+
+            _run = st.session_state.get("_last_run")
+            if _run and _run["tab"] == "retraction_speed":
+                _show_results(st, _run)
 
     # === Tab 4: Pressure Advance ===
     with tab_pa:
@@ -2016,7 +2510,7 @@ def _app() -> None:  # pragma: no cover
         if _run and _run["tab"] == "flow":
             _show_results(st, _run)
 
-    # === Tab 6: Shrinkage ===
+    # === Tab 6: Shrinkage & Tolerance ===
     with tab_shrinkage:
         st.subheader("Shrinkage Test")
         st.caption(
@@ -2129,7 +2623,487 @@ def _app() -> None:  # pragma: no cover
         if _run and _run["tab"] == "shrinkage":
             _show_results(st, _run)
 
-    # === Tab 7: Calibration Results ===
+        # --- Tolerance section ---
+        st.divider()
+        st.subheader("Tolerance Test")
+        st.caption(
+            "Generate a set of cylindrical pins and holes at various "
+            "diameters to find the ideal tolerance offset for your "
+            "filament/printer combination."
+        )
+
+        tol_diameters = st.text_input(
+            "Diameters (mm, comma-separated)",
+            value="5,10,15,20",
+            key="tol_diameters",
+        )
+
+        col1, col2, col3 = st.columns(3)
+        with col1:
+            tol_nozzle_temp = st.number_input(
+                "Nozzle Temp (\u00b0C)",
+                min_value=150,
+                max_value=350,
+                key="tol_nozzle_temp",
+            )
+        with col2:
+            tol_bed_temp = st.number_input(
+                "Bed Temp (\u00b0C)",
+                min_value=0,
+                max_value=150,
+                key="tol_bed_temp",
+            )
+        with col3:
+            tol_fan = st.number_input(
+                "Fan Speed (%)",
+                min_value=0,
+                max_value=100,
+                key="tol_fan",
+            )
+
+        with st.expander("Advanced Slicer Settings",
+                          key="tol_advanced"):
+            tol_layer_height = st.number_input(
+                "Layer Height (mm)",
+                min_value=0.05,
+                max_value=1.0,
+                format="%.2f",
+                key="tol_lh",
+            )
+            tol_extrusion_width = st.number_input(
+                "Extrusion Width (mm)",
+                min_value=0.1,
+                max_value=2.0,
+                format="%.2f",
+                key="tol_ew",
+            )
+
+        if st.button("Generate Tolerance Test", type="primary",
+                      key="run_tolerance"):
+            _temp_err = _check_printer_temps(
+                printer, tol_nozzle_temp, tol_bed_temp,
+            )
+            if _temp_err:
+                st.error(_temp_err)
+                st.stop()
+            run_dir = _fresh_output_dir(custom_output_dir)
+            args = build_tolerance_namespace(
+                filament_type=filament_type,
+                diameters=tol_diameters,
+                nozzle_temp=tol_nozzle_temp,
+                bed_temp=tol_bed_temp,
+                fan_speed=tol_fan,
+                nozzle_size=nozzle_size,
+                nozzle_high_flow=nozzle_high_flow,
+                nozzle_hardened=nozzle_hardened,
+                layer_height=tol_layer_height,
+                extrusion_width=tol_extrusion_width,
+                printer=printer,
+                ascii_gcode=ascii_gcode,
+                output_dir=run_dir,
+                config_ini=config_ini,
+                prusaslicer_path=prusaslicer_path,
+                printer_url=None,
+                api_key=None,
+                no_upload=True,
+                print_after_upload=False,
+            )
+            with st.spinner("Running tolerance test pipeline..."):
+                success, log = run_pipeline(tolerance_run, args)
+            st.session_state["_last_run"] = {
+                "output_dir": run_dir,
+                "ascii_gcode": ascii_gcode,
+                "success": success,
+                "log": log,
+                "tab": "tolerance",
+                "upload_enabled": enable_upload,
+                "printer_url": printer_url,
+                "api_key": api_key,
+            }
+            st.session_state.pop("_upload_status", None)
+            st.session_state.pop("_upload_message", None)
+            st.session_state.pop("_print_after", None)
+            st.session_state.pop("upload_print_after", None)
+
+        _run = st.session_state.get("_last_run")
+        if _run and _run["tab"] == "tolerance":
+            _show_results(st, _run)
+
+    # === Tab 7: Bridging & Overhang ===
+    with tab_bridge_overhang:
+        # --- Bridging section ---
+        st.subheader("Bridging Test")
+        st.caption(
+            "Generate a bridging specimen with pillars at increasing "
+            "span distances to find the maximum unsupported bridge "
+            "length for your filament."
+        )
+
+        br_spans = st.text_input(
+            "Spans (mm, comma-separated)",
+            value="10,20,30,40,50",
+            key="br_spans",
+        )
+        br_pillar_height = st.number_input(
+            "Pillar Height (mm)",
+            value=5.0,
+            min_value=1.0,
+            step=1.0,
+            format="%.1f",
+            key="br_pillar_height",
+        )
+
+        col1, col2, col3 = st.columns(3)
+        with col1:
+            br_nozzle_temp = st.number_input(
+                "Nozzle Temp (\u00b0C)",
+                min_value=150,
+                max_value=350,
+                key="br_nozzle_temp",
+            )
+        with col2:
+            br_bed_temp = st.number_input(
+                "Bed Temp (\u00b0C)",
+                min_value=0,
+                max_value=150,
+                key="br_bed_temp",
+            )
+        with col3:
+            br_fan = st.number_input(
+                "Fan Speed (%)",
+                min_value=0,
+                max_value=100,
+                key="br_fan",
+            )
+
+        with st.expander("Advanced Slicer Settings",
+                          key="br_advanced"):
+            br_layer_height = st.number_input(
+                "Layer Height (mm)",
+                min_value=0.05,
+                max_value=1.0,
+                format="%.2f",
+                key="br_lh",
+            )
+            br_extrusion_width = st.number_input(
+                "Extrusion Width (mm)",
+                min_value=0.1,
+                max_value=2.0,
+                format="%.2f",
+                key="br_ew",
+            )
+
+        if st.button("Generate Bridging Test", type="primary",
+                      key="run_bridge"):
+            _temp_err = _check_printer_temps(
+                printer, br_nozzle_temp, br_bed_temp,
+            )
+            if _temp_err:
+                st.error(_temp_err)
+                st.stop()
+            run_dir = _fresh_output_dir(custom_output_dir)
+            args = build_bridge_namespace(
+                filament_type=filament_type,
+                spans=br_spans,
+                pillar_height=br_pillar_height,
+                nozzle_temp=br_nozzle_temp,
+                bed_temp=br_bed_temp,
+                fan_speed=br_fan,
+                nozzle_size=nozzle_size,
+                nozzle_high_flow=nozzle_high_flow,
+                nozzle_hardened=nozzle_hardened,
+                layer_height=br_layer_height,
+                extrusion_width=br_extrusion_width,
+                printer=printer,
+                ascii_gcode=ascii_gcode,
+                output_dir=run_dir,
+                config_ini=config_ini,
+                prusaslicer_path=prusaslicer_path,
+                printer_url=None,
+                api_key=None,
+                no_upload=True,
+                print_after_upload=False,
+            )
+            with st.spinner("Running bridging test pipeline..."):
+                success, log = run_pipeline(bridge_run, args)
+            st.session_state["_last_run"] = {
+                "output_dir": run_dir,
+                "ascii_gcode": ascii_gcode,
+                "success": success,
+                "log": log,
+                "tab": "bridge",
+                "upload_enabled": enable_upload,
+                "printer_url": printer_url,
+                "api_key": api_key,
+            }
+            st.session_state.pop("_upload_status", None)
+            st.session_state.pop("_upload_message", None)
+            st.session_state.pop("_print_after", None)
+            st.session_state.pop("upload_print_after", None)
+
+        _run = st.session_state.get("_last_run")
+        if _run and _run["tab"] == "bridge":
+            _show_results(st, _run)
+
+        # --- Overhang section ---
+        st.divider()
+        st.subheader("Overhang Test")
+        st.caption(
+            "Generate a specimen with overhangs at increasing angles "
+            "to determine the maximum overhang angle your printer "
+            "can handle without supports."
+        )
+
+        oh_angles = st.text_input(
+            "Angles (degrees, comma-separated)",
+            value="20,30,40,50,60,70",
+            key="oh_angles",
+        )
+
+        col1, col2, col3 = st.columns(3)
+        with col1:
+            oh_nozzle_temp = st.number_input(
+                "Nozzle Temp (\u00b0C)",
+                min_value=150,
+                max_value=350,
+                key="oh_nozzle_temp",
+            )
+        with col2:
+            oh_bed_temp = st.number_input(
+                "Bed Temp (\u00b0C)",
+                min_value=0,
+                max_value=150,
+                key="oh_bed_temp",
+            )
+        with col3:
+            oh_fan = st.number_input(
+                "Fan Speed (%)",
+                min_value=0,
+                max_value=100,
+                key="oh_fan",
+            )
+
+        with st.expander("Advanced Slicer Settings",
+                          key="oh_advanced"):
+            oh_layer_height = st.number_input(
+                "Layer Height (mm)",
+                min_value=0.05,
+                max_value=1.0,
+                format="%.2f",
+                key="oh_lh",
+            )
+            oh_extrusion_width = st.number_input(
+                "Extrusion Width (mm)",
+                min_value=0.1,
+                max_value=2.0,
+                format="%.2f",
+                key="oh_ew",
+            )
+
+        if st.button("Generate Overhang Test", type="primary",
+                      key="run_overhang"):
+            _temp_err = _check_printer_temps(
+                printer, oh_nozzle_temp, oh_bed_temp,
+            )
+            if _temp_err:
+                st.error(_temp_err)
+                st.stop()
+            run_dir = _fresh_output_dir(custom_output_dir)
+            args = build_overhang_namespace(
+                filament_type=filament_type,
+                angles=oh_angles,
+                nozzle_temp=oh_nozzle_temp,
+                bed_temp=oh_bed_temp,
+                fan_speed=oh_fan,
+                nozzle_size=nozzle_size,
+                nozzle_high_flow=nozzle_high_flow,
+                nozzle_hardened=nozzle_hardened,
+                layer_height=oh_layer_height,
+                extrusion_width=oh_extrusion_width,
+                printer=printer,
+                ascii_gcode=ascii_gcode,
+                output_dir=run_dir,
+                config_ini=config_ini,
+                prusaslicer_path=prusaslicer_path,
+                printer_url=None,
+                api_key=None,
+                no_upload=True,
+                print_after_upload=False,
+            )
+            with st.spinner("Running overhang test pipeline..."):
+                success, log = run_pipeline(overhang_run, args)
+            st.session_state["_last_run"] = {
+                "output_dir": run_dir,
+                "ascii_gcode": ascii_gcode,
+                "success": success,
+                "log": log,
+                "tab": "overhang",
+                "upload_enabled": enable_upload,
+                "printer_url": printer_url,
+                "api_key": api_key,
+            }
+            st.session_state.pop("_upload_status", None)
+            st.session_state.pop("_upload_message", None)
+            st.session_state.pop("_print_after", None)
+            st.session_state.pop("upload_print_after", None)
+
+        _run = st.session_state.get("_last_run")
+        if _run and _run["tab"] == "overhang":
+            _show_results(st, _run)
+
+    # === Tab 8: Cooling ===
+    with tab_cooling:
+        st.subheader("Cooling Test")
+        st.caption(
+            "Generate a tower that prints at varying fan speeds from "
+            "bottom to top to find the optimal cooling for your filament."
+        )
+
+        col1, col2, col3 = st.columns(3)
+        with col1:
+            cool_start_fan = st.number_input(
+                "Start Fan (%)",
+                value=0,
+                min_value=0,
+                max_value=100,
+                step=5,
+                key="cool_start_fan",
+            )
+        with col2:
+            cool_end_fan = st.number_input(
+                "End Fan (%)",
+                value=100,
+                min_value=0,
+                max_value=100,
+                step=5,
+                key="cool_end_fan",
+            )
+        with col3:
+            cool_fan_step = st.number_input(
+                "Fan Step (%)",
+                value=10,
+                min_value=1,
+                max_value=100,
+                step=5,
+                key="cool_fan_step",
+            )
+
+        col4, col5, col6 = st.columns(3)
+        with col4:
+            cool_nozzle_temp = st.number_input(
+                "Nozzle Temp (\u00b0C)",
+                min_value=150,
+                max_value=350,
+                key="cool_nozzle_temp",
+            )
+        with col5:
+            cool_bed_temp = st.number_input(
+                "Bed Temp (\u00b0C)",
+                min_value=0,
+                max_value=150,
+                key="cool_bed_temp",
+            )
+        with col6:
+            cool_fan_speed = st.number_input(
+                "Fan Speed (%)",
+                min_value=0,
+                max_value=100,
+                key="cool_fan_speed",
+            )
+
+        cool_level_height = 1.0
+        with st.expander("Advanced Slicer Settings",
+                          key="cool_advanced"):
+            cool_level_height = st.number_input(
+                "Level Height (mm)",
+                value=1.0,
+                min_value=0.2,
+                step=0.5,
+                key="cool_level_height",
+            )
+            cool_layer_height = st.number_input(
+                "Layer Height (mm)",
+                min_value=0.05,
+                max_value=1.0,
+                format="%.2f",
+                key="cool_lh",
+            )
+            cool_extrusion_width = st.number_input(
+                "Extrusion Width (mm)",
+                min_value=0.1,
+                max_value=2.0,
+                format="%.2f",
+                key="cool_ew",
+            )
+
+        # Level count preview
+        if cool_end_fan > cool_start_fan and cool_fan_step > 0:
+            num_levels = (
+                round(
+                    (cool_end_fan - cool_start_fan) / cool_fan_step
+                )
+                + 1
+            )
+            st.info(
+                f"{num_levels} levels: "
+                f"{cool_start_fan}% \u2192 {cool_end_fan}%"
+            )
+
+        if st.button("Generate Cooling Test", type="primary",
+                      key="run_cooling"):
+            _temp_err = _check_printer_temps(
+                printer, cool_nozzle_temp, cool_bed_temp,
+            )
+            if _temp_err:
+                st.error(_temp_err)
+                st.stop()
+            run_dir = _fresh_output_dir(custom_output_dir)
+            args = build_cooling_namespace(
+                filament_type=filament_type,
+                start_fan=cool_start_fan,
+                end_fan=cool_end_fan,
+                fan_step=cool_fan_step,
+                level_height=cool_level_height,
+                nozzle_temp=cool_nozzle_temp,
+                bed_temp=cool_bed_temp,
+                fan_speed=cool_fan_speed,
+                nozzle_size=nozzle_size,
+                nozzle_high_flow=nozzle_high_flow,
+                nozzle_hardened=nozzle_hardened,
+                layer_height=cool_layer_height,
+                extrusion_width=cool_extrusion_width,
+                printer=printer,
+                ascii_gcode=ascii_gcode,
+                output_dir=run_dir,
+                config_ini=config_ini,
+                prusaslicer_path=prusaslicer_path,
+                printer_url=None,
+                api_key=None,
+                no_upload=True,
+                print_after_upload=False,
+            )
+            with st.spinner("Running cooling test pipeline..."):
+                success, log = run_pipeline(cooling_run, args)
+            st.session_state["_last_run"] = {
+                "output_dir": run_dir,
+                "ascii_gcode": ascii_gcode,
+                "success": success,
+                "log": log,
+                "tab": "cooling",
+                "upload_enabled": enable_upload,
+                "printer_url": printer_url,
+                "api_key": api_key,
+            }
+            st.session_state.pop("_upload_status", None)
+            st.session_state.pop("_upload_message", None)
+            st.session_state.pop("_print_after", None)
+            st.session_state.pop("upload_print_after", None)
+
+        _run = st.session_state.get("_last_run")
+        if _run and _run["tab"] == "cooling":
+            _show_results(st, _run)
+
+    # === Tab 9: Calibration Results ===
     with tab_results:
         st.subheader("Calibration Results")
         st.markdown(
@@ -2164,6 +3138,17 @@ def _app() -> None:  # pragma: no cover
             "Retraction length (mm)", 0.0, 10.0, 0.8,
             step=0.1, format="%.1f",
             disabled=not set_retraction, key="res_retraction",
+        )
+
+        # Retraction speed result
+        set_retraction_speed = st.checkbox(
+            "Set retraction speed", key="res_set_retraction_speed",
+        )
+        res_retraction_speed = st.number_input(
+            "Retraction speed (mm/s)", 1.0, 120.0, 45.0,
+            step=5.0, format="%.1f",
+            disabled=not set_retraction_speed,
+            key="res_retraction_speed",
         )
 
         # Pressure advance result
@@ -2227,6 +3212,8 @@ def _app() -> None:  # pragma: no cover
                 set_em=set_em, extrusion_multiplier=float(res_em),
                 set_retraction=set_retraction,
                 retraction_length=float(res_retraction),
+                set_retraction_speed=set_retraction_speed,
+                retraction_speed=float(res_retraction_speed),
                 set_pa=set_pa, pa_value=float(res_pa),
                 set_flow=set_flow,
                 max_volumetric_speed=float(res_flow),

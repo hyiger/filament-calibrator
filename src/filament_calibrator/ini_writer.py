@@ -44,6 +44,9 @@ class CalibrationResults:
     retraction_length: Optional[float] = None
     """Retraction length in mm."""
 
+    retraction_speed: Optional[float] = None
+    """Retraction speed in mm/s."""
+
     xy_shrinkage: Optional[float] = None
     """XY shrinkage compensation in %.  Value is the measured shrinkage
     (e.g. ``0.5`` means 0.5 %).  Written to the INI as ``100 + value``
@@ -120,6 +123,15 @@ def merge_results_into_ini(
         if not found:
             lines.append(f"retract_length = {rl_str}")
 
+    # --- Retraction speed ---
+    if results.retraction_speed is not None:
+        rs_str = f"{results.retraction_speed:.0f}"
+        lines, found = _replace_ini_value(
+            lines, "retract_speed", rs_str,
+        )
+        if not found:
+            lines.append(f"retract_speed = {rs_str}")
+
     # --- Shrinkage compensation ---
     if results.xy_shrinkage is not None or results.z_shrinkage is not None:
         xy_comp = 100.0 + (results.xy_shrinkage or 0.0)
@@ -170,6 +182,13 @@ def build_change_summary(results: CalibrationResults) -> str:
             f"- **Retraction length:** "
             f"{results.retraction_length:.1f} mm "
             f"(`retract_length`)"
+        )
+
+    if results.retraction_speed is not None:
+        parts.append(
+            f"- **Retraction speed:** "
+            f"{results.retraction_speed:.0f} mm/s "
+            f"(`retract_speed`)"
         )
 
     if results.xy_shrinkage is not None or results.z_shrinkage is not None:

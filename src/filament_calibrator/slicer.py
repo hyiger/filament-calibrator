@@ -928,3 +928,498 @@ def slice_shrinkage_specimen(
         extra_args=cli_extra,
     )
     return gl.slice_model(exe, req)
+
+
+# ---------------------------------------------------------------------------
+# Bridge specimen — standard slicing, PrusaSlicer bridging enabled by default
+# ---------------------------------------------------------------------------
+
+BRIDGE_SLICER_ARGS: Dict[str, str] = {
+    "layer-height": "0.2",
+    "first-layer-height": "0.2",
+    "perimeters": "2",
+    "top-solid-layers": "4",
+    "bottom-solid-layers": "3",
+    "fill-density": "15%",
+    "skirts": "1",
+}
+"""Slicer defaults for bridge calibration specimens.
+
+Same structural settings as the temperature tower — 2 perimeters and 15%
+infill.  PrusaSlicer enables bridging detection by default, so no special
+overrides are needed.
+"""
+
+
+def slice_bridge_specimen(
+    stl_path: str,
+    output_gcode_path: str,
+    layer_height: float = 0.2,
+    extrusion_width: float = 0.45,
+    config_ini: Optional[str] = None,
+    prusaslicer_path: Optional[str] = None,
+    extra_args: Optional[List[str]] = None,
+    nozzle_temp: Optional[int] = None,
+    bed_temp: Optional[int] = None,
+    fan_speed: Optional[int] = None,
+    bed_center: Optional[str] = None,
+    bed_shape: Optional[str] = None,
+    nozzle_diameter: Optional[float] = None,
+    printer_model: Optional[str] = None,
+    binary_gcode: bool = True,
+) -> gl.RunResult:
+    """Slice a bridge calibration specimen STL.
+
+    Uses standard slicing with PrusaSlicer's default bridging detection
+    enabled.  No special forced settings are needed.
+
+    When *config_ini* is ``None``, :data:`BRIDGE_SLICER_ARGS` are
+    applied together with the explicit *layer_height* and *extrusion_width*.
+
+    Parameters
+    ----------
+    stl_path:          Path to the input ``.stl`` file.
+    output_gcode_path: Desired output G-code path.
+    layer_height:      Layer height in mm (default 0.2).
+    extrusion_width:   Extrusion width in mm (default 0.45).
+    config_ini:        Optional PrusaSlicer ``.ini`` config file path.
+    prusaslicer_path:  Explicit path to PrusaSlicer executable.
+    extra_args:        Additional raw CLI arguments.
+    nozzle_temp:       Nozzle temperature in °C.
+    bed_temp:          Bed temperature in °C.
+    fan_speed:         Fan speed 0–100 %.
+    bed_center:        Bed centre as ``"X,Y"``.
+    bed_shape:         Bed shape as PrusaSlicer ``--bed-shape`` string.
+    nozzle_diameter:   Nozzle diameter in mm.
+    printer_model:     Printer model identifier.
+    binary_gcode:      Produce ``.bgcode`` output (default ``True``).
+
+    Returns
+    -------
+    gcode_lib.RunResult
+
+    Raises
+    ------
+    FileNotFoundError
+        If PrusaSlicer cannot be found.
+    """
+    exe = gl.find_prusaslicer_executable(explicit_path=prusaslicer_path)
+
+    cli_extra: List[str] = [
+        f"--center={bed_center or DEFAULT_BED_CENTER}",
+        f"--bed-shape={bed_shape or DEFAULT_BED_SHAPE}",
+        f"--thumbnails={DEFAULT_THUMBNAILS}",
+    ]
+    if binary_gcode:
+        cli_extra.append("--binary-gcode")
+
+    if config_ini is None:
+        for key, val in BRIDGE_SLICER_ARGS.items():
+            cli_extra.append(f"--{key}={val}")
+        cli_extra.append(f"--layer-height={layer_height}")
+        cli_extra.append(f"--extrusion-width={extrusion_width}")
+    else:
+        # Clear any post-processing scripts from the loaded config to
+        # prevent PrusaSlicer 2.9+ from blocking on an interactive
+        # confirmation prompt when run headless.
+        cli_extra.extend(["--post-process", ""])
+
+    if nozzle_diameter is not None:
+        cli_extra.append(f"--nozzle-diameter={nozzle_diameter}")
+    if nozzle_temp is not None:
+        cli_extra.append(f"--temperature={nozzle_temp}")
+        cli_extra.append(f"--first-layer-temperature={nozzle_temp}")
+    if bed_temp is not None:
+        cli_extra.append(f"--bed-temperature={bed_temp}")
+        cli_extra.append(f"--first-layer-bed-temperature={bed_temp}")
+    if fan_speed is not None:
+        cli_extra.append(f"--max-fan-speed={fan_speed}")
+        cli_extra.append(f"--min-fan-speed={fan_speed}")
+
+    if printer_model is not None:
+        cli_extra.append(f"--printer-model={printer_model}")
+
+    if extra_args:
+        cli_extra.extend(extra_args)
+
+    req = gl.SliceRequest(
+        input_path=stl_path,
+        output_path=output_gcode_path,
+        config_ini=config_ini,
+        extra_args=cli_extra,
+    )
+    return gl.slice_model(exe, req)
+
+
+# ---------------------------------------------------------------------------
+# Overhang specimen — standard slicing, supports always disabled
+# ---------------------------------------------------------------------------
+
+OVERHANG_SLICER_ARGS: Dict[str, str] = {
+    "layer-height": "0.2",
+    "first-layer-height": "0.2",
+    "perimeters": "2",
+    "top-solid-layers": "4",
+    "bottom-solid-layers": "3",
+    "fill-density": "15%",
+    "skirts": "1",
+}
+"""Slicer defaults for overhang calibration specimens.
+
+Same structural settings as the temperature tower — 2 perimeters and 15%
+infill.  Support material is always forced off so the user can evaluate
+overhang quality without supports.
+"""
+
+
+def slice_overhang_specimen(
+    stl_path: str,
+    output_gcode_path: str,
+    layer_height: float = 0.2,
+    extrusion_width: float = 0.45,
+    config_ini: Optional[str] = None,
+    prusaslicer_path: Optional[str] = None,
+    extra_args: Optional[List[str]] = None,
+    nozzle_temp: Optional[int] = None,
+    bed_temp: Optional[int] = None,
+    fan_speed: Optional[int] = None,
+    bed_center: Optional[str] = None,
+    bed_shape: Optional[str] = None,
+    nozzle_diameter: Optional[float] = None,
+    printer_model: Optional[str] = None,
+    binary_gcode: bool = True,
+) -> gl.RunResult:
+    """Slice an overhang calibration specimen STL.
+
+    Always forces ``--support-material=0`` so that no supports are generated,
+    even when a user-supplied config.ini enables them.  The test is designed
+    to evaluate overhang quality without support structures.
+
+    When *config_ini* is ``None``, :data:`OVERHANG_SLICER_ARGS` are
+    applied together with the explicit *layer_height* and *extrusion_width*.
+
+    Parameters
+    ----------
+    stl_path:          Path to the input ``.stl`` file.
+    output_gcode_path: Desired output G-code path.
+    layer_height:      Layer height in mm (default 0.2).
+    extrusion_width:   Extrusion width in mm (default 0.45).
+    config_ini:        Optional PrusaSlicer ``.ini`` config file path.
+    prusaslicer_path:  Explicit path to PrusaSlicer executable.
+    extra_args:        Additional raw CLI arguments.
+    nozzle_temp:       Nozzle temperature in °C.
+    bed_temp:          Bed temperature in °C.
+    fan_speed:         Fan speed 0–100 %.
+    bed_center:        Bed centre as ``"X,Y"``.
+    bed_shape:         Bed shape as PrusaSlicer ``--bed-shape`` string.
+    nozzle_diameter:   Nozzle diameter in mm.
+    printer_model:     Printer model identifier.
+    binary_gcode:      Produce ``.bgcode`` output (default ``True``).
+
+    Returns
+    -------
+    gcode_lib.RunResult
+
+    Raises
+    ------
+    FileNotFoundError
+        If PrusaSlicer cannot be found.
+    """
+    exe = gl.find_prusaslicer_executable(explicit_path=prusaslicer_path)
+
+    cli_extra: List[str] = [
+        f"--center={bed_center or DEFAULT_BED_CENTER}",
+        f"--bed-shape={bed_shape or DEFAULT_BED_SHAPE}",
+        f"--thumbnails={DEFAULT_THUMBNAILS}",
+    ]
+    if binary_gcode:
+        cli_extra.append("--binary-gcode")
+
+    if config_ini is None:
+        for key, val in OVERHANG_SLICER_ARGS.items():
+            cli_extra.append(f"--{key}={val}")
+        cli_extra.append(f"--layer-height={layer_height}")
+        cli_extra.append(f"--extrusion-width={extrusion_width}")
+    else:
+        # Clear any post-processing scripts from the loaded config to
+        # prevent PrusaSlicer 2.9+ from blocking on an interactive
+        # confirmation prompt when run headless.
+        cli_extra.extend(["--post-process", ""])
+
+    # Always force supports off so the overhang test prints without
+    # support structures, even when a user-supplied config.ini enables them.
+    cli_extra.append("--support-material=0")
+
+    if nozzle_diameter is not None:
+        cli_extra.append(f"--nozzle-diameter={nozzle_diameter}")
+    if nozzle_temp is not None:
+        cli_extra.append(f"--temperature={nozzle_temp}")
+        cli_extra.append(f"--first-layer-temperature={nozzle_temp}")
+    if bed_temp is not None:
+        cli_extra.append(f"--bed-temperature={bed_temp}")
+        cli_extra.append(f"--first-layer-bed-temperature={bed_temp}")
+    if fan_speed is not None:
+        cli_extra.append(f"--max-fan-speed={fan_speed}")
+        cli_extra.append(f"--min-fan-speed={fan_speed}")
+
+    if printer_model is not None:
+        cli_extra.append(f"--printer-model={printer_model}")
+
+    if extra_args:
+        cli_extra.extend(extra_args)
+
+    req = gl.SliceRequest(
+        input_path=stl_path,
+        output_path=output_gcode_path,
+        config_ini=config_ini,
+        extra_args=cli_extra,
+    )
+    return gl.slice_model(exe, req)
+
+
+# ---------------------------------------------------------------------------
+# Tolerance specimen — standard slicing for dimensional accuracy
+# ---------------------------------------------------------------------------
+
+TOLERANCE_SLICER_ARGS: Dict[str, str] = {
+    "first-layer-height": "0.2",
+    "perimeters": "3",
+    "top-solid-layers": "5",
+    "bottom-solid-layers": "4",
+    "fill-density": "20%",
+    "skirts": "1",
+}
+"""Slicer defaults for tolerance calibration specimens.
+
+3 perimeters and 20% infill provide dimensional accuracy for measuring
+tolerance and fit.  5 top and 4 bottom solid layers ensure fully sealed
+surfaces.  Same settings as :data:`SHRINKAGE_SLICER_ARGS`.
+"""
+
+
+def slice_tolerance_specimen(
+    stl_path: str,
+    output_gcode_path: str,
+    layer_height: float = 0.2,
+    extrusion_width: float = 0.45,
+    config_ini: Optional[str] = None,
+    prusaslicer_path: Optional[str] = None,
+    extra_args: Optional[List[str]] = None,
+    nozzle_temp: Optional[int] = None,
+    bed_temp: Optional[int] = None,
+    fan_speed: Optional[int] = None,
+    bed_center: Optional[str] = None,
+    bed_shape: Optional[str] = None,
+    nozzle_diameter: Optional[float] = None,
+    printer_model: Optional[str] = None,
+    binary_gcode: bool = True,
+) -> gl.RunResult:
+    """Slice a tolerance calibration specimen STL.
+
+    Uses standard slicing (not vase mode) with higher perimeter and infill
+    settings for dimensional accuracy.
+
+    When *config_ini* is ``None``, :data:`TOLERANCE_SLICER_ARGS` are
+    applied together with the explicit *layer_height* and *extrusion_width*.
+
+    Parameters
+    ----------
+    stl_path:          Path to the input ``.stl`` file.
+    output_gcode_path: Desired output G-code path.
+    layer_height:      Layer height in mm (default 0.2).
+    extrusion_width:   Extrusion width in mm (default 0.45).
+    config_ini:        Optional PrusaSlicer ``.ini`` config file path.
+    prusaslicer_path:  Explicit path to PrusaSlicer executable.
+    extra_args:        Additional raw CLI arguments.
+    nozzle_temp:       Nozzle temperature in °C.
+    bed_temp:          Bed temperature in °C.
+    fan_speed:         Fan speed 0–100 %.
+    bed_center:        Bed centre as ``"X,Y"``.
+    bed_shape:         Bed shape as PrusaSlicer ``--bed-shape`` string.
+    nozzle_diameter:   Nozzle diameter in mm.
+    printer_model:     Printer model identifier.
+    binary_gcode:      Produce ``.bgcode`` output (default ``True``).
+
+    Returns
+    -------
+    gcode_lib.RunResult
+
+    Raises
+    ------
+    FileNotFoundError
+        If PrusaSlicer cannot be found.
+    """
+    exe = gl.find_prusaslicer_executable(explicit_path=prusaslicer_path)
+
+    cli_extra: List[str] = [
+        f"--center={bed_center or DEFAULT_BED_CENTER}",
+        f"--bed-shape={bed_shape or DEFAULT_BED_SHAPE}",
+        f"--thumbnails={DEFAULT_THUMBNAILS}",
+    ]
+    if binary_gcode:
+        cli_extra.append("--binary-gcode")
+
+    if config_ini is None:
+        for key, val in TOLERANCE_SLICER_ARGS.items():
+            cli_extra.append(f"--{key}={val}")
+        cli_extra.append(f"--layer-height={layer_height}")
+        cli_extra.append(f"--extrusion-width={extrusion_width}")
+    else:
+        # Clear any post-processing scripts from the loaded config to
+        # prevent PrusaSlicer 2.9+ from blocking on an interactive
+        # confirmation prompt when run headless.
+        cli_extra.extend(["--post-process", ""])
+
+    if nozzle_diameter is not None:
+        cli_extra.append(f"--nozzle-diameter={nozzle_diameter}")
+    if nozzle_temp is not None:
+        cli_extra.append(f"--temperature={nozzle_temp}")
+        cli_extra.append(f"--first-layer-temperature={nozzle_temp}")
+    if bed_temp is not None:
+        cli_extra.append(f"--bed-temperature={bed_temp}")
+        cli_extra.append(f"--first-layer-bed-temperature={bed_temp}")
+    if fan_speed is not None:
+        cli_extra.append(f"--max-fan-speed={fan_speed}")
+        cli_extra.append(f"--min-fan-speed={fan_speed}")
+
+    if printer_model is not None:
+        cli_extra.append(f"--printer-model={printer_model}")
+
+    if extra_args:
+        cli_extra.extend(extra_args)
+
+    req = gl.SliceRequest(
+        input_path=stl_path,
+        output_path=output_gcode_path,
+        config_ini=config_ini,
+        extra_args=cli_extra,
+    )
+    return gl.slice_model(exe, req)
+
+
+# ---------------------------------------------------------------------------
+# Cooling specimen — standard slicing, auto-fan management disabled
+# ---------------------------------------------------------------------------
+
+COOLING_SLICER_ARGS: Dict[str, str] = {
+    "layer-height": "0.2",
+    "first-layer-height": "0.2",
+    "perimeters": "2",
+    "top-solid-layers": "4",
+    "bottom-solid-layers": "3",
+    "fill-density": "15%",
+    "skirts": "1",
+}
+"""Slicer defaults for cooling calibration specimens.
+
+Same structural settings as the temperature tower — 2 perimeters and 15%
+infill.  PrusaSlicer's automatic fan management (cooling) is always forced
+off so that G-code ``M106`` commands can control fan speed directly.
+"""
+
+
+def slice_cooling_specimen(
+    stl_path: str,
+    output_gcode_path: str,
+    layer_height: float = 0.2,
+    extrusion_width: float = 0.45,
+    config_ini: Optional[str] = None,
+    prusaslicer_path: Optional[str] = None,
+    extra_args: Optional[List[str]] = None,
+    nozzle_temp: Optional[int] = None,
+    bed_temp: Optional[int] = None,
+    fan_speed: Optional[int] = None,
+    bed_center: Optional[str] = None,
+    bed_shape: Optional[str] = None,
+    nozzle_diameter: Optional[float] = None,
+    printer_model: Optional[str] = None,
+    binary_gcode: bool = True,
+) -> gl.RunResult:
+    """Slice a cooling calibration specimen STL.
+
+    Always forces ``--cooling=0`` to disable PrusaSlicer's automatic fan
+    management, even when a user-supplied config.ini enables it.  The
+    G-code ``M106`` commands inserted during post-processing handle fan
+    speed control directly.
+
+    When *config_ini* is ``None``, :data:`COOLING_SLICER_ARGS` are
+    applied together with the explicit *layer_height* and *extrusion_width*.
+
+    Parameters
+    ----------
+    stl_path:          Path to the input ``.stl`` file.
+    output_gcode_path: Desired output G-code path.
+    layer_height:      Layer height in mm (default 0.2).
+    extrusion_width:   Extrusion width in mm (default 0.45).
+    config_ini:        Optional PrusaSlicer ``.ini`` config file path.
+    prusaslicer_path:  Explicit path to PrusaSlicer executable.
+    extra_args:        Additional raw CLI arguments.
+    nozzle_temp:       Nozzle temperature in °C.
+    bed_temp:          Bed temperature in °C.
+    fan_speed:         Fan speed 0–100 %.
+    bed_center:        Bed centre as ``"X,Y"``.
+    bed_shape:         Bed shape as PrusaSlicer ``--bed-shape`` string.
+    nozzle_diameter:   Nozzle diameter in mm.
+    printer_model:     Printer model identifier.
+    binary_gcode:      Produce ``.bgcode`` output (default ``True``).
+
+    Returns
+    -------
+    gcode_lib.RunResult
+
+    Raises
+    ------
+    FileNotFoundError
+        If PrusaSlicer cannot be found.
+    """
+    exe = gl.find_prusaslicer_executable(explicit_path=prusaslicer_path)
+
+    cli_extra: List[str] = [
+        f"--center={bed_center or DEFAULT_BED_CENTER}",
+        f"--bed-shape={bed_shape or DEFAULT_BED_SHAPE}",
+        f"--thumbnails={DEFAULT_THUMBNAILS}",
+    ]
+    if binary_gcode:
+        cli_extra.append("--binary-gcode")
+
+    if config_ini is None:
+        for key, val in COOLING_SLICER_ARGS.items():
+            cli_extra.append(f"--{key}={val}")
+        cli_extra.append(f"--layer-height={layer_height}")
+        cli_extra.append(f"--extrusion-width={extrusion_width}")
+    else:
+        # Clear any post-processing scripts from the loaded config to
+        # prevent PrusaSlicer 2.9+ from blocking on an interactive
+        # confirmation prompt when run headless.
+        cli_extra.extend(["--post-process", ""])
+
+    # Always disable PrusaSlicer's automatic fan management so that
+    # M106 G-code commands can control fan speed directly, even when
+    # a user-supplied config.ini enables cooling.
+    cli_extra.append("--cooling=0")
+
+    if nozzle_diameter is not None:
+        cli_extra.append(f"--nozzle-diameter={nozzle_diameter}")
+    if nozzle_temp is not None:
+        cli_extra.append(f"--temperature={nozzle_temp}")
+        cli_extra.append(f"--first-layer-temperature={nozzle_temp}")
+    if bed_temp is not None:
+        cli_extra.append(f"--bed-temperature={bed_temp}")
+        cli_extra.append(f"--first-layer-bed-temperature={bed_temp}")
+    if fan_speed is not None:
+        cli_extra.append(f"--max-fan-speed={fan_speed}")
+        cli_extra.append(f"--min-fan-speed={fan_speed}")
+
+    if printer_model is not None:
+        cli_extra.append(f"--printer-model={printer_model}")
+
+    if extra_args:
+        cli_extra.extend(extra_args)
+
+    req = gl.SliceRequest(
+        input_path=stl_path,
+        output_path=output_gcode_path,
+        config_ini=config_ini,
+        extra_args=cli_extra,
+    )
+    return gl.slice_model(exe, req)
