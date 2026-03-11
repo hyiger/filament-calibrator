@@ -58,6 +58,11 @@ volumetric-flow = "filament_calibrator.flow_cli:main"
 pressure-advance = "filament_calibrator.pa_cli:main"
 retraction-test = "filament_calibrator.retraction_cli:main"
 shrinkage-test = "filament_calibrator.shrinkage_cli:main"
+bridging-test = "filament_calibrator.bridge_cli:main"
+overhang-test = "filament_calibrator.overhang_cli:main"
+retraction-speed = "filament_calibrator.retraction_speed_cli:main"
+tolerance-test = "filament_calibrator.tolerance_cli:main"
+cooling-test = "filament_calibrator.cooling_cli:main"
 filament-calibrator-gui = "filament_calibrator.gui:main"
 
 [tool.hatch.build.targets.wheel]

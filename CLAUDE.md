@@ -3,7 +3,7 @@
 ## Project Overview
 
 **filament-calibrator** is a CLI tool suite for 3D printer filament calibration.
-It contains six tools:
+It contains eleven tools:
 
 - `temperature-tower` — generates, slices, and uploads temperature tower prints
   to find the optimal printing temperature for a filament.
@@ -32,6 +32,24 @@ It contains six tools:
   slices it with standard settings, and uploads.  The user prints
   the cross, measures each arm with calipers, and calculates
   per-axis shrinkage: `shrinkage % = (nominal − measured) / nominal × 100`.
+- `retraction-speed` — reuses the two-tower retraction model but varies
+  retraction *speed* instead of length.  Firmware retraction speed is
+  changed via `M207 S<length> F<speed>` at each height level while
+  keeping retraction length fixed.
+- `bridging-test` — generates a row of pillar pairs with flat bridges
+  at increasing span lengths.  No G-code insertion; the user inspects
+  bridge quality at each span to determine the printer's bridging
+  capability.
+- `overhang-test` — generates a back wall with angled ramp surfaces
+  at increasing overhang angles.  Supports are always disabled so the
+  user can evaluate overhang quality at each angle.
+- `tolerance-test` — generates a flat plate with circular through-holes
+  and matching cylindrical pegs at specified diameters.  The user prints
+  the specimen, measures holes and pegs with calipers, and calculates
+  dimensional accuracy.
+- `cooling-test` — generates a single cylindrical tower; fan speed is
+  changed via `M106` at each height level so the user can inspect
+  print quality at different cooling rates.
 
 ## Architecture
 
@@ -46,7 +64,9 @@ src/filament_calibrator/
   model.py          # CadQuery parametric temperature tower model
   slicer.py         # PrusaSlicer CLI wrapper (slice_tower, slice_flow_specimen,
                     #   slice_pa_specimen, slice_em_specimen,
-                    #   slice_retraction_specimen, slice_shrinkage_specimen)
+                    #   slice_retraction_specimen, slice_shrinkage_specimen,
+                    #   slice_bridge_specimen, slice_overhang_specimen,
+                    #   slice_tolerance_specimen, slice_cooling_specimen)
   tempinsert.py     # G-code temperature command insertion
   em_cli.py         # extrusion-multiplier argparse CLI, pipeline orchestration
   em_model.py       # CadQuery parametric cube model for EM calibration
@@ -61,7 +81,8 @@ src/filament_calibrator/
   ini_writer.py     # Merge calibration results into PrusaSlicer .ini configs.
                     #   CalibrationResults dataclass: temperature,
                     #   max_volumetric_speed, pa_value, extrusion_multiplier,
-                    #   retraction_length, xy_shrinkage, z_shrinkage.
+                    #   retraction_length, retraction_speed, xy_shrinkage,
+                    #   z_shrinkage.
                     #   Helpers (replace_ini_value, pa_command,
                     #   inject_pa_into_start_gcode) imported from gcode-lib
   retraction_cli.py   # retraction-test argparse CLI, pipeline orchestration
@@ -69,7 +90,22 @@ src/filament_calibrator/
   retraction_insert.py # G-code M207 retraction length command insertion
   shrinkage_cli.py    # shrinkage-test argparse CLI, pipeline orchestration
   shrinkage_model.py  # CadQuery parametric 3-axis cross model for shrinkage
-  gui.py            # Streamlit browser GUI wrapping all six CLIs.
+  retraction_speed_insert.py # G-code M207 retraction speed command insertion
+  retraction_speed_cli.py    # retraction-speed argparse CLI, pipeline orchestration
+  bridge_model.py     # CadQuery parametric pillar-pair bridge test model
+  bridge_cli.py       # bridging-test argparse CLI, pipeline orchestration
+  overhang_model.py   # CadQuery parametric overhang ramp test model
+  overhang_cli.py     # overhang-test argparse CLI, pipeline orchestration
+  tolerance_model.py  # CadQuery parametric hole/peg tolerance test model
+  tolerance_cli.py    # tolerance-test argparse CLI, pipeline orchestration
+  cooling_model.py    # CadQuery parametric cylindrical cooling tower model
+  cooling_insert.py   # G-code M106 fan speed command insertion
+  cooling_cli.py      # cooling-test argparse CLI, pipeline orchestration
+  gui.py            # Streamlit browser GUI wrapping all eleven CLIs.
+                    #   Tabs: Temperature Tower, Extrusion Multiplier,
+                    #   Retraction (Distance + Speed modes), Pressure Advance,
+                    #   Volumetric Flow, Shrinkage & Tolerance, Bridging &
+                    #   Overhang, Cooling, Results.
                     #   Calibration results persistence (load_saved_results,
                     #   save_results, results_to_dict,
                     #   apply_saved_results_to_session) to
@@ -136,9 +172,44 @@ generate_shrinkage_cross_stl → slice_shrinkage_specimen
 patch_slicer_metadata → save →
 print expected dimensions → optional upload.
 
+**retraction-speed** (`retraction_speed_cli.run()`):
+load_config → apply_config → validate_retraction_speed_args → resolve_preset →
+generate_retraction_tower_stl (reuses retraction_model) →
+slice_retraction_specimen (firmware retraction) → load G-code →
+inject_thumbnails → patch_slicer_metadata → compute_retraction_speed_levels →
+insert_retraction_speed_commands (M207 F) → save → optional upload.
+
+**bridging-test** (`bridge_cli.run()`):
+load_config → apply_config → resolve_preset →
+generate_bridge_stl (pillar pairs + bridges) →
+slice_bridge_specimen → load G-code → inject_thumbnails →
+patch_slicer_metadata → save →
+print span list → optional upload.
+
+**overhang-test** (`overhang_cli.run()`):
+load_config → apply_config → resolve_preset →
+generate_overhang_stl (back wall + angled ramps) →
+slice_overhang_specimen (supports disabled) → load G-code →
+inject_thumbnails → patch_slicer_metadata → save →
+print angle list → optional upload.
+
+**tolerance-test** (`tolerance_cli.run()`):
+load_config → apply_config → resolve_preset →
+generate_tolerance_stl (holes + pegs plate) →
+slice_tolerance_specimen → load G-code → inject_thumbnails →
+patch_slicer_metadata → save →
+print diameter table → optional upload.
+
+**cooling-test** (`cooling_cli.run()`):
+load_config → apply_config → validate_cooling_args → resolve_preset →
+generate_cooling_tower_stl → slice_cooling_specimen (auto-fan disabled) →
+load G-code → inject_thumbnails → patch_slicer_metadata →
+compute_cooling_levels → insert_cooling_commands (M106) → save →
+optional upload.
+
 ### Filament Preset System
 
-All six CLIs use `--filament-type` to look up defaults from
+All eleven CLIs use `--filament-type` to look up defaults from
 `gcode_lib.FILAMENT_PRESETS`.  Known presets (PLA, PETG, ABS, ASA, TPU, etc.)
 automatically set nozzle temperature, bed temperature, and fan speed.
 Explicit CLI arguments (`--nozzle-temp`, `--bed-temp`, `--fan-speed`)
@@ -176,6 +247,19 @@ override the preset.  Unknown filament names fall back to safe defaults
 - `SHRINKAGE_SLICER_ARGS` — for shrinkage cross slicing (3 perimeters,
   20% infill, 5 top / 4 bottom solid layers).  Standard slicing for
   dimensional accuracy — no vase mode, no firmware retraction.
+- `BRIDGE_SLICER_ARGS` — for bridging test slicing (2 perimeters,
+  15% infill).  Standard slicing for bridge quality evaluation.
+- `OVERHANG_SLICER_ARGS` — for overhang test slicing (2 perimeters,
+  15% infill).  `slice_overhang_specimen()` always forces
+  `--support-material=0` so overhang quality can be evaluated
+  without support structures.
+- `TOLERANCE_SLICER_ARGS` — for tolerance test slicing (3 perimeters,
+  20% infill, 5 top / 4 bottom solid layers).  Same settings as
+  `SHRINKAGE_SLICER_ARGS` for dimensional accuracy.
+- `COOLING_SLICER_ARGS` — for cooling test slicing (2 perimeters,
+  15% infill).  `slice_cooling_specimen()` always forces
+  `--cooling=0` to disable PrusaSlicer's automatic fan management
+  so that M106 G-code commands control fan speed directly.
 
 All slicer functions accept `nozzle_diameter` to pass `--nozzle-diameter` to
 PrusaSlicer, and pass `--center` and `--bed-shape` for Prusa MK-series bed
@@ -200,7 +284,8 @@ thumbnail previews.  Use `--ascii-gcode` on the CLI to switch to text
 - Shared CLI helpers (`_apply_config`, `_resolve_output_dir`, `_UNSET`,
   `_KNOWN_TYPES`, `_ARGPARSE_DEFAULTS`) live in `cli.py` and are imported
   by `em_cli.py`, `flow_cli.py`, `pa_cli.py`, `retraction_cli.py`,
-  and `shrinkage_cli.py`.
+  `shrinkage_cli.py`, `retraction_speed_cli.py`, `bridge_cli.py`,
+  `overhang_cli.py`, `tolerance_cli.py`, and `cooling_cli.py`.
   Generic filename/preset
   helpers (`unique_suffix`, `safe_filename_part`, `gcode_ext`,
   `resolve_filament_preset`) are imported from `gcode_lib`.
@@ -232,6 +317,11 @@ Entry points:
 - `pressure-advance` → `filament_calibrator.pa_cli:main`
 - `retraction-test` → `filament_calibrator.retraction_cli:main`
 - `shrinkage-test` → `filament_calibrator.shrinkage_cli:main`
+- `retraction-speed` → `filament_calibrator.retraction_speed_cli:main`
+- `bridging-test` → `filament_calibrator.bridge_cli:main`
+- `overhang-test` → `filament_calibrator.overhang_cli:main`
+- `tolerance-test` → `filament_calibrator.tolerance_cli:main`
+- `cooling-test` → `filament_calibrator.cooling_cli:main`
 - `filament-calibrator-gui` → `filament_calibrator.gui:main` (requires `[gui]` extra)
 
 ## Common Tasks
@@ -254,10 +344,24 @@ Entry points:
 - **Change shrinkage cross geometry**: Edit constants in
   `shrinkage_model.py` (ARM_LENGTH, ARM_SIZE, WINDOW_SIZE,
   WINDOW_INTERVAL, LABEL_DEPTH, LABEL_FONT_SIZE).
+- **Change bridge test geometry**: Edit constants in `bridge_model.py`
+  (DEFAULT_SPANS, PILLAR_WIDTH, PILLAR_DEPTH, PILLAR_HEIGHT,
+  BRIDGE_THICKNESS, BASE_HEIGHT).
+- **Change overhang test geometry**: Edit constants in `overhang_model.py`
+  (DEFAULT_ANGLES, WALL_HEIGHT, WALL_THICKNESS, SURFACE_LENGTH,
+  SURFACE_WIDTH, SURFACE_THICKNESS).
+- **Change tolerance test geometry**: Edit constants in `tolerance_model.py`
+  (DEFAULT_DIAMETERS, PLATE_THICKNESS, PEG_HEIGHT, COLUMN_SPACING,
+  ROW_SPACING).
+- **Change cooling tower geometry**: Edit constants in `cooling_model.py`
+  (TOWER_DIAMETER, BASE_LENGTH, BASE_WIDTH, BASE_HEIGHT, LEVEL_HEIGHT).
 - **Change slicer defaults**: Edit `DEFAULT_SLICER_ARGS` (temp tower),
   `VASE_MODE_SLICER_ARGS` (flow specimen), `PA_SLICER_ARGS` (PA tower),
   `EM_SLICER_ARGS` (EM cube), `RETRACTION_SLICER_ARGS` (retraction
-  towers), or `SHRINKAGE_SLICER_ARGS` (shrinkage cross) in `slicer.py`.
+  towers), `SHRINKAGE_SLICER_ARGS` (shrinkage cross),
+  `BRIDGE_SLICER_ARGS` (bridging), `OVERHANG_SLICER_ARGS` (overhang),
+  `TOLERANCE_SLICER_ARGS` (tolerance), or `COOLING_SLICER_ARGS`
+  (cooling) in `slicer.py`.
 - **Add a new calibration tool**: Create a new module + CLI entry point in
   `pyproject.toml [project.scripts]`.  Import shared helpers from `cli.py`.
 - **Add a new config key**: Add to `CONFIG_KEYS` in `config.py`, add

@@ -31,12 +31,17 @@ from filament_calibrator.gui import (
     apply_saved_results_to_session,
     apply_toml_to_session,
     build_calibration_results,
+    build_bridge_namespace,
+    build_cooling_namespace,
     build_em_namespace,
     build_flow_namespace,
+    build_overhang_namespace,
     build_pa_namespace,
     build_retraction_namespace,
+    build_retraction_speed_namespace,
     build_shrinkage_namespace,
     build_temp_tower_namespace,
+    build_tolerance_namespace,
     find_output_file,
     get_preset,
     load_saved_results,
@@ -1117,6 +1122,7 @@ class TestBuildCalibrationResults:
             set_pa=True, pa_value=0.04,
             set_em=True, extrusion_multiplier=0.95,
             set_retraction=True, retraction_length=0.6,
+            set_retraction_speed=True, retraction_speed=40.0,
             set_shrinkage=True, xy_shrinkage=0.5, z_shrinkage=0.3,
             printer="COREONE",
         )
@@ -1125,6 +1131,7 @@ class TestBuildCalibrationResults:
         assert r.pa_value == 0.04
         assert r.extrusion_multiplier == 0.95
         assert r.retraction_length == 0.6
+        assert r.retraction_speed == 40.0
         assert r.xy_shrinkage == 0.5
         assert r.z_shrinkage == 0.3
         assert r.printer == "COREONE"
@@ -1136,6 +1143,7 @@ class TestBuildCalibrationResults:
             set_pa=False, pa_value=0.04,
             set_em=False, extrusion_multiplier=0.95,
             set_retraction=False, retraction_length=0.8,
+            set_retraction_speed=False, retraction_speed=30.0,
             set_shrinkage=False, xy_shrinkage=0.5, z_shrinkage=0.3,
             printer="COREONE",
         )
@@ -1144,6 +1152,7 @@ class TestBuildCalibrationResults:
         assert r.pa_value is None
         assert r.extrusion_multiplier is None
         assert r.retraction_length is None
+        assert r.retraction_speed is None
         assert r.xy_shrinkage is None
         assert r.z_shrinkage is None
         assert r.printer == "COREONE"
@@ -1155,6 +1164,7 @@ class TestBuildCalibrationResults:
             set_pa=False, pa_value=0.04,
             set_em=False, extrusion_multiplier=1.0,
             set_retraction=False, retraction_length=0.8,
+            set_retraction_speed=False, retraction_speed=30.0,
             set_shrinkage=False, xy_shrinkage=0.0, z_shrinkage=0.0,
             printer="MINI",
         )
@@ -1174,6 +1184,7 @@ class TestBuildCalibrationResults:
             set_pa=False, pa_value=0.04,
             set_em=True, extrusion_multiplier=0.97,
             set_retraction=False, retraction_length=0.8,
+            set_retraction_speed=False, retraction_speed=30.0,
             set_shrinkage=False, xy_shrinkage=0.0, z_shrinkage=0.0,
             printer="COREONE",
         )
@@ -1189,11 +1200,13 @@ class TestBuildCalibrationResults:
             set_pa=False, pa_value=0.04,
             set_em=False, extrusion_multiplier=1.0,
             set_retraction=True, retraction_length=0.6,
+            set_retraction_speed=False, retraction_speed=30.0,
             set_shrinkage=False, xy_shrinkage=0.0, z_shrinkage=0.0,
             printer="COREONE",
         )
         assert r.temperature is None
         assert r.retraction_length == 0.6
+        assert r.retraction_speed is None
         assert r.xy_shrinkage is None
 
     def test_partial_shrinkage_only(self) -> None:
@@ -1203,6 +1216,7 @@ class TestBuildCalibrationResults:
             set_pa=False, pa_value=0.04,
             set_em=False, extrusion_multiplier=1.0,
             set_retraction=False, retraction_length=0.8,
+            set_retraction_speed=False, retraction_speed=30.0,
             set_shrinkage=True, xy_shrinkage=0.5, z_shrinkage=0.3,
             printer="COREONE",
         )
@@ -1342,6 +1356,186 @@ class TestBuildShrinkageNamespace:
 
 
 # ---------------------------------------------------------------------------
+# build_retraction_speed_namespace
+# ---------------------------------------------------------------------------
+
+
+class TestBuildRetractionSpeedNamespace:
+    """Test build_retraction_speed_namespace()."""
+
+    def test_basic(self) -> None:
+        ns = build_retraction_speed_namespace(
+            filament_type="PLA",
+            retraction_length=0.8,
+            start_speed=20.0,
+            end_speed=60.0,
+            speed_step=5.0,
+            level_height=1.0,
+            nozzle_temp=215,
+            bed_temp=60,
+            fan_speed=100,
+            nozzle_size=0.4,
+            layer_height=0.2,
+            extrusion_width=0.45,
+            printer="COREONE",
+            ascii_gcode=False,
+            output_dir="/tmp/retspeed",
+            config_ini=None,
+            prusaslicer_path=None,
+            printer_url=None,
+            api_key=None,
+            no_upload=True,
+            print_after_upload=False,
+        )
+        assert ns.retraction_length == 0.8
+        assert ns.start_speed == 20.0
+        assert ns.end_speed == 60.0
+        assert ns.speed_step == 5.0
+        assert ns.verbose is True
+        assert ns.keep_files is True
+
+
+# ---------------------------------------------------------------------------
+# build_bridge_namespace
+# ---------------------------------------------------------------------------
+
+
+class TestBuildBridgeNamespace:
+    """Test build_bridge_namespace()."""
+
+    def test_basic(self) -> None:
+        ns = build_bridge_namespace(
+            filament_type="PLA",
+            spans="10,20,30",
+            pillar_height=15.0,
+            nozzle_temp=215,
+            bed_temp=60,
+            fan_speed=100,
+            nozzle_size=0.4,
+            layer_height=0.2,
+            extrusion_width=0.45,
+            printer="COREONE",
+            ascii_gcode=False,
+            output_dir="/tmp/bridge",
+            config_ini=None,
+            prusaslicer_path=None,
+            printer_url=None,
+            api_key=None,
+            no_upload=True,
+            print_after_upload=False,
+        )
+        assert ns.spans == "10,20,30"
+        assert ns.pillar_height == 15.0
+        assert ns.verbose is True
+        assert ns.keep_files is True
+
+
+# ---------------------------------------------------------------------------
+# build_overhang_namespace
+# ---------------------------------------------------------------------------
+
+
+class TestBuildOverhangNamespace:
+    """Test build_overhang_namespace()."""
+
+    def test_basic(self) -> None:
+        ns = build_overhang_namespace(
+            filament_type="PLA",
+            angles="20,30,40,50",
+            nozzle_temp=215,
+            bed_temp=60,
+            fan_speed=100,
+            nozzle_size=0.4,
+            layer_height=0.2,
+            extrusion_width=0.45,
+            printer="COREONE",
+            ascii_gcode=False,
+            output_dir="/tmp/overhang",
+            config_ini=None,
+            prusaslicer_path=None,
+            printer_url=None,
+            api_key=None,
+            no_upload=True,
+            print_after_upload=False,
+        )
+        assert ns.angles == "20,30,40,50"
+        assert ns.verbose is True
+        assert ns.keep_files is True
+
+
+# ---------------------------------------------------------------------------
+# build_tolerance_namespace
+# ---------------------------------------------------------------------------
+
+
+class TestBuildToleranceNamespace:
+    """Test build_tolerance_namespace()."""
+
+    def test_basic(self) -> None:
+        ns = build_tolerance_namespace(
+            filament_type="PLA",
+            diameters="3,5,8,10",
+            nozzle_temp=215,
+            bed_temp=60,
+            fan_speed=100,
+            nozzle_size=0.4,
+            layer_height=0.2,
+            extrusion_width=0.45,
+            printer="COREONE",
+            ascii_gcode=False,
+            output_dir="/tmp/tol",
+            config_ini=None,
+            prusaslicer_path=None,
+            printer_url=None,
+            api_key=None,
+            no_upload=True,
+            print_after_upload=False,
+        )
+        assert ns.diameters == "3,5,8,10"
+        assert ns.verbose is True
+        assert ns.keep_files is True
+
+
+# ---------------------------------------------------------------------------
+# build_cooling_namespace
+# ---------------------------------------------------------------------------
+
+
+class TestBuildCoolingNamespace:
+    """Test build_cooling_namespace()."""
+
+    def test_basic(self) -> None:
+        ns = build_cooling_namespace(
+            filament_type="PLA",
+            start_fan=0,
+            end_fan=100,
+            fan_step=10,
+            level_height=1.0,
+            nozzle_temp=215,
+            bed_temp=60,
+            fan_speed=100,
+            nozzle_size=0.4,
+            layer_height=0.2,
+            extrusion_width=0.45,
+            printer="COREONE",
+            ascii_gcode=False,
+            output_dir="/tmp/cool",
+            config_ini=None,
+            prusaslicer_path=None,
+            printer_url=None,
+            api_key=None,
+            no_upload=True,
+            print_after_upload=False,
+        )
+        assert ns.start_fan == 0
+        assert ns.end_fan == 100
+        assert ns.fan_step == 10
+        assert ns.level_height == 1.0
+        assert ns.verbose is True
+        assert ns.keep_files is True
+
+
+# ---------------------------------------------------------------------------
 # _check_printer_temps
 # ---------------------------------------------------------------------------
 
@@ -1418,6 +1612,7 @@ class TestResultsToDict:
             set_temp=True, temperature=215,
             set_em=True, extrusion_multiplier=0.95,
             set_retraction=True, retraction_length=0.6,
+            set_retraction_speed=True, retraction_speed=40.0,
             set_pa=True, pa_value=0.04,
             set_flow=True, max_volumetric_speed=12.5,
             set_shrinkage=True, xy_shrinkage=0.5, z_shrinkage=0.3,
@@ -1428,6 +1623,8 @@ class TestResultsToDict:
         assert d["extrusion_multiplier"] == 0.95
         assert d["set_retraction"] is True
         assert d["retraction_length"] == 0.6
+        assert d["set_retraction_speed"] is True
+        assert d["retraction_speed"] == 40.0
         assert d["set_pa"] is True
         assert d["pa_value"] == 0.04
         assert d["set_flow"] is True
@@ -1441,15 +1638,18 @@ class TestResultsToDict:
             set_temp=False, temperature=200,
             set_em=False, extrusion_multiplier=1.0,
             set_retraction=False, retraction_length=0.8,
+            set_retraction_speed=False, retraction_speed=30.0,
             set_pa=False, pa_value=0.04,
             set_flow=False, max_volumetric_speed=11.0,
             set_shrinkage=False, xy_shrinkage=0.0, z_shrinkage=0.0,
         )
         assert d["set_temp"] is False
         assert d["set_shrinkage"] is False
+        assert d["set_retraction_speed"] is False
         # Values are still serialized (booleans gate usage at restore time).
         assert d["temperature"] == 200
         assert d["xy_shrinkage"] == 0.0
+        assert d["retraction_speed"] == 30.0
 
 
 # ---------------------------------------------------------------------------
@@ -1466,6 +1666,7 @@ class TestApplySavedResultsToSession:
             "set_temp": True, "temperature": 230,
             "set_em": True, "extrusion_multiplier": 0.93,
             "set_retraction": True, "retraction_length": 0.6,
+            "set_retraction_speed": True, "retraction_speed": 40.0,
             "set_pa": True, "pa_value": 0.05,
             "set_flow": True, "max_volumetric_speed": 14.0,
             "set_shrinkage": True, "xy_shrinkage": 0.5, "z_shrinkage": 0.3,
@@ -1474,6 +1675,8 @@ class TestApplySavedResultsToSession:
         assert state["res_set_temp"] is True
         assert state["res_temp"] == 230
         assert state["res_set_em"] is True
+        assert state["res_set_retraction_speed"] is True
+        assert state["res_retraction_speed"] == 40.0
         assert state["res_em"] == 0.93
         assert state["res_set_retraction"] is True
         assert state["res_retraction"] == 0.6

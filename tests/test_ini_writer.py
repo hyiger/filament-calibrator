@@ -118,6 +118,18 @@ class TestMergeResultsIntoIni:
         merged = merge_results_into_ini(ini, results)
         assert "retract_length = 0.8" in merged
 
+    def test_only_retraction_speed(self) -> None:
+        ini = "retract_speed = 30\n"
+        results = CalibrationResults(retraction_speed=45.0)
+        merged = merge_results_into_ini(ini, results)
+        assert "retract_speed = 45" in merged
+
+    def test_retraction_speed_appended_when_missing(self) -> None:
+        ini = "temperature = 200\n"
+        results = CalibrationResults(retraction_speed=35.0)
+        merged = merge_results_into_ini(ini, results)
+        assert "retract_speed = 35" in merged
+
     def test_only_xy_shrinkage(self) -> None:
         ini = "temperature = 200\n"
         results = CalibrationResults(xy_shrinkage=0.5)
@@ -214,6 +226,13 @@ class TestBuildChangeSummary:
         summary = build_change_summary(results)
         assert "0.6 mm" in summary
         assert "retract_length" in summary
+        assert "temperature" not in summary.lower()
+
+    def test_partial_retraction_speed_only(self) -> None:
+        results = CalibrationResults(retraction_speed=40.0)
+        summary = build_change_summary(results)
+        assert "40 mm/s" in summary
+        assert "retract_speed" in summary
         assert "temperature" not in summary.lower()
 
     def test_partial_shrinkage_xy_only(self) -> None:
