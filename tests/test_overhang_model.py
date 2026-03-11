@@ -215,14 +215,16 @@ class TestMakeOverhangSurface:
 
         _make_overhang_surface(config, 45, 0.0)
 
+        overlap = config.wall_thickness / 2.0
         mock_wp.box.assert_called_once_with(
             config.surface_width,
-            config.surface_length,
+            config.surface_length + overlap,
             config.surface_thickness,
             centered=(True, False, False),
         )
         mock_wp.rotate.assert_called_once()
-        mock_wp.translate.assert_called_once()
+        # Two translates: one to shift slab into wall, one for final position
+        assert mock_wp.translate.call_count == 2
 
     @patch("filament_calibrator.overhang_model.cq")
     def test_rotation_angle(self, mock_cq):
@@ -242,6 +244,11 @@ class TestMakeOverhangSurface:
         assert rot_call[0][0] == (0, 0, 0)
         assert rot_call[0][1] == (1, 0, 0)
         assert rot_call[0][2] == -60.0
+
+        # First translate shifts slab into wall, second positions at wall
+        assert mock_wp.translate.call_count == 2
+        overlap_translate = mock_wp.translate.call_args_list[0]
+        assert overlap_translate[0][0] == (0, -config.wall_thickness / 2.0, 0)
 
 
 # ---------------------------------------------------------------------------

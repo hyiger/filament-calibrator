@@ -162,8 +162,8 @@ def _make_overhang_surface(
 
     The surface is a rectangular slab rotated around the X axis so that it
     protrudes from the wall face at the specified overhang angle from
-    vertical.  The rotation pivot is at the top of the wall where the
-    surface meets it.
+    vertical.  The rotation pivot is inside the wall so that the slab
+    overlaps the wall and produces a proper boolean union.
 
     At ``angle_deg=0`` the surface is vertical (flush with wall); at
     ``angle_deg=90`` it would be fully horizontal.
@@ -172,15 +172,23 @@ def _make_overhang_surface(
     wall_y_front = -(td / 2.0) + config.wall_thickness
     pivot_z = config.base_height + config.wall_height
 
-    # Build the surface slab lying flat (along +Y, thickness in Z)
+    # Extend the slab origin into the wall so the union is solid.
+    # Without this, the slab would only touch the wall at a single edge
+    # and CadQuery's boolean union would not create a connected solid.
+    overlap = config.wall_thickness / 2.0
+
+    # Build the surface slab lying flat (along +Y, thickness in Z),
+    # then shift it back by *overlap* so the near edge sits inside the
+    # wall before rotation.
     slab = (
         cq.Workplane("XY")
         .box(
             config.surface_width,
-            config.surface_length,
+            config.surface_length + overlap,
             config.surface_thickness,
             centered=(True, False, False),
         )
+        .translate((0, -overlap, 0))
     )
 
     # Rotation angle: overhang_angle is from vertical, so the rotation
