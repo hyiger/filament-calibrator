@@ -3253,6 +3253,7 @@ def _app() -> None:  # pragma: no cover
                 data=merged.encode("utf-8"),
                 file_name=ini_name,
                 mime="text/plain",
+                key="download_calibrated_ini",
             )
         elif has_any and not config_ini_path:
             st.info(
@@ -3285,6 +3286,7 @@ def _show_results(
                 data=fh.read(),
                 file_name=gcode_path.name,
                 mime="application/octet-stream",
+                key="download_gcode",
             )
 
     # Thumbnail preview (use most recent STL for shared output dirs).
