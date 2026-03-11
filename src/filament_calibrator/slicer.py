@@ -1332,6 +1332,8 @@ def slice_cooling_specimen(
     bed_center: Optional[str] = None,
     bed_shape: Optional[str] = None,
     nozzle_diameter: Optional[float] = None,
+    start_gcode: Optional[str] = None,
+    end_gcode: Optional[str] = None,
     printer_model: Optional[str] = None,
     binary_gcode: bool = True,
 ) -> gl.RunResult:
@@ -1360,6 +1362,8 @@ def slice_cooling_specimen(
     bed_center:        Bed centre as ``"X,Y"``.
     bed_shape:         Bed shape as PrusaSlicer ``--bed-shape`` string.
     nozzle_diameter:   Nozzle diameter in mm.
+    start_gcode:       Custom start G-code (newlines escaped as ``\\n``).
+    end_gcode:         Custom end G-code (newlines escaped as ``\\n``).
     printer_model:     Printer model identifier.
     binary_gcode:      Produce ``.bgcode`` output (default ``True``).
 
@@ -1412,6 +1416,13 @@ def slice_cooling_specimen(
 
     if printer_model is not None:
         cli_extra.append(f"--printer-model={printer_model}")
+
+    if start_gcode is not None:
+        escaped = start_gcode.replace("\n", "\\n")
+        cli_extra.append(f"--start-gcode={escaped}")
+    if end_gcode is not None:
+        escaped = end_gcode.replace("\n", "\\n")
+        cli_extra.append(f"--end-gcode={escaped}")
 
     if extra_args:
         cli_extra.extend(extra_args)

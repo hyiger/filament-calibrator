@@ -3164,6 +3164,23 @@ class TestSliceCoolingSpecimen:
 
     @patch("filament_calibrator.slicer.gl.slice_model")
     @patch("filament_calibrator.slicer.gl.find_prusaslicer_executable")
+    def test_start_end_gcode(self, mock_find, mock_slice):
+        mock_find.return_value = "/usr/bin/prusa-slicer"
+        mock_slice.return_value = gl.RunResult(
+            cmd=[], returncode=0, stdout="", stderr=""
+        )
+
+        slice_cooling_specimen(
+            "/tmp/c.stl", "/tmp/c.gcode",
+            start_gcode="G28\nG29", end_gcode="M104 S0\nG28 X",
+        )
+
+        req = mock_slice.call_args[0][1]
+        assert "--start-gcode=G28\\nG29" in req.extra_args
+        assert "--end-gcode=M104 S0\\nG28 X" in req.extra_args
+
+    @patch("filament_calibrator.slicer.gl.slice_model")
+    @patch("filament_calibrator.slicer.gl.find_prusaslicer_executable")
     def test_extra_args(self, mock_find, mock_slice):
         mock_find.return_value = "/usr/bin/prusa-slicer"
         mock_slice.return_value = gl.RunResult(
