@@ -3198,6 +3198,8 @@ def _app() -> None:  # pragma: no cover
             set_em=set_em, extrusion_multiplier=float(res_em),
             set_retraction=set_retraction,
             retraction_length=float(res_retraction),
+            set_retraction_speed=set_retraction_speed,
+            retraction_speed=float(res_retraction_speed),
             set_shrinkage=set_shrinkage,
             xy_shrinkage=float(res_xy_shrinkage),
             z_shrinkage=float(res_z_shrinkage),
