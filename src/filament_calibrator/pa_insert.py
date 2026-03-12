@@ -31,7 +31,7 @@ class PALevel:
     ----------
     pa_value: Pressure advance value for this level.
     z_start:  Bottom of level (inclusive), in mm.
-    z_end:    Top of level (exclusive), in mm.
+    z_end:    Top of level (inclusive), in mm.
     """
     pa_value: float
     z_start: float
@@ -109,7 +109,7 @@ def compute_pa_levels(
 def _level_for_z(z: float, levels: List[PALevel]) -> PALevel | None:
     """Return the level that contains height *z*, or ``None``."""
     for level in levels:
-        if level.z_start <= z < level.z_end:
+        if level.z_start <= z <= level.z_end:
             return level
     return None
 

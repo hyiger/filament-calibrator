@@ -30,7 +30,7 @@ class FlowLevel:
     ----------
     flow_rate: Target volumetric flow rate in mm³/s.
     z_start:   Bottom of level (inclusive), in mm.
-    z_end:     Top of level (exclusive), in mm.
+    z_end:     Top of level (inclusive), in mm.
     feedrate:  Computed feedrate in mm/min that achieves *flow_rate*.
     """
     flow_rate: float
@@ -94,7 +94,7 @@ def compute_flow_levels(
 def _level_for_z(z: float, levels: List[FlowLevel]) -> FlowLevel | None:
     """Return the level that contains height *z*, or ``None``."""
     for level in levels:
-        if level.z_start <= z < level.z_end:
+        if level.z_start <= z <= level.z_end:
             return level
     return None
 

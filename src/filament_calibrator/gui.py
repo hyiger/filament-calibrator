@@ -49,6 +49,16 @@ _PRINTER_LIST: List[str] = sorted(gl.KNOWN_PRINTERS)
 _GUI_EXPLICIT_KEYS = frozenset(_ARGPARSE_DEFAULTS.keys())
 
 
+def _clean_path(value: str) -> str:
+    """Strip surrounding quotes and whitespace from a pasted path.
+
+    Windows "Copy as Path" wraps paths in double-quotes which, if left
+    in place, corrupt backslash separators when passed through
+    ``subprocess.run()``'s ``list2cmdline`` escaping.
+    """
+    return value.strip().strip('"').strip("'")
+
+
 def get_preset(filament_type: str) -> Dict[str, Any]:
     """Return filament preset defaults for *filament_type*.
 
@@ -776,6 +786,11 @@ def find_output_file(output_dir: str, ascii_gcode: bool) -> Optional[Path]:
 # ---------------------------------------------------------------------------
 
 
+def _is_frozen() -> bool:
+    """Return ``True`` if running inside a PyInstaller frozen bundle."""
+    return getattr(sys, "frozen", False)
+
+
 def _open_file_dialog(
     title: str = "Select File",
     filetypes: Optional[List[Tuple[str, str]]] = None,
@@ -783,13 +798,16 @@ def _open_file_dialog(
     """Open a native file chooser and return the selected path.
 
     On macOS uses ``osascript`` (AppleScript) for a reliable native
-    dialog.  On other platforms falls back to ``tkinter.filedialog``
-    in a subprocess.
+    dialog.  In a PyInstaller bundle on Windows uses Win32 native
+    dialogs via ``ctypes``.  Otherwise falls back to
+    ``tkinter.filedialog`` in a subprocess.
 
     Returns ``None`` if the user cancels or an error occurs.
     """
     if platform.system() == "Darwin":
         return _osascript_file_dialog(title, filetypes)
+    if platform.system() == "Windows" and _is_frozen():
+        return _win32_file_dialog(title, filetypes)
     return _tkinter_file_dialog(title, filetypes)
 
 
@@ -798,13 +816,16 @@ def _open_directory_dialog(
 ) -> Optional[str]:
     """Open a native directory chooser and return the selected path.
 
-    On macOS uses ``osascript`` (AppleScript).  On other platforms
-    falls back to ``tkinter.filedialog`` in a subprocess.
+    On macOS uses ``osascript`` (AppleScript).  In a PyInstaller
+    bundle on Windows uses Win32 native dialogs via ``ctypes``.
+    Otherwise falls back to ``tkinter.filedialog`` in a subprocess.
 
     Returns ``None`` if the user cancels or an error occurs.
     """
     if platform.system() == "Darwin":
         return _osascript_directory_dialog(title)
+    if platform.system() == "Windows" and _is_frozen():
+        return _win32_directory_dialog(title)
     return _tkinter_directory_dialog(title)
 
 
@@ -901,6 +922,128 @@ def _tkinter_directory_dialog(title: str) -> Optional[str]:
         path = result.stdout.strip()
         return path if path else None
     except (subprocess.TimeoutExpired, FileNotFoundError, OSError):
+        return None
+
+
+# --- Win32 native dialogs (PyInstaller frozen bundles on Windows) ---
+
+
+def _win32_file_dialog(
+    title: str,
+    filetypes: Optional[List[Tuple[str, str]]] = None,
+) -> Optional[str]:
+    """Open a Win32-native file dialog via ``ctypes``.
+
+    Used in PyInstaller frozen bundles where ``sys.executable`` is the
+    bundled ``.exe`` and spawning a tkinter subprocess would re-launch
+    the entire application.
+    """
+    try:
+        import ctypes
+        import ctypes.wintypes
+
+        comdlg32 = ctypes.windll.comdlg32  # type: ignore[attr-defined]
+
+        # Build filter string: "Label\0pattern\0...\0\0"
+        filter_parts: List[str] = []
+        if filetypes:
+            for label, pattern in filetypes:
+                filter_parts.append(label)
+                filter_parts.append(pattern)
+            filter_parts.append("All files")
+            filter_parts.append("*.*")
+        filter_str = "\0".join(filter_parts) + "\0\0" if filter_parts else None
+
+        # OPENFILENAMEW structure
+        buf = ctypes.create_unicode_buffer(4096)
+        ofn_size = 76 + ctypes.sizeof(ctypes.c_void_p) * 10
+        # Use a simpler approach: just fill the struct manually
+        class OPENFILENAME(ctypes.Structure):
+            _fields_ = [
+                ("lStructSize", ctypes.wintypes.DWORD),
+                ("hwndOwner", ctypes.wintypes.HWND),
+                ("hInstance", ctypes.wintypes.HINSTANCE),
+                ("lpstrFilter", ctypes.c_wchar_p),
+                ("lpstrCustomFilter", ctypes.c_wchar_p),
+                ("nMaxCustFilter", ctypes.wintypes.DWORD),
+                ("nFilterIndex", ctypes.wintypes.DWORD),
+                ("lpstrFile", ctypes.c_wchar_p),
+                ("nMaxFile", ctypes.wintypes.DWORD),
+                ("lpstrFileTitle", ctypes.c_wchar_p),
+                ("nMaxFileTitle", ctypes.wintypes.DWORD),
+                ("lpstrInitialDir", ctypes.c_wchar_p),
+                ("lpstrTitle", ctypes.c_wchar_p),
+                ("Flags", ctypes.wintypes.DWORD),
+                ("nFileOffset", ctypes.wintypes.WORD),
+                ("nFileExtension", ctypes.wintypes.WORD),
+                ("lpstrDefExt", ctypes.c_wchar_p),
+                ("lCustData", ctypes.wintypes.LPARAM),
+                ("lpfnHook", ctypes.c_void_p),
+                ("lpTemplateName", ctypes.c_wchar_p),
+            ]
+
+        OFN_FILEMUSTEXIST = 0x00001000
+        OFN_NOCHANGEDIR = 0x00000008
+
+        ofn = OPENFILENAME()
+        ofn.lStructSize = ctypes.sizeof(OPENFILENAME)
+        ofn.lpstrFilter = filter_str
+        ofn.lpstrFile = ctypes.cast(buf, ctypes.c_wchar_p)
+        ofn.nMaxFile = 4096
+        ofn.lpstrTitle = title
+        ofn.Flags = OFN_FILEMUSTEXIST | OFN_NOCHANGEDIR
+
+        if comdlg32.GetOpenFileNameW(ctypes.byref(ofn)):
+            return buf.value or None
+        return None
+    except Exception:
+        return None
+
+
+def _win32_directory_dialog(title: str) -> Optional[str]:
+    """Open a Win32-native directory dialog via ``ctypes``.
+
+    Uses ``SHBrowseForFolderW`` / ``SHGetPathFromIDListW`` from
+    ``shell32.dll``.
+    """
+    try:
+        import ctypes
+        import ctypes.wintypes
+
+        shell32 = ctypes.windll.shell32  # type: ignore[attr-defined]
+        ole32 = ctypes.windll.ole32  # type: ignore[attr-defined]
+
+        ole32.CoInitialize(None)
+
+        BIF_RETURNONLYFSDIRS = 0x00000001
+        BIF_NEWDIALOGSTYLE = 0x00000040
+
+        class BROWSEINFO(ctypes.Structure):
+            _fields_ = [
+                ("hwndOwner", ctypes.wintypes.HWND),
+                ("pidlRoot", ctypes.c_void_p),
+                ("pszDisplayName", ctypes.c_wchar_p),
+                ("lpszTitle", ctypes.c_wchar_p),
+                ("ulFlags", ctypes.c_uint),
+                ("lpfn", ctypes.c_void_p),
+                ("lParam", ctypes.wintypes.LPARAM),
+                ("iImage", ctypes.c_int),
+            ]
+
+        buf = ctypes.create_unicode_buffer(4096)
+        bi = BROWSEINFO()
+        bi.pszDisplayName = ctypes.cast(buf, ctypes.c_wchar_p)
+        bi.lpszTitle = title
+        bi.ulFlags = BIF_RETURNONLYFSDIRS | BIF_NEWDIALOGSTYLE
+
+        pidl = shell32.SHBrowseForFolderW(ctypes.byref(bi))
+        if pidl:
+            path_buf = ctypes.create_unicode_buffer(4096)
+            shell32.SHGetPathFromIDListW(pidl, path_buf)
+            ole32.CoTaskMemFree(pidl)
+            return path_buf.value or None
+        return None
+    except Exception:
         return None
 
 
@@ -1302,6 +1445,16 @@ def _app() -> None:  # pragma: no cover
         _pending = f"_pending_{_key}"
         if _pending in st.session_state:
             st.session_state[_key] = st.session_state.pop(_pending)
+
+    # Strip surrounding quotes from path inputs.  Windows "Copy as Path"
+    # wraps paths in double-quotes which corrupt backslash separators
+    # when passed through subprocess.run()'s list2cmdline escaping.
+    for _key in ("config_ini", "prusaslicer_path", "output_dir"):
+        _raw = st.session_state.get(_key, "")
+        if _raw:
+            _cleaned = _clean_path(_raw)
+            if _cleaned != _raw:
+                st.session_state[_key] = _cleaned
 
     # Parse .ini and auto-populate fields when the path changes.
     # _ini_vals is kept alive so that, after _widget_defaults overwrites

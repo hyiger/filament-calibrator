@@ -25,7 +25,7 @@ class RetractionSpeedLevel:
     ----------
     speed_mm_s: Firmware retraction speed in mm/s.
     z_start:    Bottom of level (inclusive), in mm.
-    z_end:      Top of level (exclusive), in mm.
+    z_end:      Top of level (inclusive), in mm.
     """
     speed_mm_s: float
     z_start: float
@@ -97,7 +97,7 @@ def _level_for_z(
 ) -> RetractionSpeedLevel | None:
     """Return the level that contains height *z*, or ``None``."""
     for level in levels:
-        if level.z_start <= z < level.z_end:
+        if level.z_start <= z <= level.z_end:
             return level
     return None
 

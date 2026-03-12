@@ -26,7 +26,7 @@ class TempTier:
     ----------
     temp:    Target hotend temperature in °C.
     z_start: Bottom of tier (inclusive), in mm.
-    z_end:   Top of tier (exclusive), in mm.
+    z_end:   Top of tier (inclusive), in mm.
     """
     temp: int
     z_start: float
@@ -76,7 +76,7 @@ def compute_temp_tiers(
 def _tier_for_z(z: float, tiers: List[TempTier]) -> TempTier | None:
     """Return the tier that contains height *z*, or ``None``."""
     for tier in tiers:
-        if tier.z_start <= z < tier.z_end:
+        if tier.z_start <= z <= tier.z_end:
             return tier
     return None
 

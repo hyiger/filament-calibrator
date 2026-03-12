@@ -24,7 +24,7 @@ class RetractionLevel:
     ----------
     retraction_length: Firmware retraction length in mm.
     z_start:           Bottom of level (inclusive), in mm.
-    z_end:             Top of level (exclusive), in mm.
+    z_end:             Top of level (inclusive), in mm.
     """
     retraction_length: float
     z_start: float
@@ -92,7 +92,7 @@ def _level_for_z(
 ) -> RetractionLevel | None:
     """Return the level that contains height *z*, or ``None``."""
     for level in levels:
-        if level.z_start <= z < level.z_end:
+        if level.z_start <= z <= level.z_end:
             return level
     return None
 

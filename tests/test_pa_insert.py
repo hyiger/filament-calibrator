@@ -135,8 +135,8 @@ class TestLevelForZ:
 
     def test_at_boundary(self):
         levels = compute_pa_levels(0.0, 0.05, 3, 1.0)
-        # z_start is inclusive
-        assert _level_for_z(1.0, levels).pa_value == pytest.approx(0.05)
+        # z_end is inclusive — boundary layer belongs to current level
+        assert _level_for_z(1.0, levels).pa_value == pytest.approx(0.0)
 
     def test_below_range(self):
         # Levels start at z=0, so nothing is below

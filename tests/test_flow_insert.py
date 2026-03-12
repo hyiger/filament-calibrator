@@ -125,8 +125,8 @@ class TestLevelForZ:
             start_flow=5.0, flow_step=1.0, num_levels=3,
             level_height=1.0, layer_height=0.2, extrusion_width=0.45,
         )
-        # z_start is inclusive
-        assert _level_for_z(1.0, levels).flow_rate == pytest.approx(6.0)
+        # z_end is inclusive — boundary layer belongs to current level
+        assert _level_for_z(1.0, levels).flow_rate == pytest.approx(5.0)
 
     def test_below_first_level(self):
         levels = compute_flow_levels(

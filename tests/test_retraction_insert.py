@@ -128,8 +128,8 @@ class TestLevelForZ:
 
     def test_at_boundary(self):
         levels = compute_retraction_levels(0.0, 0.1, 3, 1.0, base_height=1.0)
-        # z_start is inclusive
-        assert _level_for_z(2.0, levels).retraction_length == pytest.approx(0.1)
+        # z_end is inclusive — boundary layer belongs to current level
+        assert _level_for_z(2.0, levels).retraction_length == pytest.approx(0.0)
 
     def test_below_range(self):
         levels = compute_retraction_levels(0.0, 0.1, 3, 1.0, base_height=1.0)

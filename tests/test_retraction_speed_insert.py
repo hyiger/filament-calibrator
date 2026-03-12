@@ -136,8 +136,8 @@ class TestLevelForZ:
 
     def test_at_boundary(self):
         levels = compute_retraction_speed_levels(20.0, 5.0, 3, 1.0, base_height=1.0)
-        # z_start is inclusive
-        assert _level_for_z(2.0, levels).speed_mm_s == pytest.approx(25.0)
+        # z_end is inclusive — boundary layer belongs to current level
+        assert _level_for_z(2.0, levels).speed_mm_s == pytest.approx(20.0)
 
     def test_below_range(self):
         levels = compute_retraction_speed_levels(20.0, 5.0, 3, 1.0, base_height=1.0)

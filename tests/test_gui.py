@@ -17,7 +17,9 @@ from filament_calibrator.gui import (
     _PRINTER_LIST,
     _RESULTS_STATE_MAPPING,
     _check_printer_temps,
+    _clean_path,
     _fresh_output_dir,
+    _is_frozen,
     _open_directory_dialog,
     _open_file_dialog,
     _osascript_directory_dialog,
@@ -27,6 +29,8 @@ from filament_calibrator.gui import (
     _run_osascript,
     _tkinter_directory_dialog,
     _tkinter_file_dialog,
+    _win32_directory_dialog,
+    _win32_file_dialog,
     apply_ini_to_session,
     apply_saved_results_to_session,
     apply_toml_to_session,
@@ -544,6 +548,57 @@ class TestFreshOutputDir:
 
 
 # ---------------------------------------------------------------------------
+# _clean_path
+# ---------------------------------------------------------------------------
+
+
+class TestCleanPath:
+    """Test _clean_path() strips quotes and whitespace from pasted paths."""
+
+    def test_no_quotes(self) -> None:
+        assert _clean_path(r"C:\Users\test\config.ini") == \
+            r"C:\Users\test\config.ini"
+
+    def test_double_quotes(self) -> None:
+        assert _clean_path(r'"C:\Users\test\config.ini"') == \
+            r"C:\Users\test\config.ini"
+
+    def test_single_quotes(self) -> None:
+        assert _clean_path("'/home/user/config.ini'") == \
+            "/home/user/config.ini"
+
+    def test_leading_trailing_whitespace(self) -> None:
+        assert _clean_path("  /path/to/file  ") == "/path/to/file"
+
+    def test_whitespace_and_quotes(self) -> None:
+        assert _clean_path('  "C:\\Users\\test\\file.ini"  ') == \
+            "C:\\Users\\test\\file.ini"
+
+    def test_empty_string(self) -> None:
+        assert _clean_path("") == ""
+
+    def test_only_quotes(self) -> None:
+        assert _clean_path('""') == ""
+
+
+# ---------------------------------------------------------------------------
+# _is_frozen
+# ---------------------------------------------------------------------------
+
+
+class TestIsFrozen:
+    """Test _is_frozen() detects PyInstaller bundles."""
+
+    @patch("filament_calibrator.gui.sys")
+    def test_frozen(self, mock_sys: MagicMock) -> None:
+        mock_sys.frozen = True
+        assert _is_frozen() is True
+
+    def test_not_frozen(self) -> None:
+        assert _is_frozen() is False
+
+
+# ---------------------------------------------------------------------------
 # _open_file_dialog
 # ---------------------------------------------------------------------------
 
@@ -567,6 +622,26 @@ class TestOpenFileDialog:
         assert _open_file_dialog(title="Open") == "/linux/file"
         mock_tk.assert_called_once_with("Open", None)
 
+    @patch("filament_calibrator.gui._is_frozen", return_value=True)
+    @patch("filament_calibrator.gui.platform.system", return_value="Windows")
+    @patch("filament_calibrator.gui._win32_file_dialog",
+           return_value="C:\\file.ini")
+    def test_windows_frozen_uses_win32(self, mock_w32: MagicMock,
+                                       _mock_sys: MagicMock,
+                                       _mock_frozen: MagicMock) -> None:
+        assert _open_file_dialog(title="Pick") == "C:\\file.ini"
+        mock_w32.assert_called_once_with("Pick", None)
+
+    @patch("filament_calibrator.gui._is_frozen", return_value=False)
+    @patch("filament_calibrator.gui.platform.system", return_value="Windows")
+    @patch("filament_calibrator.gui._tkinter_file_dialog",
+           return_value="C:\\file.ini")
+    def test_windows_not_frozen_uses_tkinter(self, mock_tk: MagicMock,
+                                              _mock_sys: MagicMock,
+                                              _mock_frozen: MagicMock) -> None:
+        assert _open_file_dialog(title="Pick") == "C:\\file.ini"
+        mock_tk.assert_called_once_with("Pick", None)
+
 
 # ---------------------------------------------------------------------------
 # _open_directory_dialog
@@ -589,6 +664,26 @@ class TestOpenDirectoryDialog:
     def test_linux_uses_tkinter(self, mock_tk: MagicMock,
                                 _mock_sys: MagicMock) -> None:
         assert _open_directory_dialog(title="Dir") == "/linux/dir"
+        mock_tk.assert_called_once_with("Dir")
+
+    @patch("filament_calibrator.gui._is_frozen", return_value=True)
+    @patch("filament_calibrator.gui.platform.system", return_value="Windows")
+    @patch("filament_calibrator.gui._win32_directory_dialog",
+           return_value="C:\\outdir")
+    def test_windows_frozen_uses_win32(self, mock_w32: MagicMock,
+                                       _mock_sys: MagicMock,
+                                       _mock_frozen: MagicMock) -> None:
+        assert _open_directory_dialog(title="Dir") == "C:\\outdir"
+        mock_w32.assert_called_once_with("Dir")
+
+    @patch("filament_calibrator.gui._is_frozen", return_value=False)
+    @patch("filament_calibrator.gui.platform.system", return_value="Windows")
+    @patch("filament_calibrator.gui._tkinter_directory_dialog",
+           return_value="C:\\outdir")
+    def test_windows_not_frozen_uses_tkinter(self, mock_tk: MagicMock,
+                                              _mock_sys: MagicMock,
+                                              _mock_frozen: MagicMock) -> None:
+        assert _open_directory_dialog(title="Dir") == "C:\\outdir"
         mock_tk.assert_called_once_with("Dir")
 
 
@@ -764,6 +859,112 @@ class TestTkinterDirectoryDialog:
     def test_returns_none_on_os_error(self, mock_run: MagicMock) -> None:
         mock_run.side_effect = OSError()
         assert _tkinter_directory_dialog("Pick") is None
+
+
+# ---------------------------------------------------------------------------
+# _win32_file_dialog
+# ---------------------------------------------------------------------------
+
+
+class TestWin32FileDialog:
+    """Test _win32_file_dialog() Win32 native file picker."""
+
+    def test_returns_none_on_no_windll(self) -> None:
+        """Non-Windows platforms raise AttributeError on ctypes.windll."""
+        result = _win32_file_dialog("Pick", [("INI", "*.ini")])
+        assert result is None
+
+    def test_returns_none_without_filetypes(self) -> None:
+        result = _win32_file_dialog("Pick")
+        assert result is None
+
+    def test_returns_path_when_user_selects(self) -> None:
+        """Mock ctypes.windll to simulate a successful file selection."""
+        import ctypes
+
+        mock_windll = MagicMock()
+        mock_windll.comdlg32.GetOpenFileNameW.return_value = True
+        with patch.object(ctypes, "windll", mock_windll, create=True):
+            result = _win32_file_dialog(
+                "Pick", filetypes=[("INI", "*.ini")],
+            )
+        # ctypes.create_unicode_buffer starts empty, so buf.value is ""
+        assert result is None  # empty buffer → None
+
+    def test_returns_none_when_user_cancels(self) -> None:
+        """Mock ctypes.windll to simulate cancel."""
+        import ctypes
+
+        mock_windll = MagicMock()
+        mock_windll.comdlg32.GetOpenFileNameW.return_value = False
+        with patch.object(ctypes, "windll", mock_windll, create=True):
+            result = _win32_file_dialog("Pick")
+        assert result is None
+
+    def test_no_filetypes_filter(self) -> None:
+        """Calling without filetypes should still work."""
+        import ctypes
+
+        mock_windll = MagicMock()
+        mock_windll.comdlg32.GetOpenFileNameW.return_value = False
+        with patch.object(ctypes, "windll", mock_windll, create=True):
+            result = _win32_file_dialog("Pick", filetypes=None)
+        assert result is None
+
+    def test_exception_returns_none(self) -> None:
+        """Any exception inside the function returns None."""
+        import ctypes
+
+        mock_windll = MagicMock()
+        mock_windll.comdlg32.GetOpenFileNameW.side_effect = OSError("fail")
+        with patch.object(ctypes, "windll", mock_windll, create=True):
+            result = _win32_file_dialog("Pick")
+        assert result is None
+
+
+# ---------------------------------------------------------------------------
+# _win32_directory_dialog
+# ---------------------------------------------------------------------------
+
+
+class TestWin32DirectoryDialog:
+    """Test _win32_directory_dialog() Win32 native directory picker."""
+
+    def test_returns_none_on_no_windll(self) -> None:
+        """Non-Windows platforms raise AttributeError on ctypes.windll."""
+        result = _win32_directory_dialog("Pick")
+        assert result is None
+
+    def test_returns_none_when_user_cancels(self) -> None:
+        """Mock ctypes.windll to simulate cancel."""
+        import ctypes
+
+        mock_windll = MagicMock()
+        mock_windll.shell32.SHBrowseForFolderW.return_value = None
+        with patch.object(ctypes, "windll", mock_windll, create=True):
+            result = _win32_directory_dialog("Pick")
+        assert result is None
+
+    def test_returns_none_on_empty_path(self) -> None:
+        """Mock ctypes.windll to simulate selection with empty path."""
+        import ctypes
+
+        mock_windll = MagicMock()
+        mock_windll.shell32.SHBrowseForFolderW.return_value = 12345
+        with patch.object(ctypes, "windll", mock_windll, create=True):
+            result = _win32_directory_dialog("Pick")
+        # SHGetPathFromIDListW is called but buffer is empty
+        assert result is None
+
+    def test_exception_returns_none(self) -> None:
+        """Any exception inside the function returns None."""
+        import ctypes
+
+        mock_windll = MagicMock()
+        mock_windll.shell32.SHBrowseForFolderW.side_effect = OSError("fail")
+        with patch.object(ctypes, "windll", mock_windll, create=True):
+            result = _win32_directory_dialog("Pick")
+        assert result is None
 
 
 # ---------------------------------------------------------------------------

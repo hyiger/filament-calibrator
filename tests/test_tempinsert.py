@@ -101,8 +101,8 @@ class TestTierForZ:
 
     def test_at_tier_boundary(self):
         tiers = compute_temp_tiers(220, 10, 3)
-        # z_start is inclusive
-        assert _tier_for_z(11.0, tiers).temp == 210
+        # z_end is inclusive — boundary layer belongs to current tier
+        assert _tier_for_z(11.0, tiers).temp == 220
 
     def test_below_first_tier(self):
         tiers = compute_temp_tiers(220, 10, 3)

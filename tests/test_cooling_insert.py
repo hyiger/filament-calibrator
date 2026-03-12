@@ -137,8 +137,8 @@ class TestLevelForZ:
 
     def test_at_boundary(self):
         levels = compute_cooling_levels(0, 10, 3, 5.0, base_height=1.0)
-        # z_start is inclusive
-        assert _level_for_z(6.0, levels).fan_percent == 10
+        # z_end is inclusive — boundary layer belongs to current level
+        assert _level_for_z(6.0, levels).fan_percent == 0
 
     def test_below_range(self):
         levels = compute_cooling_levels(0, 10, 3, 5.0, base_height=1.0)
