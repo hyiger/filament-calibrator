@@ -17,7 +17,6 @@ cq: Any = None  # populated by _ensure_cq()
 # Stub/lazy-import helpers live in _cq_compat; thin wrappers here keep
 # existing call sites and test imports working.
 from filament_calibrator._cq_compat import ensure_cq as _ensure_cq_impl
-from filament_calibrator._cq_compat import stub_casadi as _stub_casadi
 
 
 def _ensure_cq() -> None:

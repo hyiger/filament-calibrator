@@ -17,7 +17,6 @@ from typing import Dict, List, Optional
 import gcode_lib as gl
 
 from filament_calibrator.cli import (
-    _ARGPARSE_DEFAULTS,
     _KNOWN_TYPES,
     _UNSET,
     _apply_config,
@@ -574,7 +573,7 @@ def _run_tower_pipeline(
     print("\nPA value by height:")
     for lv in levels:
         print(f"  Z {lv.z_start:5.1f} - {lv.z_end:5.1f} mm  ->  PA {lv.pa_value:.4f}")
-    print(f"\nMeasure the height with the sharpest corners to find your optimal PA value.\n")
+    print("\nMeasure the height with the sharpest corners to find your optimal PA value.\n")
 
     # --- Clean up intermediate files ---
     if not args.keep_files:
@@ -770,7 +769,7 @@ def _run_pattern_pipeline(
     print("\nPA value by pattern position:")
     for i, (pa, cx) in enumerate(zip(pa_values, shifted_tips)):
         print(f"  Pattern {i + 1:2d} (X ≈ {cx:6.1f} mm)  ->  PA {pa:.4f}")
-    print(f"\nInspect which chevron has the sharpest corners to find your optimal PA value.\n")
+    print("\nInspect which chevron has the sharpest corners to find your optimal PA value.\n")
 
     # --- Clean up intermediate files ---
     if not args.keep_files:

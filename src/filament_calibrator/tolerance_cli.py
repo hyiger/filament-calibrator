@@ -15,7 +15,6 @@ from typing import List, Optional
 import gcode_lib as gl
 
 from filament_calibrator.cli import (
-    _ARGPARSE_DEFAULTS,
     _KNOWN_TYPES,
     _UNSET,
     _apply_config,

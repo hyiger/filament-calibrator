@@ -15,7 +15,6 @@ from typing import Dict, List, Optional
 import gcode_lib as gl
 
 from filament_calibrator.cli import (
-    _ARGPARSE_DEFAULTS,
     _KNOWN_TYPES,
     _UNSET,
     _apply_config,
@@ -25,7 +24,7 @@ from filament_calibrator.cli import (
     _resolve_output_dir,
     _validate_printer_temps,
 )
-from filament_calibrator.config import load_config
+from filament_calibrator.config import _find_config_path, load_config
 from filament_calibrator.retraction_speed_insert import (
     compute_retraction_speed_levels,
     insert_retraction_speed_commands,
@@ -49,22 +48,6 @@ from filament_calibrator.slicer import (
 
 MAX_LEVELS: int = 50
 """Maximum number of retraction speed levels allowed."""
-
-_FIND_CONFIG_PATHS = (
-    Path("filament-calibrator.toml"),
-    Path.home() / "filament-calibrator.toml",
-    Path.home() / ".config" / "filament-calibrator" / "config.toml",
-)
-
-
-def _find_config_path(explicit: Optional[str]) -> Optional[str]:
-    """Return the resolved config file path, or ``None``."""
-    if explicit is not None:
-        return explicit
-    for p in _FIND_CONFIG_PATHS:
-        if p.exists():
-            return str(p)
-    return None
 
 
 # ---------------------------------------------------------------------------
