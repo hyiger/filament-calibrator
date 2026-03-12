@@ -118,7 +118,7 @@ src/filament_calibrator/
 ### Key Dependencies
 
 - **cadquery** (>= 2.4): Parametric CAD model generation (OCCT kernel)
-- **gcode-lib** (>= 1.1.8): G-code parsing, PrusaSlicer integration,
+- **gcode-lib** (>= 1.1.9): G-code parsing, PrusaSlicer integration,
   PrusaLink API, filament presets, printer G-code templates, thumbnail
   injection, INI parsing/writing helpers, flow/PA helpers. Published on PyPI.
 - **vtk** (>= 9.0): Off-screen STL rendering for bgcode thumbnail
