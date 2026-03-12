@@ -62,8 +62,10 @@ src/filament_calibrator/
                     #   _apply_config, _resolve_output_dir)
   config.py         # TOML config file loading
   model.py          # CadQuery parametric temperature tower model
+  _cq_compat.py    # CadQuery/casadi import compatibility helpers for
+                    #   PyInstaller bundles (stub_casadi, ensure_cq)
   slicer.py         # PrusaSlicer CLI wrapper (slice_tower, slice_flow_specimen,
-                    #   slice_pa_specimen, slice_em_specimen,
+                    #   slice_pa_specimen, slice_pa_pattern, slice_em_specimen,
                     #   slice_retraction_specimen, slice_shrinkage_specimen,
                     #   slice_bridge_specimen, slice_overhang_specimen,
                     #   slice_tolerance_specimen, slice_cooling_specimen)
@@ -79,7 +81,7 @@ src/filament_calibrator/
   pa_pattern.py     # CadQuery parametric chevron pattern model for PA calibration
   pa_insert.py      # G-code pressure advance command insertion
   ini_writer.py     # Merge calibration results into PrusaSlicer .ini configs.
-                    #   CalibrationResults dataclass: temperature,
+                    #   CalibrationResults dataclass: printer, temperature,
                     #   max_volumetric_speed, pa_value, extrusion_multiplier,
                     #   retraction_length, retraction_speed, xy_shrinkage,
                     #   z_shrinkage.
@@ -116,7 +118,7 @@ src/filament_calibrator/
 ### Key Dependencies
 
 - **cadquery** (>= 2.4): Parametric CAD model generation (OCCT kernel)
-- **gcode-lib** (>= 1.1.0): G-code parsing, PrusaSlicer integration,
+- **gcode-lib** (>= 1.1.6): G-code parsing, PrusaSlicer integration,
   PrusaLink API, filament presets, printer G-code templates, thumbnail
   injection, INI parsing/writing helpers, flow/PA helpers. Published on PyPI.
 - **vtk** (>= 9.0): Off-screen STL rendering for bgcode thumbnail
@@ -346,13 +348,14 @@ Entry points:
   WINDOW_INTERVAL, LABEL_DEPTH, LABEL_FONT_SIZE).
 - **Change bridge test geometry**: Edit constants in `bridge_model.py`
   (DEFAULT_SPANS, PILLAR_WIDTH, PILLAR_DEPTH, PILLAR_HEIGHT,
-  BRIDGE_THICKNESS, BASE_HEIGHT).
+  BRIDGE_THICKNESS, BASE_HEIGHT, BASE_MARGIN).
 - **Change overhang test geometry**: Edit constants in `overhang_model.py`
   (DEFAULT_ANGLES, WALL_HEIGHT, WALL_THICKNESS, SURFACE_LENGTH,
-  SURFACE_WIDTH, SURFACE_THICKNESS).
+  SURFACE_WIDTH, SURFACE_THICKNESS, SURFACE_SPACING, BASE_HEIGHT,
+  BASE_MARGIN).
 - **Change tolerance test geometry**: Edit constants in `tolerance_model.py`
-  (DEFAULT_DIAMETERS, PLATE_THICKNESS, PEG_HEIGHT, COLUMN_SPACING,
-  ROW_SPACING).
+  (DEFAULT_DIAMETERS, PLATE_THICKNESS, PEG_HEIGHT, PEG_BASE_HEIGHT,
+  COLUMN_SPACING, ROW_SPACING, PLATE_MARGIN, BASE_HEIGHT).
 - **Change cooling tower geometry**: Edit constants in `cooling_model.py`
   (TOWER_DIAMETER, BASE_LENGTH, BASE_WIDTH, BASE_HEIGHT, LEVEL_HEIGHT).
 - **Change slicer defaults**: Edit `DEFAULT_SLICER_ARGS` (temp tower),
