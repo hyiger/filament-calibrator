@@ -183,23 +183,27 @@ def _make_overhang_surface(
         max_length = config.surface_length
     effective_length = min(config.surface_length, max_length)
 
-    # Extend the slab origin into the wall so the union is solid.
-    # Without this, the slab would only touch the wall at a single edge
-    # and CadQuery's boolean union would not create a connected solid.
+    # Extend the slab downward (-Z) so that after rotation the extra
+    # material ends up *inside* the wall volume, creating a proper
+    # volumetric overlap for CadQuery's boolean union.
+    #
+    # Why -Z and not -Y?  The slab is rotated around the X axis by
+    # -(90 - angle_deg).  Under that rotation a point at (0, 0, -d)
+    # maps to y_rot = d·sin(θ) < 0 (into the wall) and
+    # z_rot = -d·cos(θ) < 0 (below the pivot), which is inside the
+    # wall for all angles 0 < angle < 90.  A -Y shift, by contrast,
+    # would rotate *above* the pivot and miss the wall volume.
     overlap = config.wall_thickness / 2.0
 
-    # Build the surface slab lying flat (along +Y, thickness in Z),
-    # then shift it back by *overlap* so the near edge sits inside the
-    # wall before rotation.
     slab = (
         cq.Workplane("XY")
         .box(
             config.surface_width,
-            effective_length + overlap,
-            config.surface_thickness,
+            effective_length,
+            config.surface_thickness + overlap,
             centered=(True, False, False),
         )
-        .translate((0, -overlap, 0))
+        .translate((0, 0, -overlap))
     )
 
     # Rotation angle: overhang_angle is from vertical, so the rotation
