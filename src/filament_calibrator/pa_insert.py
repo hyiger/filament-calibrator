@@ -6,7 +6,7 @@ Provides two insertion strategies:
   Z-level boundaries and inserts PA commands at each height transition.
 * **X-based** (pattern method): walks G-code line by line using
   ``gcode_lib.ModalState`` to track X position and inserts PA commands when
-  the toolpath moves to a different diamond region.
+  the toolpath moves to a different chevron region.
 """
 from __future__ import annotations
 
@@ -171,7 +171,7 @@ def insert_pa_commands(
 
 @dataclass
 class PAPatternRegion:
-    """One diamond pattern's X region and PA value.
+    """One chevron pattern's X region and PA value.
 
     Attributes
     ----------
@@ -188,16 +188,16 @@ def compute_pa_pattern_regions(
     pa_values: List[float],
     x_centers: List[float],
 ) -> List[PAPatternRegion]:
-    """Build X-axis regions for each diamond pattern.
+    """Build X-axis regions for each chevron pattern.
 
     Region boundaries are placed at the midpoint between adjacent
-    diamond centres.  The leftmost region extends to ``-inf`` and the
+    chevron centres.  The leftmost region extends to ``-inf`` and the
     rightmost extends to ``+inf``.
 
     Parameters
     ----------
     pa_values: PA value for each pattern (left to right).
-    x_centers: X coordinate of each diamond's centre (left to right).
+    x_centers: X coordinate of each chevron's centre (left to right).
 
     Returns
     -------
@@ -254,7 +254,7 @@ def insert_pa_pattern_commands(
 
     Walks G-code line by line using :class:`gcode_lib.ModalState` to
     track the current X coordinate.  When an extrusion move enters a
-    different diamond's X region, a PA command is inserted before it.
+    different chevron's X region, a PA command is inserted before it.
 
     Returns a new list of :class:`gcode_lib.GCodeLine`.
 

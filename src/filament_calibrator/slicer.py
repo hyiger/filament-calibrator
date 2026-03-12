@@ -1,8 +1,9 @@
 """PrusaSlicer orchestration for calibration model slicing.
 
 Wraps gcode-lib's PrusaSlicer CLI helpers with sensible defaults for
-temperature tower prints, volumetric flow specimens, and pressure advance
-calibration towers.
+all eleven calibration tools: temperature tower, extrusion multiplier,
+volumetric flow, pressure advance (tower + chevron pattern), retraction
+(distance + speed), shrinkage, bridging, overhang, tolerance, and cooling.
 """
 from __future__ import annotations
 
@@ -23,6 +24,12 @@ DEFAULT_SLICER_ARGS: Dict[str, str] = {
     "fill-density": "15%",
     "skirts": "1",
 }
+"""Slicer defaults applied when no ``--config-ini`` is supplied.
+
+These produce a reasonable temp tower slice with 0.2mm layers, 2 perimeters,
+and 15% infill — enough structure to evaluate temperature quality without
+wasting filament.  Support material is disabled by PrusaSlicer's default.
+"""
 
 # Default bed centre for Prusa printers (250 × 220 mm bed).
 # Used with PrusaSlicer's --center flag to place the model on the bed.
@@ -33,12 +40,6 @@ DEFAULT_BED_CENTER: str = "125,110"
 # PrusaSlicer 2.9+ requires the format suffix (e.g. /PNG) in each size spec.
 DEFAULT_THUMBNAILS: str = "16x16/PNG,220x124/PNG"
 DEFAULT_BED_SHAPE: str = "0x0,250x0,250x220,0x220"
-"""Slicer defaults applied when no ``--config-ini`` is supplied.
-
-These produce a reasonable temp tower slice with 0.2mm layers, 2 perimeters,
-and 15% infill — enough structure to evaluate temperature quality without
-wasting filament.  Support material is disabled by PrusaSlicer's default.
-"""
 
 # Slicer settings for spiral-vase flow specimen (used when no .ini provided).
 VASE_MODE_SLICER_ARGS: Dict[str, str] = {
@@ -72,7 +73,7 @@ layers.  ``layer-height`` and ``extrusion-width`` are passed explicitly
 by :func:`slice_pa_specimen` so they are **not** included here.
 """
 
-# Slicer settings for PA diamond pattern (used when no .ini provided).
+# Slicer settings for PA chevron pattern (used when no .ini provided).
 PA_PATTERN_SLICER_ARGS: Dict[str, str] = {
     "first-layer-height": "0.2",
     "top-solid-layers": "0",
@@ -80,7 +81,7 @@ PA_PATTERN_SLICER_ARGS: Dict[str, str] = {
     "fill-density": "0%",
     "skirts": "1",
 }
-"""Slicer defaults for PA diamond pattern calibration prints.
+"""Slicer defaults for PA chevron pattern calibration prints.
 
 Same as :data:`PA_SLICER_ARGS` but ``perimeters`` is *not* included —
 it is passed explicitly by :func:`slice_pa_pattern` so the user can
@@ -478,7 +479,7 @@ def slice_pa_pattern(
     printer_model: Optional[str] = None,
     binary_gcode: bool = True,
 ) -> gl.RunResult:
-    """Slice a PA diamond pattern STL.
+    """Slice a PA chevron pattern STL.
 
     When *config_ini* is ``None``, :data:`PA_PATTERN_SLICER_ARGS` are
     applied together with the explicit *layer_height*, *extrusion_width*,

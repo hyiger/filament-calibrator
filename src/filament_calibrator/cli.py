@@ -165,6 +165,7 @@ def build_parser() -> argparse.ArgumentParser:
         help=(
             "Path to a TOML config file. "
             "Default lookup: ./filament-calibrator.toml, "
+            "then ~/filament-calibrator.toml, "
             "then ~/.config/filament-calibrator/config.toml."
         ),
     )
