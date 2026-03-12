@@ -172,6 +172,17 @@ def _make_overhang_surface(
     wall_y_front = -(td / 2.0) + config.wall_thickness
     pivot_z = config.base_height + config.wall_height
 
+    # Cap surface length so the tip doesn't descend below the base plate.
+    # After rotation, the tip Z = pivot_z - length * cos(angle).
+    # We need tip Z >= base_height, so length <= wall_height / cos(angle).
+    angle_rad = math.radians(angle_deg)
+    cos_a = math.cos(angle_rad)
+    if cos_a > 1e-9:
+        max_length = config.wall_height / cos_a
+    else:
+        max_length = config.surface_length
+    effective_length = min(config.surface_length, max_length)
+
     # Extend the slab origin into the wall so the union is solid.
     # Without this, the slab would only touch the wall at a single edge
     # and CadQuery's boolean union would not create a connected solid.
@@ -184,7 +195,7 @@ def _make_overhang_surface(
         cq.Workplane("XY")
         .box(
             config.surface_width,
-            config.surface_length + overlap,
+            effective_length + overlap,
             config.surface_thickness,
             centered=(True, False, False),
         )

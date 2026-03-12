@@ -1,6 +1,7 @@
 """Tests for filament_calibrator.overhang_model -- overhang test generation."""
 from __future__ import annotations
 
+import math
 from unittest.mock import MagicMock, call, patch
 
 import filament_calibrator.overhang_model as mod
@@ -249,6 +250,61 @@ class TestMakeOverhangSurface:
         assert mock_wp.translate.call_count == 2
         overlap_translate = mock_wp.translate.call_args_list[0]
         assert overlap_translate[0][0] == (0, -config.wall_thickness / 2.0, 0)
+
+    @patch("filament_calibrator.overhang_model.cq")
+    def test_length_capped_for_steep_angles(self, mock_cq):
+        """Steep angles get shorter slabs so they don't go below the base."""
+        config = OverhangTestConfig(wall_height=20.0, surface_length=25.0)
+
+        mock_wp = MagicMock()
+        mock_cq.Workplane.return_value = mock_wp
+        mock_wp.box.return_value = mock_wp
+        mock_wp.rotate.return_value = mock_wp
+        mock_wp.translate.return_value = mock_wp
+
+        # angle=20: max_length = 20/cos(20°) ≈ 21.28 < 25
+        _make_overhang_surface(config, 20, 0.0)
+        box_call = mock_wp.box.call_args
+        overlap = config.wall_thickness / 2.0
+        slab_y = box_call[0][1]
+        effective = slab_y - overlap
+        assert effective < config.surface_length
+        # Tip should be at or above base_height
+        tip_z = config.wall_height - effective * math.cos(math.radians(20))
+        assert tip_z >= -0.01  # allow tiny float tolerance
+
+    @patch("filament_calibrator.overhang_model.cq")
+    def test_length_at_90_degrees(self, mock_cq):
+        """At 90° (horizontal), cos is ~0; full surface_length is used."""
+        config = OverhangTestConfig()
+
+        mock_wp = MagicMock()
+        mock_cq.Workplane.return_value = mock_wp
+        mock_wp.box.return_value = mock_wp
+        mock_wp.rotate.return_value = mock_wp
+        mock_wp.translate.return_value = mock_wp
+
+        _make_overhang_surface(config, 90, 0.0)
+        box_call = mock_wp.box.call_args
+        overlap = config.wall_thickness / 2.0
+        assert box_call[0][1] == config.surface_length + overlap
+
+    @patch("filament_calibrator.overhang_model.cq")
+    def test_length_not_capped_for_shallow_angles(self, mock_cq):
+        """Shallow angles keep full surface_length."""
+        config = OverhangTestConfig(wall_height=20.0, surface_length=25.0)
+
+        mock_wp = MagicMock()
+        mock_cq.Workplane.return_value = mock_wp
+        mock_wp.box.return_value = mock_wp
+        mock_wp.rotate.return_value = mock_wp
+        mock_wp.translate.return_value = mock_wp
+
+        # angle=70: max_length = 20/cos(70°) ≈ 58.5 > 25
+        _make_overhang_surface(config, 70, 0.0)
+        box_call = mock_wp.box.call_args
+        overlap = config.wall_thickness / 2.0
+        assert box_call[0][1] == config.surface_length + overlap
 
 
 # ---------------------------------------------------------------------------
