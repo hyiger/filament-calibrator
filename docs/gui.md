@@ -4,7 +4,7 @@
 
 ![Filament Calibrator GUI](images/gui/gui-overview.png)
 
-The browser-based GUI wraps all six calibration tools into a single
+The browser-based GUI wraps all eleven calibration tools into a single
 Streamlit interface with shared settings, per-tool tabs, and a Results tab
 for merging calibration values into a PrusaSlicer config.
 
@@ -78,8 +78,8 @@ diameter, printer model, filament type) into all tab fields.
 
 ## Calibration Tabs
 
-The main area has seven tabs.  The first six each generate a calibration
-print; the seventh merges results into a slicer config.  Every generation
+The main area has nine tabs.  The first eight each generate a calibration
+print; the ninth merges results into a slicer config.  Every generation
 tab follows the same pattern:
 
 1. **Form fields** — configure the calibration parameters.
@@ -138,6 +138,13 @@ calibration procedure.
 
 ![Retraction tab](images/gui/gui-tab-retraction.png)
 
+A **Mode** radio button at the top selects between:
+
+- **Distance** — varies retraction length at each height level.
+- **Speed** — keeps retraction length fixed and varies retraction speed.
+
+#### Distance Mode
+
 | Field | Description |
 |-------|-------------|
 | Start Retraction (mm) | Minimum retraction length |
@@ -153,6 +160,26 @@ The info bar shows the computed level count.
 
 See [Retraction Test](retraction-test.md) for how to inspect stringing
 at each height.
+
+#### Speed Mode
+
+| Field | Description |
+|-------|-------------|
+| Retraction Length (mm) | Fixed retraction length for all levels |
+| Start Speed (mm/s) | Starting retraction speed |
+| End Speed (mm/s) | Ending retraction speed |
+| Speed Step (mm/s) | Speed increment per level |
+| Nozzle Temp (°C) | Printing temperature |
+| Bed Temp (°C) | Bed temperature |
+| Fan Speed (%) | Part cooling fan percentage |
+
+**Advanced Slicer Settings**: Level Height, Layer Height, Extrusion Width.
+
+The info bar shows the computed level count and speed range
+(e.g. _"13 levels: 10.0 → 70.0 mm/s"_).
+
+See [Retraction Speed](retraction-speed.md) for how to find the optimal
+retraction speed.
 
 ### Pressure Advance
 
@@ -204,7 +231,11 @@ The info bar shows the computed level count.
 See [Volumetric Flow](volumetric-flow.md) for how to identify the
 maximum flow rate.
 
-### Shrinkage
+### Shrinkage & Tolerance
+
+This tab contains two sections separated by a divider.
+
+#### Shrinkage
 
 ![Shrinkage tab](images/gui/gui-tab-shrinkage.png)
 
@@ -221,6 +252,79 @@ specimen.
 
 See [Shrinkage Test](shrinkage.md) for the measurement and calculation
 procedure.
+
+#### Tolerance Test
+
+| Field | Description |
+|-------|-------------|
+| Diameters (mm, comma-separated) | List of hole/peg diameters to generate |
+| Nozzle Temp (°C) | Printing temperature |
+| Bed Temp (°C) | Bed temperature |
+| Fan Speed (%) | Part cooling fan percentage |
+
+**Advanced Slicer Settings**: Layer Height, Extrusion Width.
+
+After printing, measure holes and pegs with calipers to determine
+dimensional accuracy and tolerance offset.
+
+See [Tolerance Test](tolerance-test.md) for the measurement procedure.
+
+### Bridging & Overhang
+
+This tab contains two sections separated by a divider.
+
+#### Bridging Test
+
+| Field | Description |
+|-------|-------------|
+| Spans (mm, comma-separated) | Bridge span distances to test |
+| Pillar Height (mm) | Height of the bridge support pillars |
+| Nozzle Temp (°C) | Printing temperature |
+| Bed Temp (°C) | Bed temperature |
+| Fan Speed (%) | Part cooling fan percentage |
+
+**Advanced Slicer Settings**: Layer Height, Extrusion Width.
+
+Inspect bridge quality at each span to find the maximum unsupported
+bridge length.
+
+See [Bridging Test](bridging-test.md) for how to evaluate bridge quality.
+
+#### Overhang Test
+
+| Field | Description |
+|-------|-------------|
+| Angles (degrees, comma-separated) | Overhang angles to test |
+| Nozzle Temp (°C) | Printing temperature |
+| Bed Temp (°C) | Bed temperature |
+| Fan Speed (%) | Part cooling fan percentage |
+
+**Advanced Slicer Settings**: Layer Height, Extrusion Width.
+
+Inspect overhang quality at each angle to find the maximum overhang
+angle your printer can handle without supports.
+
+See [Overhang Test](overhang-test.md) for how to evaluate overhang
+quality.
+
+### Cooling
+
+| Field | Description |
+|-------|-------------|
+| Start Fan (%) | Starting fan speed percentage |
+| End Fan (%) | Ending fan speed percentage |
+| Fan Step (%) | Fan speed increment per level |
+| Nozzle Temp (°C) | Printing temperature |
+| Bed Temp (°C) | Bed temperature |
+| Fan Speed (%) | Initial fan speed (slicer default, overridden by the test) |
+
+**Advanced Slicer Settings**: Level Height, Layer Height, Extrusion Width.
+
+The info bar shows the computed level count and fan speed range
+(e.g. _"11 levels: 0% → 100%"_).
+
+See [Cooling Test](cooling-test.md) for how to find the optimal fan
+speed.
 
 ## Generation Results
 
@@ -252,8 +356,15 @@ include or exclude it:
 | Set nozzle temperature | Temperature (°C) | Optimal temp from the temperature tower |
 | Set extrusion multiplier | EM value | Calculated EM from the cube test |
 | Set retraction length | Retraction (mm) | Best retraction distance from the tower |
+| Set retraction speed | Speed (mm/s) | Optimal retraction speed from the speed test |
 | Set pressure advance | PA value | Optimal PA from the tower or pattern test |
 | Set max volumetric speed | Speed (mm³/s) | Max flow rate from the flow test |
+| Set shrinkage compensation | XY / Z shrinkage (%) | Measured shrinkage for dimensional compensation |
+
+Results are auto-saved per filament type, nozzle size, and printer
+combination to `~/.config/filament-calibrator/results.json`.  Switching
+the filament/nozzle/printer selection in the sidebar restores previously
+saved results.
 
 When at least one value is checked, a **Changes** summary appears showing
 what will be written.
@@ -269,9 +380,12 @@ For best results, run the tools in this order:
 1. **Temperature Tower** — find the optimal printing temperature first.
 2. **Volumetric Flow** — determine the maximum flow rate at that temperature.
 3. **Pressure Advance** — tune PA at the chosen temperature.
-4. **Retraction** — find the optimal retraction distance.
+4. **Retraction** — find the optimal retraction distance and speed.
 5. **Extrusion Multiplier** — fine-tune extrusion with all other values set.
-6. **Shrinkage** — measure dimensional accuracy last, after all other tuning.
+6. **Shrinkage & Tolerance** — measure dimensional accuracy after all other
+   tuning.
+7. **Bridging & Overhang** — evaluate structural capabilities.
+8. **Cooling** — find optimal fan speed (especially important for ABS/ASA).
 
 After each test, enter the result in the **Results** tab.  When all values
 are recorded, download the merged `.ini` config and import it into
