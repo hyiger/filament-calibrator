@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "filament-calibrator"
-version = "0.2.21"
+version = "0.2.22"
 description = "CLI tool suite for 3D printer filament calibration — temperature tower, extrusion multiplier, volumetric flow, pressure advance, retraction, and shrinkage tests"
 readme = "README.md"
 license = "GPL-3.0-only"
@@ -32,7 +32,7 @@ classifiers = [
 
 dependencies = [
     "cadquery>=2.4",
-    "gcode-lib>=1.1.7",
+    "gcode-lib>=1.1.8",
     "tomli>=2.0; python_version < '3.11'",
 ]
 
