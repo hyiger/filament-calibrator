@@ -12,7 +12,12 @@ CLI tool suite for 3D printer filament calibration on Prusa printers.
 - **[Volumetric Flow](docs/volumetric-flow.md)** — determine maximum volumetric flow rate for a filament/hotend combination
 - **[Pressure Advance](docs/pressure-advance.md)** — find the optimal PA/Linear Advance value (tower or chevron pattern method)
 - **[Retraction Test](docs/retraction-test.md)** — find the optimal retraction distance by inspecting stringing between two towers
+- **[Retraction Speed](docs/retraction-speed.md)** — find the optimal retraction speed (varies speed while keeping length fixed)
 - **[Shrinkage Test](docs/shrinkage.md)** — measure per-axis shrinkage (X/Y/Z) by printing a 3-axis calibration cross
+- **[Tolerance Test](docs/tolerance-test.md)** — measure hole/peg dimensional accuracy with calipers
+- **[Bridging Test](docs/bridging-test.md)** — evaluate bridge quality at increasing span lengths
+- **[Overhang Test](docs/overhang-test.md)** — evaluate overhang quality at increasing angles (supports disabled)
+- **[Cooling Test](docs/cooling-test.md)** — find optimal fan speed by varying cooling at each height level
 
 ## Quick Start
 
@@ -38,7 +43,7 @@ Python needed.
 
 ## GUI
 
-A [browser-based GUI](docs/gui.md) wraps all six tools:
+A [browser-based GUI](docs/gui.md) wraps all eleven tools:
 
 ```bash
 filament-calibrator-gui
