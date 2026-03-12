@@ -12,7 +12,6 @@ import gcode_lib as gl
 from filament_calibrator.cli import _KNOWN_TYPES, _UNSET
 from filament_calibrator.cooling_cli import (
     MAX_LEVELS,
-    _find_config_path,
     _validate_cooling_args,
     build_parser,
     main,
@@ -163,34 +162,6 @@ class TestValidateCoolingArgs:
 
     def test_max_levels_constant(self):
         assert MAX_LEVELS == 50
-
-
-# ---------------------------------------------------------------------------
-# _find_config_path
-# ---------------------------------------------------------------------------
-
-
-class TestFindConfigPath:
-    def test_returns_explicit_path(self):
-        assert _find_config_path("/some/path.toml") == "/some/path.toml"
-
-    def test_returns_none_when_no_defaults_exist(self):
-        """When explicit is None and no default config files exist."""
-        with patch(
-            "filament_calibrator.cooling_cli._FIND_CONFIG_PATHS",
-            (Path("/nonexistent/path/a.toml"), Path("/nonexistent/path/b.toml")),
-        ):
-            assert _find_config_path(None) is None
-
-    def test_returns_default_when_exists(self, tmp_path):
-        """When a default config file exists, return its path."""
-        cfg = tmp_path / "config.toml"
-        cfg.write_text("")
-        with patch(
-            "filament_calibrator.cooling_cli._FIND_CONFIG_PATHS",
-            (cfg,),
-        ):
-            assert _find_config_path(None) == str(cfg)
 
 
 # ---------------------------------------------------------------------------

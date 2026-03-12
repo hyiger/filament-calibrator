@@ -21,7 +21,6 @@ cq: Any = None  # populated by _ensure_cq()
 # Stub/lazy-import helpers live in _cq_compat; thin wrappers here keep
 # existing call sites and test imports working.
 from filament_calibrator._cq_compat import ensure_cq as _ensure_cq_impl
-from filament_calibrator._cq_compat import stub_casadi as _stub_casadi
 
 
 def _ensure_cq() -> None:
@@ -230,7 +229,6 @@ def _make_overhang_test(config: OverhangTestConfig) -> cq.Workplane:
     result = result.union(_make_wall(config))
 
     tw = total_width(config)
-    n = len(config.angles)
     # Centre the surfaces in X
     start_x = -tw / 2.0 + config.surface_width / 2.0
     step = config.surface_width + config.surface_spacing
