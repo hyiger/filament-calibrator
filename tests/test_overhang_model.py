@@ -262,13 +262,16 @@ class TestMakeOverhangSurface:
         mock_wp.rotate.return_value = mock_wp
         mock_wp.translate.return_value = mock_wp
 
-        # angle=20: max_length = 20/cos(20°) ≈ 21.28 < 25
+        # angle=20: max_length = (20 - 2.5*sin(20°))/cos(20°) ≈ 20.37 < 25
         _make_overhang_surface(config, 20, 0.0)
         box_call = mock_wp.box.call_args
         effective = box_call[0][1]  # Y dimension is the effective length
+        overlap = config.wall_thickness / 2.0
         assert effective < config.surface_length
-        # Tip should be at or above base_height
-        tip_z = config.wall_height - effective * math.cos(math.radians(20))
+        # Lowest point includes overlap contribution: z = wh - len*cos - overlap*sin
+        angle_rad = math.radians(20)
+        tip_z = (config.wall_height - effective * math.cos(angle_rad)
+                 - overlap * math.sin(angle_rad))
         assert tip_z >= -0.01  # allow tiny float tolerance
 
     @patch("filament_calibrator.overhang_model.cq")

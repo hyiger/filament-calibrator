@@ -172,17 +172,6 @@ def _make_overhang_surface(
     wall_y_front = -(td / 2.0) + config.wall_thickness
     pivot_z = config.base_height + config.wall_height
 
-    # Cap surface length so the tip doesn't descend below the base plate.
-    # After rotation, the tip Z = pivot_z - length * cos(angle).
-    # We need tip Z >= base_height, so length <= wall_height / cos(angle).
-    angle_rad = math.radians(angle_deg)
-    cos_a = math.cos(angle_rad)
-    if cos_a > 1e-9:
-        max_length = config.wall_height / cos_a
-    else:
-        max_length = config.surface_length
-    effective_length = min(config.surface_length, max_length)
-
     # Extend the slab downward (-Z) so that after rotation the extra
     # material ends up *inside* the wall volume, creating a proper
     # volumetric overlap for CadQuery's boolean union.
@@ -194,6 +183,21 @@ def _make_overhang_surface(
     # wall for all angles 0 < angle < 90.  A -Y shift, by contrast,
     # would rotate *above* the pivot and miss the wall volume.
     overlap = config.wall_thickness / 2.0
+
+    # Cap surface length so the tip doesn't descend below the base plate.
+    # The lowest world-Z point is at local (0, length, -overlap).  After
+    # rotation the Z contribution is:
+    #   z_tip = pivot_z - length·cos(angle) - overlap·sin(angle)
+    # We need z_tip >= base_height, i.e.
+    #   length <= (wall_height - overlap·sin(angle)) / cos(angle).
+    angle_rad = math.radians(angle_deg)
+    cos_a = math.cos(angle_rad)
+    sin_a = math.sin(angle_rad)
+    if cos_a > 1e-9:
+        max_length = (config.wall_height - overlap * sin_a) / cos_a
+    else:
+        max_length = config.surface_length
+    effective_length = min(config.surface_length, max_length)
 
     slab = (
         cq.Workplane("XY")
