@@ -22,6 +22,7 @@ a = Analysis(
     hiddenimports=[
         # --- filament_calibrator package ---
         "filament_calibrator",
+        "filament_calibrator._cq_compat",
         "filament_calibrator.gui",
         "filament_calibrator.cli",
         "filament_calibrator.config",
@@ -40,8 +41,19 @@ a = Analysis(
         "filament_calibrator.retraction_cli",
         "filament_calibrator.retraction_model",
         "filament_calibrator.retraction_insert",
+        "filament_calibrator.retraction_speed_cli",
+        "filament_calibrator.retraction_speed_insert",
         "filament_calibrator.shrinkage_cli",
         "filament_calibrator.shrinkage_model",
+        "filament_calibrator.bridge_cli",
+        "filament_calibrator.bridge_model",
+        "filament_calibrator.overhang_cli",
+        "filament_calibrator.overhang_model",
+        "filament_calibrator.tolerance_cli",
+        "filament_calibrator.tolerance_model",
+        "filament_calibrator.cooling_cli",
+        "filament_calibrator.cooling_model",
+        "filament_calibrator.cooling_insert",
         "filament_calibrator.ini_writer",
         # --- external ---
         "gcode_lib",
