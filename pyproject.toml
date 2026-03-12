@@ -32,7 +32,7 @@ classifiers = [
 
 dependencies = [
     "cadquery>=2.4",
-    "gcode-lib>=1.1.6",
+    "gcode-lib>=1.1.7",
     "tomli>=2.0; python_version < '3.11'",
 ]
 
