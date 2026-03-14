@@ -1672,19 +1672,19 @@ def _app() -> None:  # pragma: no cover
 
     # --- Tabs ---
     (tab_workflow, tab_temp, tab_em, tab_retraction, tab_pa, tab_flow,
-     tab_shrinkage, tab_bridge_overhang, tab_cooling,
-     tab_results) = st.tabs([
+     tab_shrinkage, tab_bridge_overhang, tab_cooling) = st.tabs([
         "Workflow",
         "Temperature Tower", "Extrusion Multiplier", "Retraction",
         "Pressure Advance", "Volumetric Flow", "Shrinkage & Tolerance",
-        "Bridging & Overhang", "Cooling", "Results",
+        "Bridging & Overhang", "Cooling",
     ])
 
-    # === Workflow Tab ===
+    # === Workflow Tab (includes calibration results) ===
     with tab_workflow:
         st.subheader("Guided Calibration Workflow")
         st.caption(
             "Follow these steps in order to calibrate your filament. "
+            "Check a step and enter a value to mark it as completed. "
             "Temperature is mandatory; all other steps are optional."
         )
 
@@ -1708,24 +1708,241 @@ def _app() -> None:  # pragma: no cover
             text=f"{completed_count}/{total_count} steps completed",
         )
 
-        for idx, step in enumerate(wf_status, 1):
-            icon = "✅" if step["completed"] else (
-                "🔴" if step["mandatory"] else "⬜"
+        # --- Interactive workflow steps (with inline value entry) ---
+
+        # Step 1: Temperature (required)
+        set_temp = st.checkbox(
+            "Step 1: Temperature (required)",
+            key="res_set_temp",
+        )
+        res_temp = st.number_input(
+            "Temperature (\u00b0C)", 150, 350, preset["hotend"],
+            disabled=not set_temp, key="res_temp",
+        )
+
+        # Step 2: Volumetric Flow
+        set_flow = st.checkbox(
+            "Step 2: Volumetric Flow",
+            key="res_set_flow",
+        )
+        res_flow = st.number_input(
+            "Max volumetric speed (mm\u00b3/s)", 0.5, 50.0, 11.0,
+            step=0.5, disabled=not set_flow, key="res_flow",
+        )
+
+        # Step 3: Pressure Advance
+        set_pa = st.checkbox(
+            "Step 3: Pressure Advance",
+            key="res_set_pa",
+        )
+        res_pa = st.number_input(
+            "PA value", 0.0000, 2.0000, 0.0400,
+            step=0.005, format="%.4f",
+            disabled=not set_pa, key="res_pa",
+        )
+
+        # Step 4: Extrusion Multiplier
+        set_em = st.checkbox(
+            "Step 4: Extrusion Multiplier",
+            key="res_set_em",
+        )
+        res_em = st.number_input(
+            "Extrusion multiplier", 0.50, 1.50, 1.00,
+            step=0.01, format="%.2f",
+            disabled=not set_em, key="res_em",
+        )
+
+        # Step 5: Retraction Length
+        set_retraction = st.checkbox(
+            "Step 5: Retraction Length",
+            key="res_set_retraction",
+        )
+        res_retraction = st.number_input(
+            "Retraction length (mm)", 0.0, 10.0, 0.8,
+            step=0.1, format="%.1f",
+            disabled=not set_retraction, key="res_retraction",
+        )
+
+        # Step 6: Retraction Speed
+        set_retraction_speed = st.checkbox(
+            "Step 6: Retraction Speed",
+            key="res_set_retraction_speed",
+        )
+        res_retraction_speed = st.number_input(
+            "Retraction speed (mm/s)", 1.0, 120.0, 45.0,
+            step=5.0, format="%.1f",
+            disabled=not set_retraction_speed,
+            key="res_retraction_speed",
+        )
+
+        # Step 7: Shrinkage
+        set_shrinkage = st.checkbox(
+            "Step 7: Shrinkage",
+            key="res_set_shrinkage",
+        )
+        _col_xy, _col_z = st.columns(2)
+        with _col_xy:
+            res_xy_shrinkage = st.number_input(
+                "XY shrinkage (%)", 0.0, 5.0, 0.0,
+                step=0.1, format="%.1f",
+                disabled=not set_shrinkage, key="res_xy_shrinkage",
+                help="Measured XY shrinkage. Compensation = 100 + this value.",
             )
-            val_text = format_workflow_value(
-                step["value_key"], step["value"],
-            ) if step["completed"] else ""
-            label = step["name"]
-            if step["mandatory"]:
-                label += " (required)"
-            suffix = f" — {val_text}" if val_text else ""
-            st.markdown(
-                f"{icon} **Step {idx}: {label}**{suffix}"
+        with _col_z:
+            res_z_shrinkage = st.number_input(
+                "Z shrinkage (%)", 0.0, 5.0, 0.0,
+                step=0.1, format="%.1f",
+                disabled=not set_shrinkage, key="res_z_shrinkage",
+                help="Measured Z shrinkage. Compensation = 100 + this value.",
             )
 
         if st.button("Reset all results", key="wf_reset"):
             for _step in wf_status:
                 st.session_state[_step["set_key"]] = False
+            st.rerun()
+
+        # --- Results: auto-save, summary, merge, export/import ---
+        st.divider()
+
+        # Build results object
+        results = build_calibration_results(
+            set_temp=set_temp, temperature=int(res_temp),
+            set_flow=set_flow, max_volumetric_speed=float(res_flow),
+            set_pa=set_pa, pa_value=float(res_pa),
+            set_em=set_em, extrusion_multiplier=float(res_em),
+            set_retraction=set_retraction,
+            retraction_length=float(res_retraction),
+            set_retraction_speed=set_retraction_speed,
+            retraction_speed=float(res_retraction_speed),
+            set_shrinkage=set_shrinkage,
+            xy_shrinkage=float(res_xy_shrinkage),
+            z_shrinkage=float(res_z_shrinkage),
+            printer=printer,
+        )
+
+        # Auto-save results for this filament/nozzle/printer combo.
+        save_results(
+            filament_type, nozzle_size, printer,
+            results_to_dict(
+                set_temp=set_temp, temperature=int(res_temp),
+                set_em=set_em, extrusion_multiplier=float(res_em),
+                set_retraction=set_retraction,
+                retraction_length=float(res_retraction),
+                set_retraction_speed=set_retraction_speed,
+                retraction_speed=float(res_retraction_speed),
+                set_pa=set_pa, pa_value=float(res_pa),
+                set_flow=set_flow,
+                max_volumetric_speed=float(res_flow),
+                set_shrinkage=set_shrinkage,
+                xy_shrinkage=float(res_xy_shrinkage),
+                z_shrinkage=float(res_z_shrinkage),
+            ),
+        )
+
+        # Show change summary
+        has_any = (
+            results.temperature is not None
+            or results.max_volumetric_speed is not None
+            or results.pa_value is not None
+            or results.extrusion_multiplier is not None
+            or results.retraction_length is not None
+            or results.xy_shrinkage is not None
+            or results.z_shrinkage is not None
+        )
+        if has_any:
+            summary = build_change_summary(results)
+            st.markdown("### Changes")
+            st.markdown(summary)
+
+        # Merge & download (only if a config.ini is loaded)
+        config_ini_path = st.session_state.get("config_ini", "")
+        if has_any and config_ini_path and Path(config_ini_path).is_file():
+            ini_text = Path(config_ini_path).read_text(
+                encoding="utf-8", errors="replace",
+            )
+            merged = merge_results_into_ini(ini_text, results)
+            ini_name = Path(config_ini_path).stem + "_calibrated.ini"
+            st.download_button(
+                label=f"Download {ini_name}",
+                data=merged.encode("utf-8"),
+                file_name=ini_name,
+                mime="text/plain",
+                key="download_calibrated_ini",
+            )
+        elif has_any and not config_ini_path:
+            st.info(
+                "Load a PrusaSlicer config.ini in the sidebar to "
+                "merge results and download."
+            )
+
+        # --- Export / Import / Backup ---
+        st.divider()
+        st.markdown("### File Management")
+
+        exp_col, imp_col, bak_col = st.columns(3)
+
+        with exp_col:
+            json_export = export_all_results()
+            if json_export is not None:
+                st.download_button(
+                    label="Export results.json",
+                    data=json_export.encode("utf-8"),
+                    file_name="results.json",
+                    mime="application/json",
+                    key="export_results_json",
+                )
+            else:
+                st.caption("No results file to export.")
+
+        with imp_col:
+            uploaded = st.file_uploader(
+                "Import results JSON",
+                type=["json"],
+                key="import_results_file",
+            )
+            if uploaded is not None:
+                st.session_state["_import_pending"] = {
+                    "json_text": uploaded.getvalue().decode("utf-8"),
+                    "filament_type": filament_type,
+                    "nozzle_size": nozzle_size,
+                    "printer": printer,
+                }
+                st.rerun()
+            _import_msg = st.session_state.pop("_import_msg", None)
+            if _import_msg is not None:
+                ok, msg = _import_msg
+                if ok:
+                    st.success(msg)
+                else:
+                    st.warning(msg)
+
+        with bak_col:
+            if st.button("Save with backup", key="backup_and_save"):
+                bak = backup_results_file()
+                if bak is not None:
+                    st.success(f"Backup: {bak.name}")
+                else:
+                    st.info("No existing file to back up.")
+                save_results(
+                    filament_type, nozzle_size, printer,
+                    results_to_dict(
+                        set_temp=set_temp,
+                        temperature=int(res_temp),
+                        set_em=set_em,
+                        extrusion_multiplier=float(res_em),
+                        set_retraction=set_retraction,
+                        retraction_length=float(res_retraction),
+                        set_retraction_speed=set_retraction_speed,
+                        retraction_speed=float(res_retraction_speed),
+                        set_pa=set_pa, pa_value=float(res_pa),
+                        set_flow=set_flow,
+                        max_volumetric_speed=float(res_flow),
+                        set_shrinkage=set_shrinkage,
+                        xy_shrinkage=float(res_xy_shrinkage),
+                        z_shrinkage=float(res_z_shrinkage),
+                    ),
+                )
+                st.success("Results saved.")
 
     # === Tab 1: Temperature Tower ===
     with tab_temp:
@@ -3407,234 +3624,6 @@ def _app() -> None:  # pragma: no cover
         if _run and _run["tab"] == "cooling":
             _show_results(st, _run)
 
-    # === Tab 9: Calibration Results ===
-    with tab_results:
-        st.subheader("Calibration Results")
-        st.markdown(
-            "Record your calibration results and merge them into "
-            "a PrusaSlicer config."
-        )
-
-        # Temperature result
-        set_temp = st.checkbox(
-            "Set nozzle temperature", key="res_set_temp",
-        )
-        res_temp = st.number_input(
-            "Temperature (°C)", 150, 350, preset["hotend"],
-            disabled=not set_temp, key="res_temp",
-        )
-
-        # Extrusion multiplier result
-        set_em = st.checkbox(
-            "Set extrusion multiplier", key="res_set_em",
-        )
-        res_em = st.number_input(
-            "Extrusion multiplier", 0.50, 1.50, 1.00,
-            step=0.01, format="%.2f",
-            disabled=not set_em, key="res_em",
-        )
-
-        # Retraction length result
-        set_retraction = st.checkbox(
-            "Set retraction length", key="res_set_retraction",
-        )
-        res_retraction = st.number_input(
-            "Retraction length (mm)", 0.0, 10.0, 0.8,
-            step=0.1, format="%.1f",
-            disabled=not set_retraction, key="res_retraction",
-        )
-
-        # Retraction speed result
-        set_retraction_speed = st.checkbox(
-            "Set retraction speed", key="res_set_retraction_speed",
-        )
-        res_retraction_speed = st.number_input(
-            "Retraction speed (mm/s)", 1.0, 120.0, 45.0,
-            step=5.0, format="%.1f",
-            disabled=not set_retraction_speed,
-            key="res_retraction_speed",
-        )
-
-        # Pressure advance result
-        set_pa = st.checkbox(
-            "Set pressure advance", key="res_set_pa",
-        )
-        res_pa = st.number_input(
-            "PA value", 0.0000, 2.0000, 0.0400,
-            step=0.005, format="%.4f",
-            disabled=not set_pa, key="res_pa",
-        )
-
-        # Volumetric flow result
-        set_flow = st.checkbox(
-            "Set max volumetric speed", key="res_set_flow",
-        )
-        res_flow = st.number_input(
-            "Max volumetric speed (mm³/s)", 0.5, 50.0, 11.0,
-            step=0.5, disabled=not set_flow, key="res_flow",
-        )
-
-        # Shrinkage compensation result
-        set_shrinkage = st.checkbox(
-            "Set shrinkage compensation", key="res_set_shrinkage",
-        )
-        _col_xy, _col_z = st.columns(2)
-        with _col_xy:
-            res_xy_shrinkage = st.number_input(
-                "XY shrinkage (%)", 0.0, 5.0, 0.0,
-                step=0.1, format="%.1f",
-                disabled=not set_shrinkage, key="res_xy_shrinkage",
-                help="Measured XY shrinkage. Compensation = 100 + this value.",
-            )
-        with _col_z:
-            res_z_shrinkage = st.number_input(
-                "Z shrinkage (%)", 0.0, 5.0, 0.0,
-                step=0.1, format="%.1f",
-                disabled=not set_shrinkage, key="res_z_shrinkage",
-                help="Measured Z shrinkage. Compensation = 100 + this value.",
-            )
-
-        # Build results object
-        results = build_calibration_results(
-            set_temp=set_temp, temperature=int(res_temp),
-            set_flow=set_flow, max_volumetric_speed=float(res_flow),
-            set_pa=set_pa, pa_value=float(res_pa),
-            set_em=set_em, extrusion_multiplier=float(res_em),
-            set_retraction=set_retraction,
-            retraction_length=float(res_retraction),
-            set_retraction_speed=set_retraction_speed,
-            retraction_speed=float(res_retraction_speed),
-            set_shrinkage=set_shrinkage,
-            xy_shrinkage=float(res_xy_shrinkage),
-            z_shrinkage=float(res_z_shrinkage),
-            printer=printer,
-        )
-
-        # Auto-save results for this filament/nozzle/printer combo.
-        save_results(
-            filament_type, nozzle_size, printer,
-            results_to_dict(
-                set_temp=set_temp, temperature=int(res_temp),
-                set_em=set_em, extrusion_multiplier=float(res_em),
-                set_retraction=set_retraction,
-                retraction_length=float(res_retraction),
-                set_retraction_speed=set_retraction_speed,
-                retraction_speed=float(res_retraction_speed),
-                set_pa=set_pa, pa_value=float(res_pa),
-                set_flow=set_flow,
-                max_volumetric_speed=float(res_flow),
-                set_shrinkage=set_shrinkage,
-                xy_shrinkage=float(res_xy_shrinkage),
-                z_shrinkage=float(res_z_shrinkage),
-            ),
-        )
-
-        # Show change summary
-        has_any = (
-            results.temperature is not None
-            or results.max_volumetric_speed is not None
-            or results.pa_value is not None
-            or results.extrusion_multiplier is not None
-            or results.retraction_length is not None
-            or results.xy_shrinkage is not None
-            or results.z_shrinkage is not None
-        )
-        if has_any:
-            summary = build_change_summary(results)
-            st.markdown("### Changes")
-            st.markdown(summary)
-
-        # Merge & download (only if a config.ini is loaded)
-        config_ini_path = st.session_state.get("config_ini", "")
-        if has_any and config_ini_path and Path(config_ini_path).is_file():
-            ini_text = Path(config_ini_path).read_text(
-                encoding="utf-8", errors="replace",
-            )
-            merged = merge_results_into_ini(ini_text, results)
-            ini_name = Path(config_ini_path).stem + "_calibrated.ini"
-            st.download_button(
-                label=f"Download {ini_name}",
-                data=merged.encode("utf-8"),
-                file_name=ini_name,
-                mime="text/plain",
-                key="download_calibrated_ini",
-            )
-        elif has_any and not config_ini_path:
-            st.info(
-                "Load a PrusaSlicer config.ini in the sidebar to "
-                "merge results and download."
-            )
-
-        # --- Export / Import / Backup ---
-        st.divider()
-        st.markdown("### File Management")
-
-        exp_col, imp_col, bak_col = st.columns(3)
-
-        with exp_col:
-            json_export = export_all_results()
-            if json_export is not None:
-                st.download_button(
-                    label="Export results.json",
-                    data=json_export.encode("utf-8"),
-                    file_name="results.json",
-                    mime="application/json",
-                    key="export_results_json",
-                )
-            else:
-                st.caption("No results file to export.")
-
-        with imp_col:
-            uploaded = st.file_uploader(
-                "Import results JSON",
-                type=["json"],
-                key="import_results_file",
-            )
-            if uploaded is not None:
-                # Stage the import for the next rerun so session-state
-                # writes happen before widgets are instantiated.
-                st.session_state["_import_pending"] = {
-                    "json_text": uploaded.getvalue().decode("utf-8"),
-                    "filament_type": filament_type,
-                    "nozzle_size": nozzle_size,
-                    "printer": printer,
-                }
-                st.rerun()
-            _import_msg = st.session_state.pop("_import_msg", None)
-            if _import_msg is not None:
-                ok, msg = _import_msg
-                if ok:
-                    st.success(msg)
-                else:
-                    st.warning(msg)
-
-        with bak_col:
-            if st.button("Save with backup", key="backup_and_save"):
-                bak = backup_results_file()
-                if bak is not None:
-                    st.success(f"Backup: {bak.name}")
-                else:
-                    st.info("No existing file to back up.")
-                save_results(
-                    filament_type, nozzle_size, printer,
-                    results_to_dict(
-                        set_temp=set_temp,
-                        temperature=int(res_temp),
-                        set_em=set_em,
-                        extrusion_multiplier=float(res_em),
-                        set_retraction=set_retraction,
-                        retraction_length=float(res_retraction),
-                        set_retraction_speed=set_retraction_speed,
-                        retraction_speed=float(res_retraction_speed),
-                        set_pa=set_pa, pa_value=float(res_pa),
-                        set_flow=set_flow,
-                        max_volumetric_speed=float(res_flow),
-                        set_shrinkage=set_shrinkage,
-                        xy_shrinkage=float(res_xy_shrinkage),
-                        z_shrinkage=float(res_z_shrinkage),
-                    ),
-                )
-                st.success("Results saved.")
 
 
 def _show_results(
@@ -3652,17 +3641,6 @@ def _show_results(
         st.success("Pipeline completed!")
     else:
         st.error("Pipeline failed!")
-
-    # Filament estimate
-    estimate = run_info.get("estimate")
-    if success and estimate:
-        c1, c2, c3 = st.columns(3)
-        with c1:
-            st.metric("Print Time", estimate["time"])
-        with c2:
-            st.metric("Filament", estimate["length"])
-        with c3:
-            st.metric("Weight", estimate["weight"])
 
     # Download button
     gcode_path = find_output_file(output_dir, ascii_gcode)
