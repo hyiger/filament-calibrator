@@ -160,7 +160,13 @@ def run(args: argparse.Namespace) -> Optional[Dict[str, str]]:
             print(f"[DEBUG] Printer: {printer_name} "
                   f"(bed center: {args.bed_center})")
 
-    angles = tuple(int(a.strip()) for a in args.angles.split(","))
+    try:
+        angles = tuple(int(a.strip()) for a in args.angles.split(","))
+    except ValueError:
+        sys.exit(
+            f"error: --angles requires comma-separated integers, "
+            f"got {args.angles!r}"
+        )
     config = OverhangTestConfig(
         angles=angles,
         filament_type=args.filament_type,

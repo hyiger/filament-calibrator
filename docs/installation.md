@@ -11,7 +11,7 @@
 
 ## Install from PyPI
 
-The easiest way to install. Requires **Python 3.10 or 3.12** (see
+The easiest way to install. Recommended on **Python 3.10 or 3.12** (see
 [note on Python versions](#python-version-compatibility) below).
 
 ```bash
@@ -25,9 +25,11 @@ pipx install filament-calibrator
 pip install filament-calibrator
 ```
 
-This makes the `temperature-tower`, `extrusion-multiplier`, `volumetric-flow`,
-`pressure-advance`, `retraction-test`, and `shrinkage-test` commands available
-on your PATH.
+This makes all eleven calibration commands available on your PATH:
+`temperature-tower`, `extrusion-multiplier`, `volumetric-flow`,
+`pressure-advance`, `retraction-test`, `retraction-speed`,
+`shrinkage-test`, `bridging-test`, `overhang-test`, `tolerance-test`,
+and `cooling-test`.
 
 To include the browser GUI:
 
@@ -67,10 +69,9 @@ This pulls all Python dependencies from PyPI automatically:
 [gcode-lib](https://github.com/hyiger/gcode-lib) (>= 1.0.0) for G-code
 manipulation.
 
-The `temperature-tower`, `extrusion-multiplier`, `volumetric-flow`,
-`pressure-advance`, `retraction-test`, and `shrinkage-test` commands are
-available whenever the venv is active. To reactivate later, run
-`source .venv/bin/activate` from the project directory.
+All eleven calibration commands are available whenever the venv is active.
+To reactivate later, run `source .venv/bin/activate` from the project
+directory.
 
 ## Python version compatibility
 
@@ -126,9 +127,8 @@ version that lacks binary wheels (see
 filament-calibrator-gui
 ```
 
-The CLI tools (`temperature-tower`, `extrusion-multiplier`, `volumetric-flow`,
-`pressure-advance`, `retraction-test`, `shrinkage-test`) are also available
-in any PowerShell or Command Prompt window.
+All eleven CLI tools are also available in any PowerShell or Command
+Prompt window.
 
 > **Alternative — standalone GUI:** If you prefer not to install Python at
 > all, download the Windows build from

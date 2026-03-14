@@ -21,7 +21,7 @@ CLI tool suite for 3D printer filament calibration on Prusa printers.
 
 ## Quick Start
 
-Install from PyPI (requires **Python 3.10 or 3.12** and **PrusaSlicer** on
+Install from PyPI (recommended on **Python 3.10 or 3.12**; requires **PrusaSlicer** on
 your PATH):
 
 ```bash
