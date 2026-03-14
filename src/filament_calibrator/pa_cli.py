@@ -22,6 +22,7 @@ from filament_calibrator.cli import (
     _apply_config,
     _explicit_keys,
     _patch_m862_nozzle_flags,
+    _print_estimate,
     _redact_config_for_debug,
     _resolve_output_dir,
     _validate_printer_temps,
@@ -234,6 +235,8 @@ def _resolve_common(args: argparse.Namespace) -> dict:
         args.extrusion_width if args.extrusion_width is not _UNSET
         else round(nozzle_size * 1.125, 2)
     )
+    brim_width = args.brim_width if args.brim_width is not _UNSET else None
+    brim_sep = args.brim_separation if args.brim_separation is not _UNSET else None
 
     printer_name: Optional[str] = None
     bed_shape: Optional[str] = None
@@ -258,6 +261,8 @@ def _resolve_common(args: argparse.Namespace) -> dict:
         "extrusion_width": extrusion_width,
         "printer_name": printer_name,
         "bed_shape": bed_shape,
+        "brim_width": brim_width,
+        "brim_sep": brim_sep,
     }
 
 
@@ -305,7 +310,7 @@ def _render_gcode_templates(
 def _run_tower_pipeline(
     args: argparse.Namespace,
     toml_config: Dict[str, object],
-) -> None:
+) -> Optional[Dict[str, str]]:
     """Execute the tower-method PA calibration pipeline."""
     common = _resolve_common(args)
     num_levels = common["num_levels"]
@@ -317,6 +322,8 @@ def _run_tower_pipeline(
     extrusion_width = common["extrusion_width"]
     printer_name = common["printer_name"]
     bed_shape = common["bed_shape"]
+    brim_width = common["brim_width"]
+    brim_sep = common["brim_sep"]
 
     if args.verbose:
         _debug_common(args, common, toml_config)
@@ -386,6 +393,8 @@ def _run_tower_pipeline(
         end_gcode=end_gcode,
         printer_model=printer_name,
         binary_gcode=not args.ascii_gcode,
+        brim_width=brim_width,
+        brim_separation=brim_sep,
     )
     if args.verbose:
         print(f"[DEBUG] PrusaSlicer command: {' '.join(result.cmd)}")
@@ -428,6 +437,7 @@ def _run_tower_pipeline(
         nozzle_high_flow=args.nozzle_high_flow,
     )
     gl.save(gf, final_gcode_path)
+    estimate = _print_estimate(gf, args.filament_type)
 
     # Print PA level lookup table for the user.
     print("\nPA value by height:")
@@ -444,6 +454,7 @@ def _run_tower_pipeline(
     _upload(args, final_gcode_path)
 
     print("Done.")
+    return estimate
 
 
 # ---------------------------------------------------------------------------
@@ -474,7 +485,7 @@ def _parse_bed_center_x(bed_center: str) -> float:
 def _run_pattern_pipeline(
     args: argparse.Namespace,
     toml_config: Dict[str, object],
-) -> None:
+) -> Optional[Dict[str, str]]:
     """Execute the pattern-method PA calibration pipeline."""
     common = _resolve_common(args)
     num_levels = common["num_levels"]
@@ -486,6 +497,8 @@ def _run_pattern_pipeline(
     extrusion_width = common["extrusion_width"]
     printer_name = common["printer_name"]
     bed_shape = common["bed_shape"]
+    brim_width = common["brim_width"]
+    brim_sep = common["brim_sep"]
 
     if args.verbose:
         _debug_common(args, common, toml_config)
@@ -576,6 +589,8 @@ def _run_pattern_pipeline(
         end_gcode=end_gcode,
         printer_model=printer_name,
         binary_gcode=not args.ascii_gcode,
+        brim_width=brim_width,
+        brim_separation=brim_sep,
     )
     if args.verbose:
         print(f"[DEBUG] PrusaSlicer command: {' '.join(result.cmd)}")
@@ -624,6 +639,7 @@ def _run_pattern_pipeline(
         nozzle_high_flow=args.nozzle_high_flow,
     )
     gl.save(gf, final_gcode_path)
+    estimate = _print_estimate(gf, args.filament_type)
 
     # Print PA pattern reference table for the user.
     print("\nPA value by pattern position:")
@@ -640,6 +656,7 @@ def _run_pattern_pipeline(
     _upload(args, final_gcode_path)
 
     print("Done.")
+    return estimate
 
 
 # ---------------------------------------------------------------------------
@@ -702,7 +719,7 @@ def _upload(args: argparse.Namespace, gcode_path: str) -> None:
 # ---------------------------------------------------------------------------
 
 
-def run(args: argparse.Namespace) -> None:
+def run(args: argparse.Namespace) -> Optional[Dict[str, str]]:
     """Execute the pressure advance calibration pipeline.
 
     Dispatches to the tower or pattern method based on ``--method``.
@@ -722,9 +739,8 @@ def run(args: argparse.Namespace) -> None:
 
     method = getattr(args, "method", "tower")
     if method == "pattern":
-        _run_pattern_pipeline(args, toml_config)
-    else:
-        _run_tower_pipeline(args, toml_config)
+        return _run_pattern_pipeline(args, toml_config)
+    return _run_tower_pipeline(args, toml_config)
 
 
 def main(argv: Optional[List[str]] = None) -> None:

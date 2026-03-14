@@ -262,6 +262,17 @@ class TestRun:
         with patch("gcode_lib.unique_suffix", return_value="abc12"):
             yield
 
+    @pytest.fixture(autouse=True)
+    def _mock_estimate(self):
+        mock_est = MagicMock(
+            time_hms="0h1m30s",
+            filament_length_m=1.5,
+            filament_weight_g=4.5,
+        )
+        with patch("filament_calibrator.cli.gl.estimate_print",
+                    return_value=mock_est):
+            yield
+
     def _make_args(self, tmp_path, **overrides):
         defaults = dict(
             start_pa=0.0, end_pa=0.1, pa_step=0.1,
@@ -282,6 +293,7 @@ class TestRun:
             # Pattern-specific defaults (used when method="pattern")
             corner_angle=90.0, arm_length=40.0, frame_offset=0.0,
             wall_count=3, num_layers=4, frame_layers=1, pattern_spacing=1.6,
+            brim_width=_UNSET, brim_separation=_UNSET,
         )
         defaults.update(overrides)
         return argparse.Namespace(**defaults)
@@ -1174,6 +1186,17 @@ class TestRunPattern:
         with patch("gcode_lib.unique_suffix", return_value="abc12"):
             yield
 
+    @pytest.fixture(autouse=True)
+    def _mock_estimate(self):
+        mock_est = MagicMock(
+            time_hms="0h1m30s",
+            filament_length_m=1.5,
+            filament_weight_g=4.5,
+        )
+        with patch("filament_calibrator.cli.gl.estimate_print",
+                    return_value=mock_est):
+            yield
+
     def _make_args(self, tmp_path, **overrides):
         defaults = dict(
             start_pa=0.0, end_pa=0.1, pa_step=0.1,
@@ -1193,6 +1216,7 @@ class TestRunPattern:
             config=None, verbose=False,
             corner_angle=90.0, arm_length=40.0, frame_offset=0.0,
             wall_count=3, num_layers=4, frame_layers=1, pattern_spacing=1.6,
+            brim_width=_UNSET, brim_separation=_UNSET,
         )
         defaults.update(overrides)
         return argparse.Namespace(**defaults)

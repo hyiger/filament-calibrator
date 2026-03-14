@@ -18,6 +18,7 @@ from filament_calibrator.cli import (
     _compute_num_tiers,
     _explicit_keys,
     _patch_m862_nozzle_flags,
+    _print_estimate,
     _redact_config_for_debug,
     _validate_printer_temps,
     build_parser,
@@ -696,10 +697,45 @@ class TestBuildTowerConfig:
 # ---------------------------------------------------------------------------
 
 
+class TestPrintEstimate:
+    def test_prints_and_returns(self, capsys):
+        mock_gf = MagicMock(lines=[])
+        mock_est = MagicMock(
+            time_hms="1h23m45s",
+            filament_length_m=12.34,
+            filament_weight_g=36.8,
+        )
+        with patch("filament_calibrator.cli.gl.estimate_print",
+                    return_value=mock_est) as mock_ep:
+            result = _print_estimate(mock_gf, "PLA")
+            mock_ep.assert_called_once_with([], filament_type="PLA")
+
+        out = capsys.readouterr().out
+        assert "1h23m45s" in out
+        assert "12.34 m" in out
+        assert "36.8 g" in out
+        assert result == {
+            "time": "1h23m45s",
+            "length": "12.34 m",
+            "weight": "36.8 g",
+        }
+
+
 class TestRun:
     @pytest.fixture(autouse=True)
     def _fix_suffix(self):
         with patch("gcode_lib.unique_suffix", return_value="abc12"):
+            yield
+
+    @pytest.fixture(autouse=True)
+    def _mock_estimate(self):
+        mock_est = MagicMock(
+            time_hms="0h1m30s",
+            filament_length_m=1.5,
+            filament_weight_g=4.5,
+        )
+        with patch("filament_calibrator.cli.gl.estimate_print",
+                    return_value=mock_est):
             yield
 
     def _make_args(self, tmp_path, **overrides):
@@ -717,6 +753,7 @@ class TestRun:
             output_dir=str(tmp_path), keep_files=False,
             ascii_gcode=False,
             config=None, verbose=False,
+            brim_width=_UNSET, brim_separation=_UNSET,
         )
         defaults.update(overrides)
         return argparse.Namespace(**defaults)

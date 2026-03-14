@@ -543,6 +543,24 @@ class TestSliceTower:
         for arg in req.extra_args:
             assert not arg.startswith("--printer-model")
 
+    @patch("filament_calibrator.slicer.gl.slice_model")
+    @patch("filament_calibrator.slicer.gl.find_prusaslicer_executable")
+    def test_brim_params_passed(self, mock_find, mock_slice):
+        """brim_width and brim_separation forwarded to PrusaSlicer."""
+        mock_find.return_value = "/usr/bin/prusa-slicer"
+        mock_slice.return_value = gl.RunResult(
+            cmd=[], returncode=0, stdout="", stderr=""
+        )
+
+        slice_tower(
+            "/tmp/tower.stl", "/tmp/tower.gcode",
+            brim_width=3.0, brim_separation=0.2,
+        )
+
+        req = mock_slice.call_args[0][1]
+        assert "--brim-width=3.0" in req.extra_args
+        assert "--brim-separation=0.2" in req.extra_args
+
 
 # ---------------------------------------------------------------------------
 # VASE_MODE_SLICER_ARGS
@@ -609,7 +627,7 @@ class TestSliceFlowSpecimen:
     @patch("filament_calibrator.slicer.gl.slice_model")
     @patch("filament_calibrator.slicer.gl.find_prusaslicer_executable")
     def test_bottom_layers_zero_and_brim_always(self, mock_find, mock_slice):
-        """--bottom-solid-layers=0 and --brim-width=5 always present."""
+        """--bottom-solid-layers=0 and default brim always present."""
         mock_find.return_value = "/usr/bin/prusa-slicer"
         mock_slice.return_value = gl.RunResult(
             cmd=[], returncode=0, stdout="", stderr=""
@@ -623,7 +641,8 @@ class TestSliceFlowSpecimen:
 
         req = mock_slice.call_args[0][1]
         assert "--bottom-solid-layers=0" in req.extra_args
-        assert "--brim-width=5" in req.extra_args
+        assert "--brim-width=5.0" in req.extra_args
+        assert "--brim-separation=0.1" in req.extra_args
 
     @patch("filament_calibrator.slicer.gl.slice_model")
     @patch("filament_calibrator.slicer.gl.find_prusaslicer_executable")
@@ -1326,6 +1345,24 @@ class TestSlicePASpecimen:
         req = mock_slice.call_args[0][1]
         assert "--printer-model=COREONE" in req.extra_args
 
+    @patch("filament_calibrator.slicer.gl.slice_model")
+    @patch("filament_calibrator.slicer.gl.find_prusaslicer_executable")
+    def test_brim_params_passed(self, mock_find, mock_slice):
+        """brim_width and brim_separation forwarded to PrusaSlicer."""
+        mock_find.return_value = "/usr/bin/prusa-slicer"
+        mock_slice.return_value = gl.RunResult(
+            cmd=[], returncode=0, stdout="", stderr=""
+        )
+
+        slice_pa_specimen(
+            "/tmp/pa.stl", "/tmp/pa.gcode",
+            brim_width=3.0, brim_separation=0.2,
+        )
+
+        req = mock_slice.call_args[0][1]
+        assert "--brim-width=3.0" in req.extra_args
+        assert "--brim-separation=0.2" in req.extra_args
+
 
 # ---------------------------------------------------------------------------
 # PA_PATTERN_SLICER_ARGS
@@ -1552,6 +1589,24 @@ class TestSlicePAPattern:
         req = mock_slice.call_args[0][1]
         assert "--nozzle-diameter=0.6" in req.extra_args
 
+    @patch("filament_calibrator.slicer.gl.slice_model")
+    @patch("filament_calibrator.slicer.gl.find_prusaslicer_executable")
+    def test_brim_params_passed(self, mock_find, mock_slice):
+        """brim_width and brim_separation forwarded to PrusaSlicer."""
+        mock_find.return_value = "/usr/bin/prusa-slicer"
+        mock_slice.return_value = gl.RunResult(
+            cmd=[], returncode=0, stdout="", stderr=""
+        )
+
+        slice_pa_pattern(
+            "/tmp/pat.stl", "/tmp/pat.gcode",
+            brim_width=3.0, brim_separation=0.2,
+        )
+
+        req = mock_slice.call_args[0][1]
+        assert "--brim-width=3.0" in req.extra_args
+        assert "--brim-separation=0.2" in req.extra_args
+
 
 # ---------------------------------------------------------------------------
 # EM_SLICER_ARGS
@@ -1632,7 +1687,7 @@ class TestSliceEmSpecimen:
     @patch("filament_calibrator.slicer.gl.slice_model")
     @patch("filament_calibrator.slicer.gl.find_prusaslicer_executable")
     def test_bottom_layers_zero_and_brim_always(self, mock_find, mock_slice):
-        """--bottom-solid-layers=0 and --brim-width=5 always present."""
+        """--bottom-solid-layers=0 and default brim always present."""
         mock_find.return_value = "/usr/bin/prusa-slicer"
         mock_slice.return_value = gl.RunResult(
             cmd=[], returncode=0, stdout="", stderr=""
@@ -1646,7 +1701,8 @@ class TestSliceEmSpecimen:
 
         req = mock_slice.call_args[0][1]
         assert "--bottom-solid-layers=0" in req.extra_args
-        assert "--brim-width=5" in req.extra_args
+        assert "--brim-width=5.0" in req.extra_args
+        assert "--brim-separation=0.1" in req.extra_args
 
     @patch("filament_calibrator.slicer.gl.slice_model")
     @patch("filament_calibrator.slicer.gl.find_prusaslicer_executable")
@@ -2146,6 +2202,24 @@ class TestSliceRetractionSpecimen:
         assert "--custom" in req.extra_args
         assert "val" in req.extra_args
 
+    @patch("filament_calibrator.slicer.gl.slice_model")
+    @patch("filament_calibrator.slicer.gl.find_prusaslicer_executable")
+    def test_brim_params_passed(self, mock_find, mock_slice):
+        """brim_width and brim_separation forwarded to PrusaSlicer."""
+        mock_find.return_value = "/usr/bin/prusa-slicer"
+        mock_slice.return_value = gl.RunResult(
+            cmd=[], returncode=0, stdout="", stderr=""
+        )
+
+        slice_retraction_specimen(
+            "/tmp/t.stl", "/tmp/t.gcode",
+            brim_width=3.0, brim_separation=0.2,
+        )
+
+        req = mock_slice.call_args[0][1]
+        assert "--brim-width=3.0" in req.extra_args
+        assert "--brim-separation=0.2" in req.extra_args
+
 
 # ---------------------------------------------------------------------------
 # SHRINKAGE_SLICER_ARGS
@@ -2375,6 +2449,24 @@ class TestSliceShrinkageSpecimen:
         assert "--custom" in req.extra_args
         assert "val" in req.extra_args
 
+    @patch("filament_calibrator.slicer.gl.slice_model")
+    @patch("filament_calibrator.slicer.gl.find_prusaslicer_executable")
+    def test_brim_params_passed(self, mock_find, mock_slice):
+        """brim_width and brim_separation forwarded to PrusaSlicer."""
+        mock_find.return_value = "/usr/bin/prusa-slicer"
+        mock_slice.return_value = gl.RunResult(
+            cmd=[], returncode=0, stdout="", stderr=""
+        )
+
+        slice_shrinkage_specimen(
+            "/tmp/s.stl", "/tmp/s.gcode",
+            brim_width=3.0, brim_separation=0.2,
+        )
+
+        req = mock_slice.call_args[0][1]
+        assert "--brim-width=3.0" in req.extra_args
+        assert "--brim-separation=0.2" in req.extra_args
+
 
 # ---------------------------------------------------------------------------
 # BRIDGE_SLICER_ARGS
@@ -2572,6 +2664,24 @@ class TestSliceBridgeSpecimen:
         mock_find.side_effect = FileNotFoundError("not found")
         with pytest.raises(FileNotFoundError):
             slice_bridge_specimen("/tmp/b.stl", "/tmp/b.gcode")
+
+    @patch("filament_calibrator.slicer.gl.slice_model")
+    @patch("filament_calibrator.slicer.gl.find_prusaslicer_executable")
+    def test_brim_params_passed(self, mock_find, mock_slice):
+        """brim_width and brim_separation forwarded to PrusaSlicer."""
+        mock_find.return_value = "/usr/bin/prusa-slicer"
+        mock_slice.return_value = gl.RunResult(
+            cmd=[], returncode=0, stdout="", stderr=""
+        )
+
+        slice_bridge_specimen(
+            "/tmp/b.stl", "/tmp/b.gcode",
+            brim_width=3.0, brim_separation=0.2,
+        )
+
+        req = mock_slice.call_args[0][1]
+        assert "--brim-width=3.0" in req.extra_args
+        assert "--brim-separation=0.2" in req.extra_args
 
 
 # ---------------------------------------------------------------------------
@@ -2784,6 +2894,24 @@ class TestSliceOverhangSpecimen:
         with pytest.raises(FileNotFoundError):
             slice_overhang_specimen("/tmp/o.stl", "/tmp/o.gcode")
 
+    @patch("filament_calibrator.slicer.gl.slice_model")
+    @patch("filament_calibrator.slicer.gl.find_prusaslicer_executable")
+    def test_brim_params_passed(self, mock_find, mock_slice):
+        """brim_width and brim_separation forwarded to PrusaSlicer."""
+        mock_find.return_value = "/usr/bin/prusa-slicer"
+        mock_slice.return_value = gl.RunResult(
+            cmd=[], returncode=0, stdout="", stderr=""
+        )
+
+        slice_overhang_specimen(
+            "/tmp/o.stl", "/tmp/o.gcode",
+            brim_width=3.0, brim_separation=0.2,
+        )
+
+        req = mock_slice.call_args[0][1]
+        assert "--brim-width=3.0" in req.extra_args
+        assert "--brim-separation=0.2" in req.extra_args
+
 
 # ---------------------------------------------------------------------------
 # TOLERANCE_SLICER_ARGS
@@ -2971,6 +3099,24 @@ class TestSliceToleranceSpecimen:
         mock_find.side_effect = FileNotFoundError("not found")
         with pytest.raises(FileNotFoundError):
             slice_tolerance_specimen("/tmp/t.stl", "/tmp/t.gcode")
+
+    @patch("filament_calibrator.slicer.gl.slice_model")
+    @patch("filament_calibrator.slicer.gl.find_prusaslicer_executable")
+    def test_brim_params_passed(self, mock_find, mock_slice):
+        """brim_width and brim_separation forwarded to PrusaSlicer."""
+        mock_find.return_value = "/usr/bin/prusa-slicer"
+        mock_slice.return_value = gl.RunResult(
+            cmd=[], returncode=0, stdout="", stderr=""
+        )
+
+        slice_tolerance_specimen(
+            "/tmp/t.stl", "/tmp/t.gcode",
+            brim_width=3.0, brim_separation=0.2,
+        )
+
+        req = mock_slice.call_args[0][1]
+        assert "--brim-width=3.0" in req.extra_args
+        assert "--brim-separation=0.2" in req.extra_args
 
 
 # ---------------------------------------------------------------------------
@@ -3199,3 +3345,21 @@ class TestSliceCoolingSpecimen:
         mock_find.side_effect = FileNotFoundError("not found")
         with pytest.raises(FileNotFoundError):
             slice_cooling_specimen("/tmp/c.stl", "/tmp/c.gcode")
+
+    @patch("filament_calibrator.slicer.gl.slice_model")
+    @patch("filament_calibrator.slicer.gl.find_prusaslicer_executable")
+    def test_brim_params_passed(self, mock_find, mock_slice):
+        """brim_width and brim_separation forwarded to PrusaSlicer."""
+        mock_find.return_value = "/usr/bin/prusa-slicer"
+        mock_slice.return_value = gl.RunResult(
+            cmd=[], returncode=0, stdout="", stderr=""
+        )
+
+        slice_cooling_specimen(
+            "/tmp/c.stl", "/tmp/c.gcode",
+            brim_width=3.0, brim_separation=0.2,
+        )
+
+        req = mock_slice.call_args[0][1]
+        assert "--brim-width=3.0" in req.extra_args
+        assert "--brim-separation=0.2" in req.extra_args

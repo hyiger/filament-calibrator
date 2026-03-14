@@ -121,6 +121,20 @@ def add_common_args(
         ),
     )
     slicer.add_argument(
+        "--brim-width", type=float, default=_UNSET,
+        help=(
+            "Brim width in mm. Default: 5 mm for vase-mode tools "
+            "(extrusion-multiplier, volumetric-flow), unset for others."
+        ),
+    )
+    slicer.add_argument(
+        "--brim-separation", type=float, default=_UNSET,
+        help=(
+            "Gap between brim and part in mm for easy removal. "
+            "Default: 0.1 mm for vase-mode tools, unset for others."
+        ),
+    )
+    slicer.add_argument(
         "--config-ini", type=str, default=None,
         help="PrusaSlicer .ini config file. If omitted, built-in defaults are used.",
     )
@@ -275,6 +289,8 @@ _ARGPARSE_DEFAULTS: Dict[str, object] = {
     "nozzle_temp": _UNSET,
     "bed_temp": _UNSET,
     "fan_speed": _UNSET,
+    "brim_width": _UNSET,
+    "brim_separation": _UNSET,
 }
 
 
@@ -418,6 +434,21 @@ def _validate_printer_temps(
         )
 
 
+def _print_estimate(gf: gl.GCodeFile, filament_type: str) -> Dict[str, str]:
+    """Print filament usage and time estimate, return dict for GUI display."""
+    est = gl.estimate_print(gf.lines, filament_type=filament_type)
+    print(
+        f"Estimate: {est.time_hms}  "
+        f"filament: {est.filament_length_m:.2f} m  "
+        f"({est.filament_weight_g:.1f} g)"
+    )
+    return {
+        "time": est.time_hms,
+        "length": f"{est.filament_length_m:.2f} m",
+        "weight": f"{est.filament_weight_g:.1f} g",
+    }
+
+
 def _resolve_preset(args: argparse.Namespace) -> Dict[str, object]:
     """Look up the filament preset and return resolved settings.
 
@@ -509,7 +540,7 @@ def _build_tower_config(
     )
 
 
-def run(args: argparse.Namespace) -> None:
+def run(args: argparse.Namespace) -> Optional[Dict[str, str]]:
     """Execute the full calibration pipeline.
 
     1. Resolve filament preset defaults.
@@ -617,6 +648,9 @@ def run(args: argparse.Namespace) -> None:
         effective_center = args.bed_center or f"{DEFAULT_BED_CENTER} (default)"
         print(f"[DEBUG] Bed center: {effective_center}")
 
+    brim_width = args.brim_width if args.brim_width is not _UNSET else None
+    brim_sep = args.brim_separation if args.brim_separation is not _UNSET else None
+
     result = slice_tower(
         stl_path=stl_path,
         output_gcode_path=raw_gcode_path,
@@ -633,6 +667,8 @@ def run(args: argparse.Namespace) -> None:
         extrusion_width=extrusion_width,
         printer_model=printer_name,
         binary_gcode=not args.ascii_gcode,
+        brim_width=brim_width,
+        brim_separation=brim_sep,
     )
     if args.verbose:
         print(f"[DEBUG] PrusaSlicer command: {' '.join(result.cmd)}")
@@ -670,6 +706,7 @@ def run(args: argparse.Namespace) -> None:
         nozzle_high_flow=args.nozzle_high_flow,
     )
     gl.save(gf, final_gcode_path)
+    estimate = _print_estimate(gf, args.filament_type)
 
     # --- Clean up intermediate files ---
     if not args.keep_files:
@@ -695,6 +732,7 @@ def run(args: argparse.Namespace) -> None:
         print(f"G-code saved to: {final_gcode_path}")
 
     print("Done.")
+    return estimate
 
 
 def main(argv: Optional[List[str]] = None) -> None:
