@@ -239,7 +239,7 @@ class TestRun:
         mock_insert.return_value = []
 
         args = self._make_args(tmp_path)
-        run(args)
+        result = run(args)
 
         mock_gen.assert_called_once()
         mock_slice.assert_called_once()
@@ -247,6 +247,9 @@ class TestRun:
         mock_load.assert_called_once()
         mock_insert.assert_called_once()
         mock_save.assert_called_once()
+        # Estimate must be returned to the GUI caller (#101).
+        assert result is not None
+        assert "time" in result
 
     @patch("gcode_lib.patch_slicer_metadata")
     @patch("gcode_lib.inject_thumbnails")

@@ -1658,6 +1658,18 @@ def _app() -> None:  # pragma: no cover
                          "res_set_pa", "res_set_flow", "res_set_shrinkage"):
                 st.session_state[_rk] = False
 
+    # Apply staged import (set before widgets are instantiated).
+    _import_pending = st.session_state.pop("_import_pending", None)
+    if _import_pending is not None:
+        ok, msg = import_results_from_json(
+            _import_pending["json_text"],
+            st.session_state,
+            _import_pending["filament_type"],
+            _import_pending["nozzle_size"],
+            _import_pending["printer"],
+        )
+        st.session_state["_import_msg"] = (ok, msg)
+
     # --- Tabs ---
     (tab_workflow, tab_temp, tab_em, tab_retraction, tab_pa, tab_flow,
      tab_shrinkage, tab_bridge_overhang, tab_cooling,
@@ -3579,11 +3591,18 @@ def _app() -> None:  # pragma: no cover
                 key="import_results_file",
             )
             if uploaded is not None:
-                ok, msg = import_results_from_json(
-                    uploaded.getvalue().decode("utf-8"),
-                    st.session_state,
-                    filament_type, nozzle_size, printer,
-                )
+                # Stage the import for the next rerun so session-state
+                # writes happen before widgets are instantiated.
+                st.session_state["_import_pending"] = {
+                    "json_text": uploaded.getvalue().decode("utf-8"),
+                    "filament_type": filament_type,
+                    "nozzle_size": nozzle_size,
+                    "printer": printer,
+                }
+                st.rerun()
+            _import_msg = st.session_state.pop("_import_msg", None)
+            if _import_msg is not None:
+                ok, msg = _import_msg
                 if ok:
                     st.success(msg)
                 else:

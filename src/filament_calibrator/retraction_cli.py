@@ -471,6 +471,7 @@ def _run_pipeline(
     _upload(args, final_gcode_path)
 
     print("Done.")
+    return estimate
 
 
 # ---------------------------------------------------------------------------
@@ -494,7 +495,7 @@ def run(args: argparse.Namespace) -> Optional[Dict[str, str]]:
         )
         sys.exit(1)
 
-    _run_pipeline(args, toml_config)
+    return _run_pipeline(args, toml_config)
 
 
 def main(argv: Optional[List[str]] = None) -> None:
