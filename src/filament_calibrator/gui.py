@@ -1657,6 +1657,15 @@ def _app() -> None:  # pragma: no cover
                          "res_set_retraction_speed",
                          "res_set_pa", "res_set_flow", "res_set_shrinkage"):
                 st.session_state[_rk] = False
+            # Reset value inputs to filament/nozzle defaults.
+            st.session_state["res_temp"] = preset["hotend"]
+            st.session_state["res_flow"] = 11.0
+            st.session_state["res_pa"] = 0.0400
+            st.session_state["res_em"] = 1.00
+            st.session_state["res_retraction"] = 0.8
+            st.session_state["res_retraction_speed"] = 45.0
+            st.session_state["res_xy_shrinkage"] = 0.0
+            st.session_state["res_z_shrinkage"] = 0.0
 
     # Apply staged import (set before widgets are instantiated).
     _import_pending = st.session_state.pop("_import_pending", None)
@@ -1710,13 +1719,30 @@ def _app() -> None:  # pragma: no cover
 
         # --- Interactive workflow steps (with inline value entry) ---
 
+        # Initialise widget defaults in session state so that
+        # st.number_input never receives both a positional ``value``
+        # and a session-state value (which Streamlit forbids).
+        _wf_value_defaults: Dict[str, Any] = {
+            "res_temp": preset["hotend"],
+            "res_flow": 11.0,
+            "res_pa": 0.0400,
+            "res_em": 1.00,
+            "res_retraction": 0.8,
+            "res_retraction_speed": 45.0,
+            "res_xy_shrinkage": 0.0,
+            "res_z_shrinkage": 0.0,
+        }
+        for _dk, _dv in _wf_value_defaults.items():
+            if _dk not in st.session_state:
+                st.session_state[_dk] = _dv
+
         # Step 1: Temperature (required)
         set_temp = st.checkbox(
             "Step 1: Temperature (required)",
             key="res_set_temp",
         )
         res_temp = st.number_input(
-            "Temperature (\u00b0C)", 150, 350, preset["hotend"],
+            "Temperature (\u00b0C)", min_value=150, max_value=350,
             disabled=not set_temp, key="res_temp",
         )
 
@@ -1726,7 +1752,8 @@ def _app() -> None:  # pragma: no cover
             key="res_set_flow",
         )
         res_flow = st.number_input(
-            "Max volumetric speed (mm\u00b3/s)", 0.5, 50.0, 11.0,
+            "Max volumetric speed (mm\u00b3/s)",
+            min_value=0.5, max_value=50.0,
             step=0.5, disabled=not set_flow, key="res_flow",
         )
 
@@ -1736,7 +1763,7 @@ def _app() -> None:  # pragma: no cover
             key="res_set_pa",
         )
         res_pa = st.number_input(
-            "PA value", 0.0000, 2.0000, 0.0400,
+            "PA value", min_value=0.0000, max_value=2.0000,
             step=0.005, format="%.4f",
             disabled=not set_pa, key="res_pa",
         )
@@ -1747,7 +1774,7 @@ def _app() -> None:  # pragma: no cover
             key="res_set_em",
         )
         res_em = st.number_input(
-            "Extrusion multiplier", 0.50, 1.50, 1.00,
+            "Extrusion multiplier", min_value=0.50, max_value=1.50,
             step=0.01, format="%.2f",
             disabled=not set_em, key="res_em",
         )
@@ -1758,7 +1785,7 @@ def _app() -> None:  # pragma: no cover
             key="res_set_retraction",
         )
         res_retraction = st.number_input(
-            "Retraction length (mm)", 0.0, 10.0, 0.8,
+            "Retraction length (mm)", min_value=0.0, max_value=10.0,
             step=0.1, format="%.1f",
             disabled=not set_retraction, key="res_retraction",
         )
@@ -1769,7 +1796,7 @@ def _app() -> None:  # pragma: no cover
             key="res_set_retraction_speed",
         )
         res_retraction_speed = st.number_input(
-            "Retraction speed (mm/s)", 1.0, 120.0, 45.0,
+            "Retraction speed (mm/s)", min_value=1.0, max_value=120.0,
             step=5.0, format="%.1f",
             disabled=not set_retraction_speed,
             key="res_retraction_speed",
@@ -1783,14 +1810,14 @@ def _app() -> None:  # pragma: no cover
         _col_xy, _col_z = st.columns(2)
         with _col_xy:
             res_xy_shrinkage = st.number_input(
-                "XY shrinkage (%)", 0.0, 5.0, 0.0,
+                "XY shrinkage (%)", min_value=0.0, max_value=5.0,
                 step=0.1, format="%.1f",
                 disabled=not set_shrinkage, key="res_xy_shrinkage",
                 help="Measured XY shrinkage. Compensation = 100 + this value.",
             )
         with _col_z:
             res_z_shrinkage = st.number_input(
-                "Z shrinkage (%)", 0.0, 5.0, 0.0,
+                "Z shrinkage (%)", min_value=0.0, max_value=5.0,
                 step=0.1, format="%.1f",
                 disabled=not set_shrinkage, key="res_z_shrinkage",
                 help="Measured Z shrinkage. Compensation = 100 + this value.",
