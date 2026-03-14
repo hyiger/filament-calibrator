@@ -5,6 +5,8 @@ import pytest
 
 import gcode_lib as gl
 
+from tests.helpers import parse_gcode as _lines, raw_texts as _raw_texts
+
 from filament_calibrator.pa_insert import (
     PALevel,
     PAPatternRegion,
@@ -17,19 +19,6 @@ from filament_calibrator.pa_insert import (
     insert_pa_pattern_commands,
     pa_command,
 )
-
-
-# ---------------------------------------------------------------------------
-# Helpers
-# ---------------------------------------------------------------------------
-
-
-def _lines(text: str):
-    return gl.parse_lines(text)
-
-
-def _raw_texts(lines):
-    return [line.raw for line in lines]
 
 
 # ---------------------------------------------------------------------------

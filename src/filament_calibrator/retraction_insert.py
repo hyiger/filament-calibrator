@@ -10,6 +10,11 @@ from typing import List
 
 import gcode_lib as gl
 
+from filament_calibrator._insert_helpers import (
+    insert_commands_by_z,
+    level_for_z as _level_for_z,
+)
+
 
 # ---------------------------------------------------------------------------
 # Data structures
@@ -86,17 +91,6 @@ def compute_retraction_levels(
     return levels
 
 
-def _level_for_z(
-    z: float,
-    levels: List[RetractionLevel],
-) -> RetractionLevel | None:
-    """Return the level that contains height *z*, or ``None``."""
-    for level in levels:
-        if level.z_start <= z <= level.z_end:
-            return level
-    return None
-
-
 def insert_retraction_commands(
     lines: List[gl.GCodeLine],
     levels: List[RetractionLevel],
@@ -118,28 +112,8 @@ def insert_retraction_commands(
     lines:  Parsed G-code lines.
     levels: Retraction levels from :func:`compute_retraction_levels`.
     """
-    if not levels:
-        return list(lines)
-
-    result: List[gl.GCodeLine] = []
-    prev_length: float | None = None
-
-    for z_height, layer_lines in gl.iter_layers(lines):
-        level = _level_for_z(z_height, levels)
-        if level is not None:
-            target_length = level.retraction_length
-        elif z_height < levels[0].z_start:
-            # Base plate — use first level's retraction length
-            target_length = levels[0].retraction_length
-        else:
-            # Above the last level — keep previous retraction length
-            target_length = prev_length
-
-        if target_length is not None and target_length != prev_length:
-            cmd = retraction_command(target_length)
-            result.append(gl.parse_line(cmd))
-            prev_length = target_length
-
-        result.extend(layer_lines)
-
-    return result
+    return insert_commands_by_z(
+        lines, levels,
+        get_value=lambda lv: lv.retraction_length,
+        make_command=retraction_command,
+    )

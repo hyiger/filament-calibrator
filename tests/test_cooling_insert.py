@@ -3,7 +3,7 @@ from __future__ import annotations
 
 import pytest
 
-import gcode_lib as gl
+from tests.helpers import parse_gcode as _lines, raw_texts as _raw_texts
 
 from filament_calibrator.cooling_insert import (
     CoolingLevel,
@@ -12,19 +12,6 @@ from filament_calibrator.cooling_insert import (
     fan_command,
     insert_cooling_commands,
 )
-
-
-# ---------------------------------------------------------------------------
-# Helpers
-# ---------------------------------------------------------------------------
-
-
-def _lines(text: str):
-    return gl.parse_lines(text)
-
-
-def _raw_texts(lines):
-    return [line.raw for line in lines]
 
 
 # ---------------------------------------------------------------------------

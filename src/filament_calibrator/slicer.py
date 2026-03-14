@@ -15,8 +15,8 @@ import gcode_lib as gl
 # Default slicer settings (used when no .ini config is provided)
 # ---------------------------------------------------------------------------
 
-DEFAULT_SLICER_ARGS: Dict[str, str] = {
-    "layer-height": "0.2",
+# Base profiles — internal building blocks for the public arg dicts.
+_STANDARD_PROFILE: Dict[str, str] = {
     "first-layer-height": "0.2",
     "perimeters": "2",
     "top-solid-layers": "4",
@@ -24,12 +24,60 @@ DEFAULT_SLICER_ARGS: Dict[str, str] = {
     "fill-density": "15%",
     "skirts": "1",
 }
-"""Slicer defaults applied when no ``--config-ini`` is supplied.
+"""2 perimeters, 15% infill — structural enough for temperature/quality
+evaluation without wasting filament."""
 
-These produce a reasonable temp tower slice with 0.2mm layers, 2 perimeters,
-and 15% infill — enough structure to evaluate temperature quality without
-wasting filament.  Support material is disabled by PrusaSlicer's default.
-"""
+_DIMENSIONAL_PROFILE: Dict[str, str] = {
+    "first-layer-height": "0.2",
+    "perimeters": "3",
+    "top-solid-layers": "5",
+    "bottom-solid-layers": "4",
+    "fill-density": "20%",
+    "skirts": "1",
+}
+"""3 perimeters, 20% infill — denser for dimensional accuracy tests
+(shrinkage, tolerance)."""
+
+_HOLLOW_PROFILE: Dict[str, str] = {
+    "first-layer-height": "0.2",
+    "perimeters": "2",
+    "top-solid-layers": "0",
+    "bottom-solid-layers": "0",
+    "fill-density": "0%",
+    "skirts": "1",
+}
+"""Zero infill, zero solid layers — for hollow shells like PA towers."""
+
+_VASE_PROFILE: Dict[str, str] = {
+    "first-layer-height": "0.2",
+    "perimeters": "1",
+    "top-solid-layers": "0",
+    "fill-density": "0%",
+    "skirts": "0",
+}
+"""Single perimeter, no infill — for spiral-vase mode prints."""
+
+# --- Public slicer arg dicts (one per calibration tool) ---
+
+DEFAULT_SLICER_ARGS: Dict[str, str] = {
+    "layer-height": "0.2",
+    **_STANDARD_PROFILE,
+}
+"""Temperature tower: ``layer-height`` is baked in (not caller-supplied)."""
+
+VASE_MODE_SLICER_ARGS: Dict[str, str] = dict(_VASE_PROFILE)
+"""Flow specimen: ``layer-height`` and ``extrusion-width`` passed explicitly."""
+
+PA_SLICER_ARGS: Dict[str, str] = dict(_HOLLOW_PROFILE)
+"""PA tower: hollow shell, ``layer-height`` passed explicitly."""
+
+PA_PATTERN_SLICER_ARGS: Dict[str, str] = {
+    k: v for k, v in _HOLLOW_PROFILE.items() if k != "perimeters"
+}
+"""PA pattern: like PA tower but ``perimeters`` set by ``--wall-count``."""
+
+EM_SLICER_ARGS: Dict[str, str] = dict(_VASE_PROFILE)
+"""EM cube: vase-mode with classic walls, ``layer-height`` passed explicitly."""
 
 # Default bed centre for Prusa printers (250 × 220 mm bed).
 # Used with PrusaSlicer's --center flag to place the model on the bed.
@@ -40,69 +88,6 @@ DEFAULT_BED_CENTER: str = "125,110"
 # PrusaSlicer 2.9+ requires the format suffix (e.g. /PNG) in each size spec.
 DEFAULT_THUMBNAILS: str = "16x16/PNG,220x124/PNG"
 DEFAULT_BED_SHAPE: str = "0x0,250x0,250x220,0x220"
-
-# Slicer settings for spiral-vase flow specimen (used when no .ini provided).
-VASE_MODE_SLICER_ARGS: Dict[str, str] = {
-    "first-layer-height": "0.2",
-    "perimeters": "1",
-    "top-solid-layers": "0",
-    "fill-density": "0%",
-    "skirts": "0",
-}
-"""Slicer defaults for vase-mode flow specimens.
-
-Single perimeter, no infill, no top layers — spiral-vase mode handles the
-rest.  ``layer-height`` and ``extrusion-width`` are passed explicitly by
-:func:`slice_flow_specimen` so they are **not** included here.
-"""
-
-# Slicer settings for PA calibration tower (used when no .ini provided).
-PA_SLICER_ARGS: Dict[str, str] = {
-    "first-layer-height": "0.2",
-    "perimeters": "2",
-    "top-solid-layers": "0",
-    "bottom-solid-layers": "0",
-    "fill-density": "0%",
-    "skirts": "1",
-}
-"""Slicer defaults for pressure advance calibration towers.
-
-Two perimeters for inner/outer wall interaction at corners, zero infill
-(hollow interior handled by the shell geometry), zero top/bottom solid
-layers.  ``layer-height`` and ``extrusion-width`` are passed explicitly
-by :func:`slice_pa_specimen` so they are **not** included here.
-"""
-
-# Slicer settings for PA chevron pattern (used when no .ini provided).
-PA_PATTERN_SLICER_ARGS: Dict[str, str] = {
-    "first-layer-height": "0.2",
-    "top-solid-layers": "0",
-    "bottom-solid-layers": "0",
-    "fill-density": "0%",
-    "skirts": "1",
-}
-"""Slicer defaults for PA chevron pattern calibration prints.
-
-Same as :data:`PA_SLICER_ARGS` but ``perimeters`` is *not* included —
-it is passed explicitly by :func:`slice_pa_pattern` so the user can
-control the number of concentric walls (``--wall-count``).
-"""
-
-# Slicer settings for EM calibration cube (used when no .ini provided).
-EM_SLICER_ARGS: Dict[str, str] = {
-    "first-layer-height": "0.2",
-    "perimeters": "1",
-    "top-solid-layers": "0",
-    "fill-density": "0%",
-    "skirts": "0",
-}
-"""Slicer defaults for extrusion multiplier calibration cubes.
-
-Single perimeter, no infill, no top/bottom layers — spiral-vase mode
-with classic perimeter generation.  ``layer-height`` and
-``extrusion-width`` are passed explicitly by :func:`slice_em_specimen`
-so they are **not** included here.
-"""
 
 
 # ---------------------------------------------------------------------------
@@ -678,19 +663,8 @@ def slice_em_specimen(
 
 
 # Slicer settings for retraction calibration towers (used when no .ini provided).
-RETRACTION_SLICER_ARGS: Dict[str, str] = {
-    "first-layer-height": "0.2",
-    "perimeters": "2",
-    "top-solid-layers": "4",
-    "bottom-solid-layers": "3",
-    "fill-density": "15%",
-    "skirts": "1",
-}
-"""Slicer defaults for retraction calibration towers.
-
-Same structural settings as the temperature tower — 2 perimeters and 15%
-infill provide enough stability for the two cylindrical pillars.
-"""
+RETRACTION_SLICER_ARGS: Dict[str, str] = dict(_STANDARD_PROFILE)
+"""Retraction towers: standard profile, ``layer-height`` passed explicitly."""
 
 
 def slice_retraction_specimen(
@@ -816,14 +790,7 @@ def slice_retraction_specimen(
 # Shrinkage specimen — standard slicing for dimensional accuracy
 # ---------------------------------------------------------------------------
 
-SHRINKAGE_SLICER_ARGS: Dict[str, str] = {
-    "first-layer-height": "0.2",
-    "perimeters": "3",
-    "top-solid-layers": "5",
-    "bottom-solid-layers": "4",
-    "fill-density": "20%",
-    "skirts": "1",
-}
+SHRINKAGE_SLICER_ARGS: Dict[str, str] = dict(_DIMENSIONAL_PROFILE)
 """Slicer defaults for shrinkage calibration cross.
 
 3 perimeters and 20% infill provide dimensional accuracy for measuring
@@ -935,15 +902,7 @@ def slice_shrinkage_specimen(
 # Bridge specimen — standard slicing, PrusaSlicer bridging enabled by default
 # ---------------------------------------------------------------------------
 
-BRIDGE_SLICER_ARGS: Dict[str, str] = {
-    "layer-height": "0.2",
-    "first-layer-height": "0.2",
-    "perimeters": "2",
-    "top-solid-layers": "4",
-    "bottom-solid-layers": "3",
-    "fill-density": "15%",
-    "skirts": "1",
-}
+BRIDGE_SLICER_ARGS: Dict[str, str] = dict(_STANDARD_PROFILE)
 """Slicer defaults for bridge calibration specimens.
 
 Same structural settings as the temperature tower — 2 perimeters and 15%
@@ -1056,15 +1015,7 @@ def slice_bridge_specimen(
 # Overhang specimen — standard slicing, supports always disabled
 # ---------------------------------------------------------------------------
 
-OVERHANG_SLICER_ARGS: Dict[str, str] = {
-    "layer-height": "0.2",
-    "first-layer-height": "0.2",
-    "perimeters": "2",
-    "top-solid-layers": "4",
-    "bottom-solid-layers": "3",
-    "fill-density": "15%",
-    "skirts": "1",
-}
+OVERHANG_SLICER_ARGS: Dict[str, str] = dict(_STANDARD_PROFILE)
 """Slicer defaults for overhang calibration specimens.
 
 Same structural settings as the temperature tower — 2 perimeters and 15%
@@ -1182,14 +1133,7 @@ def slice_overhang_specimen(
 # Tolerance specimen — standard slicing for dimensional accuracy
 # ---------------------------------------------------------------------------
 
-TOLERANCE_SLICER_ARGS: Dict[str, str] = {
-    "first-layer-height": "0.2",
-    "perimeters": "3",
-    "top-solid-layers": "5",
-    "bottom-solid-layers": "4",
-    "fill-density": "20%",
-    "skirts": "1",
-}
+TOLERANCE_SLICER_ARGS: Dict[str, str] = dict(_DIMENSIONAL_PROFILE)
 """Slicer defaults for tolerance calibration specimens.
 
 3 perimeters and 20% infill provide dimensional accuracy for measuring
@@ -1302,15 +1246,7 @@ def slice_tolerance_specimen(
 # Cooling specimen — standard slicing, auto-fan management disabled
 # ---------------------------------------------------------------------------
 
-COOLING_SLICER_ARGS: Dict[str, str] = {
-    "layer-height": "0.2",
-    "first-layer-height": "0.2",
-    "perimeters": "2",
-    "top-solid-layers": "4",
-    "bottom-solid-layers": "3",
-    "fill-density": "15%",
-    "skirts": "1",
-}
+COOLING_SLICER_ARGS: Dict[str, str] = dict(_STANDARD_PROFILE)
 """Slicer defaults for cooling calibration specimens.
 
 Same structural settings as the temperature tower — 2 perimeters and 15%

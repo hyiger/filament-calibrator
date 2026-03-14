@@ -2383,7 +2383,6 @@ class TestSliceShrinkageSpecimen:
 
 class TestBridgeSlicerArgs:
     def test_has_required_keys(self):
-        assert "layer-height" in BRIDGE_SLICER_ARGS
         assert "perimeters" in BRIDGE_SLICER_ARGS
         assert "fill-density" in BRIDGE_SLICER_ARGS
 
@@ -2582,7 +2581,6 @@ class TestSliceBridgeSpecimen:
 
 class TestOverhangSlicerArgs:
     def test_has_required_keys(self):
-        assert "layer-height" in OVERHANG_SLICER_ARGS
         assert "perimeters" in OVERHANG_SLICER_ARGS
         assert "fill-density" in OVERHANG_SLICER_ARGS
 
@@ -2982,7 +2980,6 @@ class TestSliceToleranceSpecimen:
 
 class TestCoolingSlicerArgs:
     def test_has_required_keys(self):
-        assert "layer-height" in COOLING_SLICER_ARGS
         assert "perimeters" in COOLING_SLICER_ARGS
         assert "fill-density" in COOLING_SLICER_ARGS
 
