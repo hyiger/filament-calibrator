@@ -3808,7 +3808,13 @@ def main() -> None:  # pragma: no cover
     import os
     import sys
 
-    from streamlit.web.cli import main as st_main
+    try:
+        from streamlit.web.cli import main as st_main
+    except ImportError:
+        sys.exit(
+            "error: streamlit is not installed.\n"
+            "Install the GUI extra:  pip install 'filament-calibrator[gui]'"
+        )
 
     script_path = os.path.abspath(__file__)
     sys.argv = ["streamlit", "run", script_path,

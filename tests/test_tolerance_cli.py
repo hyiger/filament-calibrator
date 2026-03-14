@@ -664,6 +664,12 @@ class TestRun:
         with pytest.raises(SystemExit):
             run(args)
 
+    def test_invalid_diameters_exits(self, tmp_path):
+        """Non-numeric --diameters value triggers sys.exit."""
+        args = self._make_args(tmp_path, diameters="foo")
+        with pytest.raises(SystemExit, match="--diameters requires comma-separated numbers"):
+            run(args)
+
     @patch("gcode_lib.compute_bed_shape", return_value="0x0,250x0,250x220,0x220")
     @patch("gcode_lib.compute_bed_center", return_value="125,110")
     @patch("gcode_lib.resolve_printer", return_value="TEST")

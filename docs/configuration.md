@@ -4,7 +4,7 @@
 
 ## Filament Presets
 
-All six tools use presets from `gcode-lib` to set smart defaults for each filament
+All eleven tools use presets from `gcode-lib` to set smart defaults for each filament
 type. Known presets: **ABS**, **ASA**, **HIPS**, **PA**, **PA-CF**, **PC**,
 **PCTG**, **PETG**, **PETG-CF**, **PLA**, **PLA-CF**, **PP**, **PPA**, **TPU**.
 
@@ -67,7 +67,7 @@ All keys are optional — include only what you need. In particular,
 location (e.g. `/usr/bin/prusa-slicer`, `/Applications/PrusaSlicer.app`, or
 anywhere on your `PATH`).
 
-The config file is shared between all six tools.
+The config file is shared between all eleven tools.
 
 ### Config file locations
 
@@ -77,7 +77,8 @@ The tools look for a config file in this order (first found wins):
 |----------|----------|----------|
 | 1 | `--config <path>` | Explicit override |
 | 2 | `./filament-calibrator.toml` | Per-project settings |
-| 3 | `~/.config/filament-calibrator/config.toml` | User-wide defaults |
+| 3 | `~/filament-calibrator.toml` | Home directory fallback |
+| 4 | `~/.config/filament-calibrator/config.toml` | XDG user-wide defaults |
 
 Config values are applied as defaults. CLI arguments usually override config
 file values; if a CLI value is identical to the built-in default, the config

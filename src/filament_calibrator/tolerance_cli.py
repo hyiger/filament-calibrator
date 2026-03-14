@@ -160,7 +160,13 @@ def run(args: argparse.Namespace) -> Optional[Dict[str, str]]:
             print(f"[DEBUG] Printer: {printer_name} "
                   f"(bed center: {args.bed_center})")
 
-    diameters = tuple(float(d.strip()) for d in args.diameters.split(","))
+    try:
+        diameters = tuple(float(d.strip()) for d in args.diameters.split(","))
+    except ValueError:
+        sys.exit(
+            f"error: --diameters requires comma-separated numbers, "
+            f"got {args.diameters!r}"
+        )
     config = ToleranceTestConfig(
         diameters=diameters,
         filament_type=args.filament_type,

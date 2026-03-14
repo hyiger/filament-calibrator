@@ -164,7 +164,13 @@ def run(args: argparse.Namespace) -> Optional[Dict[str, str]]:
             print(f"[DEBUG] Printer: {printer_name} "
                   f"(bed center: {args.bed_center})")
 
-    spans = tuple(float(s.strip()) for s in args.spans.split(","))
+    try:
+        spans = tuple(float(s.strip()) for s in args.spans.split(","))
+    except ValueError:
+        sys.exit(
+            f"error: --spans requires comma-separated numbers, "
+            f"got {args.spans!r}"
+        )
     config = BridgeTestConfig(
         spans=spans,
         pillar_height=args.pillar_height,
