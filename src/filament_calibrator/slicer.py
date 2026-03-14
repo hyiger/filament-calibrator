@@ -111,6 +111,8 @@ def slice_tower(
     extrusion_width: Optional[float] = None,
     printer_model: Optional[str] = None,
     binary_gcode: bool = True,
+    brim_width: Optional[float] = None,
+    brim_separation: Optional[float] = None,
 ) -> gl.RunResult:
     """Slice the temperature tower STL into G-code.
 
@@ -174,6 +176,10 @@ def slice_tower(
     ]
     if binary_gcode:
         cli_extra.append("--binary-gcode")
+    if brim_width is not None:
+        cli_extra.append(f"--brim-width={brim_width}")
+    if brim_separation is not None:
+        cli_extra.append(f"--brim-separation={brim_separation}")
     if config_ini is None:
         # When caller provides layer_height, skip the dict defaults for
         # layer-height and first-layer-height so they aren't duplicated.
@@ -236,6 +242,8 @@ def slice_flow_specimen(
     nozzle_diameter: Optional[float] = None,
     printer_model: Optional[str] = None,
     binary_gcode: bool = True,
+    brim_width: Optional[float] = None,
+    brim_separation: Optional[float] = None,
 ) -> gl.RunResult:
     """Slice a flow-rate specimen STL in spiral-vase mode.
 
@@ -287,10 +295,15 @@ def slice_flow_specimen(
         # loaded (it may have supports, solid bottoms, or no brim).
         "--support-material=0",
         "--bottom-solid-layers=0",
-        "--brim-width=5",
     ]
     if binary_gcode:
         cli_extra.append("--binary-gcode")
+    # Vase-mode tools default to a 5 mm brim with 0.1 mm separation for
+    # easy removal; the user can override via --brim-width / --brim-separation.
+    eff_brim_width = brim_width if brim_width is not None else 5.0
+    eff_brim_sep = brim_separation if brim_separation is not None else 0.1
+    cli_extra.append(f"--brim-width={eff_brim_width}")
+    cli_extra.append(f"--brim-separation={eff_brim_sep}")
 
     if config_ini is None:
         for key, val in VASE_MODE_SLICER_ARGS.items():
@@ -348,6 +361,8 @@ def slice_pa_specimen(
     end_gcode: Optional[str] = None,
     printer_model: Optional[str] = None,
     binary_gcode: bool = True,
+    brim_width: Optional[float] = None,
+    brim_separation: Optional[float] = None,
 ) -> gl.RunResult:
     """Slice a pressure advance calibration tower STL.
 
@@ -398,6 +413,10 @@ def slice_pa_specimen(
     ]
     if binary_gcode:
         cli_extra.append("--binary-gcode")
+    if brim_width is not None:
+        cli_extra.append(f"--brim-width={brim_width}")
+    if brim_separation is not None:
+        cli_extra.append(f"--brim-separation={brim_separation}")
 
     if config_ini is None:
         for key, val in PA_SLICER_ARGS.items():
@@ -463,6 +482,8 @@ def slice_pa_pattern(
     end_gcode: Optional[str] = None,
     printer_model: Optional[str] = None,
     binary_gcode: bool = True,
+    brim_width: Optional[float] = None,
+    brim_separation: Optional[float] = None,
 ) -> gl.RunResult:
     """Slice a PA chevron pattern STL.
 
@@ -503,6 +524,10 @@ def slice_pa_pattern(
     ]
     if binary_gcode:
         cli_extra.append("--binary-gcode")
+    if brim_width is not None:
+        cli_extra.append(f"--brim-width={brim_width}")
+    if brim_separation is not None:
+        cli_extra.append(f"--brim-separation={brim_separation}")
 
     if config_ini is None:
         for key, val in PA_PATTERN_SLICER_ARGS.items():
@@ -566,6 +591,8 @@ def slice_em_specimen(
     nozzle_diameter: Optional[float] = None,
     printer_model: Optional[str] = None,
     binary_gcode: bool = True,
+    brim_width: Optional[float] = None,
+    brim_separation: Optional[float] = None,
 ) -> gl.RunResult:
     """Slice an extrusion multiplier calibration cube in vase mode.
 
@@ -619,10 +646,15 @@ def slice_em_specimen(
         # loaded (it may have supports, solid bottoms, or no brim).
         "--support-material=0",
         "--bottom-solid-layers=0",
-        "--brim-width=5",
     ]
     if binary_gcode:
         cli_extra.append("--binary-gcode")
+    # Vase-mode tools default to a 5 mm brim with 0.1 mm separation for
+    # easy removal; the user can override via --brim-width / --brim-separation.
+    eff_brim_width = brim_width if brim_width is not None else 5.0
+    eff_brim_sep = brim_separation if brim_separation is not None else 0.1
+    cli_extra.append(f"--brim-width={eff_brim_width}")
+    cli_extra.append(f"--brim-separation={eff_brim_sep}")
 
     if config_ini is None:
         for key, val in EM_SLICER_ARGS.items():
@@ -685,6 +717,8 @@ def slice_retraction_specimen(
     end_gcode: Optional[str] = None,
     printer_model: Optional[str] = None,
     binary_gcode: bool = True,
+    brim_width: Optional[float] = None,
+    brim_separation: Optional[float] = None,
 ) -> gl.RunResult:
     """Slice a retraction calibration two-tower STL.
 
@@ -740,6 +774,10 @@ def slice_retraction_specimen(
     ]
     if binary_gcode:
         cli_extra.append("--binary-gcode")
+    if brim_width is not None:
+        cli_extra.append(f"--brim-width={brim_width}")
+    if brim_separation is not None:
+        cli_extra.append(f"--brim-separation={brim_separation}")
 
     if config_ini is None:
         for key, val in RETRACTION_SLICER_ARGS.items():
@@ -814,6 +852,8 @@ def slice_shrinkage_specimen(
     nozzle_diameter: Optional[float] = None,
     printer_model: Optional[str] = None,
     binary_gcode: bool = True,
+    brim_width: Optional[float] = None,
+    brim_separation: Optional[float] = None,
 ) -> gl.RunResult:
     """Slice a shrinkage calibration cross STL.
 
@@ -859,6 +899,10 @@ def slice_shrinkage_specimen(
     ]
     if binary_gcode:
         cli_extra.append("--binary-gcode")
+    if brim_width is not None:
+        cli_extra.append(f"--brim-width={brim_width}")
+    if brim_separation is not None:
+        cli_extra.append(f"--brim-separation={brim_separation}")
 
     if config_ini is None:
         for key, val in SHRINKAGE_SLICER_ARGS.items():
@@ -927,6 +971,8 @@ def slice_bridge_specimen(
     nozzle_diameter: Optional[float] = None,
     printer_model: Optional[str] = None,
     binary_gcode: bool = True,
+    brim_width: Optional[float] = None,
+    brim_separation: Optional[float] = None,
 ) -> gl.RunResult:
     """Slice a bridge calibration specimen STL.
 
@@ -972,6 +1018,10 @@ def slice_bridge_specimen(
     ]
     if binary_gcode:
         cli_extra.append("--binary-gcode")
+    if brim_width is not None:
+        cli_extra.append(f"--brim-width={brim_width}")
+    if brim_separation is not None:
+        cli_extra.append(f"--brim-separation={brim_separation}")
 
     if config_ini is None:
         for key, val in BRIDGE_SLICER_ARGS.items():
@@ -1040,6 +1090,8 @@ def slice_overhang_specimen(
     nozzle_diameter: Optional[float] = None,
     printer_model: Optional[str] = None,
     binary_gcode: bool = True,
+    brim_width: Optional[float] = None,
+    brim_separation: Optional[float] = None,
 ) -> gl.RunResult:
     """Slice an overhang calibration specimen STL.
 
@@ -1086,6 +1138,10 @@ def slice_overhang_specimen(
     ]
     if binary_gcode:
         cli_extra.append("--binary-gcode")
+    if brim_width is not None:
+        cli_extra.append(f"--brim-width={brim_width}")
+    if brim_separation is not None:
+        cli_extra.append(f"--brim-separation={brim_separation}")
 
     if config_ini is None:
         for key, val in OVERHANG_SLICER_ARGS.items():
@@ -1158,6 +1214,8 @@ def slice_tolerance_specimen(
     nozzle_diameter: Optional[float] = None,
     printer_model: Optional[str] = None,
     binary_gcode: bool = True,
+    brim_width: Optional[float] = None,
+    brim_separation: Optional[float] = None,
 ) -> gl.RunResult:
     """Slice a tolerance calibration specimen STL.
 
@@ -1203,6 +1261,10 @@ def slice_tolerance_specimen(
     ]
     if binary_gcode:
         cli_extra.append("--binary-gcode")
+    if brim_width is not None:
+        cli_extra.append(f"--brim-width={brim_width}")
+    if brim_separation is not None:
+        cli_extra.append(f"--brim-separation={brim_separation}")
 
     if config_ini is None:
         for key, val in TOLERANCE_SLICER_ARGS.items():
@@ -1273,6 +1335,8 @@ def slice_cooling_specimen(
     end_gcode: Optional[str] = None,
     printer_model: Optional[str] = None,
     binary_gcode: bool = True,
+    brim_width: Optional[float] = None,
+    brim_separation: Optional[float] = None,
 ) -> gl.RunResult:
     """Slice a cooling calibration specimen STL.
 
@@ -1322,6 +1386,10 @@ def slice_cooling_specimen(
     ]
     if binary_gcode:
         cli_extra.append("--binary-gcode")
+    if brim_width is not None:
+        cli_extra.append(f"--brim-width={brim_width}")
+    if brim_separation is not None:
+        cli_extra.append(f"--brim-separation={brim_separation}")
 
     if config_ini is None:
         for key, val in COOLING_SLICER_ARGS.items():

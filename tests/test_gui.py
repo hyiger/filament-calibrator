@@ -34,7 +34,11 @@ from filament_calibrator.gui import (
     apply_ini_to_session,
     apply_saved_results_to_session,
     apply_toml_to_session,
+    WORKFLOW_STEPS,
+    WorkflowStep,
+    backup_results_file,
     build_calibration_results,
+    check_workflow_reset_needed,
     build_bridge_namespace,
     build_cooling_namespace,
     build_em_namespace,
@@ -46,8 +50,12 @@ from filament_calibrator.gui import (
     build_shrinkage_namespace,
     build_temp_tower_namespace,
     build_tolerance_namespace,
+    export_all_results,
     find_output_file,
+    format_workflow_value,
     get_preset,
+    get_workflow_status,
+    import_results_from_json,
     load_saved_results,
     results_to_dict,
     run_pipeline,
@@ -102,7 +110,7 @@ class TestRunPipeline:
             print("step 1")
             print("step 2")
 
-        success, output = run_pipeline(_ok, argparse.Namespace())
+        success, output, _result = run_pipeline(_ok, argparse.Namespace())
         assert success is True
         assert "step 1" in output
         assert "step 2" in output
@@ -112,7 +120,7 @@ class TestRunPipeline:
             print("before exit")
             sys.exit(0)
 
-        success, output = run_pipeline(_exit_zero, argparse.Namespace())
+        success, output, _result = run_pipeline(_exit_zero, argparse.Namespace())
         assert success is True
         assert "before exit" in output
 
@@ -121,7 +129,7 @@ class TestRunPipeline:
             print("error: bad args", file=sys.stderr)
             sys.exit(1)
 
-        success, output = run_pipeline(_exit_one, argparse.Namespace())
+        success, output, _result = run_pipeline(_exit_one, argparse.Namespace())
         assert success is False
         assert "bad args" in output
 
@@ -129,7 +137,7 @@ class TestRunPipeline:
         def _exit_msg(_: argparse.Namespace) -> None:
             sys.exit("fatal error message")
 
-        success, output = run_pipeline(_exit_msg, argparse.Namespace())
+        success, output, _result = run_pipeline(_exit_msg, argparse.Namespace())
         assert success is False
         assert "fatal error message" in output
 
@@ -137,9 +145,25 @@ class TestRunPipeline:
         def _raise(_: argparse.Namespace) -> None:
             raise RuntimeError("something broke")
 
-        success, output = run_pipeline(_raise, argparse.Namespace())
+        success, output, _result = run_pipeline(_raise, argparse.Namespace())
         assert success is False
         assert "something broke" in output
+
+    def test_captures_return_value(self) -> None:
+        def _returns(args: argparse.Namespace) -> dict:
+            return {"time": "1h2m3s", "length": "5.00 m", "weight": "15.0 g"}
+
+        success, output, result = run_pipeline(_returns, argparse.Namespace())
+        assert success is True
+        assert result == {"time": "1h2m3s", "length": "5.00 m", "weight": "15.0 g"}
+
+    def test_result_none_on_failure(self) -> None:
+        def _fail(_: argparse.Namespace) -> None:
+            sys.exit(1)
+
+        success, _output, result = run_pipeline(_fail, argparse.Namespace())
+        assert success is False
+        assert result is None
 
 
 # ---------------------------------------------------------------------------
@@ -2006,3 +2030,223 @@ class TestLoadSaveResults:
         path = _results_file_path()
         assert path.name == "results.json"
         assert "filament-calibrator" in str(path)
+
+
+# ---------------------------------------------------------------------------
+# export_all_results
+# ---------------------------------------------------------------------------
+
+
+class TestExportAllResults:
+    def test_returns_json_string(self, tmp_path: Path) -> None:
+        results_path = tmp_path / "results.json"
+        data = {"PLA|0.4|MK4S": {"set_temp": True, "temperature": 210}}
+        results_path.write_text(json.dumps(data), encoding="utf-8")
+        with patch("filament_calibrator.gui._results_file_path",
+                   return_value=results_path):
+            result = export_all_results()
+        assert result is not None
+        parsed = json.loads(result)
+        assert parsed == data
+
+    def test_missing_file(self, tmp_path: Path) -> None:
+        results_path = tmp_path / "results.json"
+        with patch("filament_calibrator.gui._results_file_path",
+                   return_value=results_path):
+            assert export_all_results() is None
+
+    def test_corrupt_file(self, tmp_path: Path) -> None:
+        results_path = tmp_path / "results.json"
+        results_path.write_text("NOT JSON", encoding="utf-8")
+        with patch("filament_calibrator.gui._results_file_path",
+                   return_value=results_path):
+            assert export_all_results() is None
+
+
+# ---------------------------------------------------------------------------
+# backup_results_file
+# ---------------------------------------------------------------------------
+
+
+class TestBackupResultsFile:
+    def test_creates_backup(self, tmp_path: Path) -> None:
+        results_path = tmp_path / "results.json"
+        results_path.write_text('{"key": "value"}', encoding="utf-8")
+        with patch("filament_calibrator.gui._results_file_path",
+                   return_value=results_path):
+            backup = backup_results_file()
+        assert backup is not None
+        assert backup.exists()
+        assert backup.suffix == ".bak"
+        assert backup.read_text(encoding="utf-8") == '{"key": "value"}'
+
+    def test_missing_file(self, tmp_path: Path) -> None:
+        results_path = tmp_path / "results.json"
+        with patch("filament_calibrator.gui._results_file_path",
+                   return_value=results_path):
+            assert backup_results_file() is None
+
+
+# ---------------------------------------------------------------------------
+# import_results_from_json
+# ---------------------------------------------------------------------------
+
+
+class TestImportResultsFromJson:
+    def test_success(self) -> None:
+        data = {"PLA|0.4|MK4S": {"set_temp": True, "temperature": 210}}
+        state: dict = {}
+        ok, msg = import_results_from_json(
+            json.dumps(data), state, "PLA", 0.4, "MK4S",
+        )
+        assert ok
+        assert "Imported" in msg
+        assert state.get("res_set_temp") is True
+        assert state.get("res_temp") == 210
+
+    def test_invalid_json(self) -> None:
+        ok, msg = import_results_from_json("NOT JSON", {}, "PLA", 0.4, "MK4S")
+        assert not ok
+        assert "Invalid JSON" in msg
+
+    def test_not_a_dict(self) -> None:
+        ok, msg = import_results_from_json("[1,2,3]", {}, "PLA", 0.4, "MK4S")
+        assert not ok
+        assert "JSON object" in msg
+
+    def test_missing_key(self) -> None:
+        data = {"ABS|0.4|MK4S": {"set_temp": True}}
+        ok, msg = import_results_from_json(
+            json.dumps(data), {}, "PLA", 0.4, "MK4S",
+        )
+        assert not ok
+        assert "No entry" in msg
+        assert "ABS|0.4|MK4S" in msg
+
+    def test_non_dict_entry(self) -> None:
+        data = {"PLA|0.4|MK4S": "not a dict"}
+        ok, msg = import_results_from_json(
+            json.dumps(data), {}, "PLA", 0.4, "MK4S",
+        )
+        assert not ok
+        assert "No entry" in msg
+
+
+# ---------------------------------------------------------------------------
+# WorkflowStep / WORKFLOW_STEPS
+# ---------------------------------------------------------------------------
+
+
+class TestWorkflowStep:
+    def test_dataclass_frozen(self) -> None:
+        step = WorkflowStep(
+            name="Test", tab="Tab", set_key="k", value_key="v",
+        )
+        assert step.mandatory is False
+        assert step.name == "Test"
+
+    def test_workflow_steps_list(self) -> None:
+        assert len(WORKFLOW_STEPS) == 7
+        # Temperature must be first and mandatory.
+        assert WORKFLOW_STEPS[0].name == "Temperature"
+        assert WORKFLOW_STEPS[0].mandatory is True
+        # All other steps are optional.
+        for step in WORKFLOW_STEPS[1:]:
+            assert step.mandatory is False
+
+
+# ---------------------------------------------------------------------------
+# get_workflow_status
+# ---------------------------------------------------------------------------
+
+
+class TestGetWorkflowStatus:
+    def test_empty_state(self) -> None:
+        status = get_workflow_status({})
+        assert len(status) == 7
+        for s in status:
+            assert s["completed"] is False
+
+    def test_completed_step(self) -> None:
+        state = {"res_set_temp": True, "res_temp": 210}
+        status = get_workflow_status(state)
+        assert status[0]["completed"] is True
+        assert status[0]["value"] == 210
+
+    def test_partial_state(self) -> None:
+        state = {"res_set_temp": True, "res_temp": 210, "res_set_pa": True}
+        status = get_workflow_status(state)
+        completed = [s for s in status if s["completed"]]
+        assert len(completed) == 2
+
+
+# ---------------------------------------------------------------------------
+# format_workflow_value
+# ---------------------------------------------------------------------------
+
+
+class TestFormatWorkflowValue:
+    def test_none_value(self) -> None:
+        assert format_workflow_value("res_temp", None) == "—"
+
+    def test_temperature(self) -> None:
+        assert format_workflow_value("res_temp", 210) == "210 °C"
+
+    def test_extrusion_multiplier(self) -> None:
+        assert format_workflow_value("res_em", 0.95) == "0.95"
+
+    def test_retraction_length(self) -> None:
+        result = format_workflow_value("res_retraction", 0.8)
+        assert "0.8" in result
+        assert "mm" in result
+
+    def test_retraction_speed(self) -> None:
+        result = format_workflow_value("res_retraction_speed", 45.0)
+        assert "45.0" in result
+        assert "mm/s" in result
+
+    def test_pa_value(self) -> None:
+        assert format_workflow_value("res_pa", 0.04) == "0.0400"
+
+    def test_flow(self) -> None:
+        result = format_workflow_value("res_flow", 11.5)
+        assert "11.5" in result
+        assert "mm³/s" in result
+
+    def test_shrinkage(self) -> None:
+        result = format_workflow_value("res_xy_shrinkage", 1.2)
+        assert "1.2" in result
+        assert "%" in result
+
+    def test_z_shrinkage(self) -> None:
+        result = format_workflow_value("res_z_shrinkage", 0.5)
+        assert "0.5" in result
+
+    def test_unknown_key(self) -> None:
+        assert format_workflow_value("unknown", 42) == "42"
+
+
+# ---------------------------------------------------------------------------
+# check_workflow_reset_needed
+# ---------------------------------------------------------------------------
+
+
+class TestCheckWorkflowResetNeeded:
+    def test_first_run(self) -> None:
+        assert check_workflow_reset_needed({}, "PLA", None) is False
+
+    def test_no_change(self) -> None:
+        state = {"_wf_filament": "PLA", "_wf_config_ini": None}
+        assert check_workflow_reset_needed(state, "PLA", None) is False
+
+    def test_filament_changed(self) -> None:
+        state = {"_wf_filament": "PLA", "_wf_config_ini": None}
+        assert check_workflow_reset_needed(state, "ABS", None) is True
+
+    def test_config_changed(self) -> None:
+        state = {"_wf_filament": "PLA", "_wf_config_ini": None}
+        assert check_workflow_reset_needed(state, "PLA", "/new.ini") is True
+
+    def test_both_changed(self) -> None:
+        state = {"_wf_filament": "PLA", "_wf_config_ini": "/old.ini"}
+        assert check_workflow_reset_needed(state, "ABS", "/new.ini") is True

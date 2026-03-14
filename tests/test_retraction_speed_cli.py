@@ -186,6 +186,17 @@ class TestRun:
         with patch("gcode_lib.unique_suffix", return_value="abc12"):
             yield
 
+    @pytest.fixture(autouse=True)
+    def _mock_estimate(self):
+        mock_est = MagicMock(
+            time_hms="0h1m30s",
+            filament_length_m=1.5,
+            filament_weight_g=4.5,
+        )
+        with patch("filament_calibrator.cli.gl.estimate_print",
+                    return_value=mock_est):
+            yield
+
     def _make_args(self, tmp_path, **overrides):
         defaults = dict(
             retraction_length=0.8, start_speed=20.0, end_speed=60.0,
@@ -203,6 +214,7 @@ class TestRun:
             output_dir=str(tmp_path), keep_files=False,
             ascii_gcode=False,
             config=None, verbose=False,
+            brim_width=_UNSET, brim_separation=_UNSET,
         )
         defaults.update(overrides)
         return argparse.Namespace(**defaults)

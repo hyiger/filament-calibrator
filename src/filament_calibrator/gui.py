@@ -11,8 +11,11 @@ from __future__ import annotations
 import argparse
 import contextlib
 import io
+import dataclasses
+import datetime
 import json
 import platform
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -78,18 +81,20 @@ def get_preset(filament_type: str) -> Dict[str, Any]:
 
 
 def run_pipeline(
-    run_fn: Callable[[argparse.Namespace], None],
+    run_fn: Callable[[argparse.Namespace], Any],
     args: argparse.Namespace,
-) -> Tuple[bool, str]:
+) -> Tuple[bool, str, Any]:
     """Execute a CLI ``run()`` function, capturing stdout/stderr.
 
-    Returns ``(success, captured_output)``.
+    Returns ``(success, captured_output, result)`` where *result* is the
+    return value of *run_fn* (typically a filament estimate dict).
     """
     buf = io.StringIO()
     success = True
+    result: Any = None
     try:
         with contextlib.redirect_stdout(buf), contextlib.redirect_stderr(buf):
-            run_fn(args)
+            result = run_fn(args)
     except SystemExit as exc:
         success = exc.code in (0, None)
         if not success and isinstance(exc.code, str):
@@ -97,7 +102,7 @@ def run_pipeline(
     except Exception as exc:
         buf.write(f"\nUnexpected error: {exc}\n")
         success = False
-    return success, buf.getvalue()
+    return success, buf.getvalue(), result
 
 
 def _check_printer_temps(
@@ -171,6 +176,8 @@ def build_temp_tower_namespace(
     api_key: Optional[str],
     no_upload: bool,
     print_after_upload: bool,
+    brim_width: Optional[float] = None,
+    brim_separation: Optional[float] = None,
 ) -> argparse.Namespace:
     """Build an ``argparse.Namespace`` for the temperature-tower pipeline."""
     return _build_namespace(**locals())
@@ -200,6 +207,8 @@ def build_flow_namespace(
     api_key: Optional[str],
     no_upload: bool,
     print_after_upload: bool,
+    brim_width: Optional[float] = None,
+    brim_separation: Optional[float] = None,
 ) -> argparse.Namespace:
     """Build an ``argparse.Namespace`` for the volumetric-flow pipeline."""
     return _build_namespace(**locals())
@@ -237,6 +246,8 @@ def build_pa_namespace(
     api_key: Optional[str],
     no_upload: bool,
     print_after_upload: bool,
+    brim_width: Optional[float] = None,
+    brim_separation: Optional[float] = None,
 ) -> argparse.Namespace:
     """Build an ``argparse.Namespace`` for the pressure-advance pipeline."""
     return _build_namespace(**locals())
@@ -263,6 +274,8 @@ def build_em_namespace(
     api_key: Optional[str],
     no_upload: bool,
     print_after_upload: bool,
+    brim_width: Optional[float] = None,
+    brim_separation: Optional[float] = None,
 ) -> argparse.Namespace:
     """Build an ``argparse.Namespace`` for the extrusion-multiplier pipeline."""
     return _build_namespace(**locals())
@@ -292,6 +305,8 @@ def build_retraction_namespace(
     api_key: Optional[str],
     no_upload: bool,
     print_after_upload: bool,
+    brim_width: Optional[float] = None,
+    brim_separation: Optional[float] = None,
 ) -> argparse.Namespace:
     """Build an ``argparse.Namespace`` for the retraction-test pipeline."""
     return _build_namespace(**locals())
@@ -318,6 +333,8 @@ def build_shrinkage_namespace(
     api_key: Optional[str],
     no_upload: bool,
     print_after_upload: bool,
+    brim_width: Optional[float] = None,
+    brim_separation: Optional[float] = None,
 ) -> argparse.Namespace:
     """Build an ``argparse.Namespace`` for the shrinkage-test pipeline."""
     return _build_namespace(**locals())
@@ -348,6 +365,8 @@ def build_retraction_speed_namespace(
     api_key: Optional[str],
     no_upload: bool,
     print_after_upload: bool,
+    brim_width: Optional[float] = None,
+    brim_separation: Optional[float] = None,
 ) -> argparse.Namespace:
     """Build an ``argparse.Namespace`` for the retraction-speed pipeline."""
     return _build_namespace(**locals())
@@ -375,6 +394,8 @@ def build_bridge_namespace(
     api_key: Optional[str],
     no_upload: bool,
     print_after_upload: bool,
+    brim_width: Optional[float] = None,
+    brim_separation: Optional[float] = None,
 ) -> argparse.Namespace:
     """Build an ``argparse.Namespace`` for the bridging-test pipeline."""
     return _build_namespace(**locals())
@@ -401,6 +422,8 @@ def build_overhang_namespace(
     api_key: Optional[str],
     no_upload: bool,
     print_after_upload: bool,
+    brim_width: Optional[float] = None,
+    brim_separation: Optional[float] = None,
 ) -> argparse.Namespace:
     """Build an ``argparse.Namespace`` for the overhang-test pipeline."""
     return _build_namespace(**locals())
@@ -427,6 +450,8 @@ def build_tolerance_namespace(
     api_key: Optional[str],
     no_upload: bool,
     print_after_upload: bool,
+    brim_width: Optional[float] = None,
+    brim_separation: Optional[float] = None,
 ) -> argparse.Namespace:
     """Build an ``argparse.Namespace`` for the tolerance-test pipeline."""
     return _build_namespace(**locals())
@@ -456,6 +481,8 @@ def build_cooling_namespace(
     api_key: Optional[str],
     no_upload: bool,
     print_after_upload: bool,
+    brim_width: Optional[float] = None,
+    brim_separation: Optional[float] = None,
 ) -> argparse.Namespace:
     """Build an ``argparse.Namespace`` for the cooling-test pipeline."""
     return _build_namespace(**locals())
@@ -1112,6 +1139,194 @@ def apply_saved_results_to_session(
             state[state_key] = saved[json_key]
 
 
+@dataclasses.dataclass(frozen=True)
+class WorkflowStep:
+    """Defines a single step in the guided calibration workflow."""
+
+    name: str
+    """Human-readable label."""
+    tab: str
+    """Tab to navigate to (matches the tab title)."""
+    set_key: str
+    """Session-state key for the 'set' checkbox (e.g. ``res_set_temp``)."""
+    value_key: str
+    """Primary session-state key holding the result value."""
+    mandatory: bool = False
+    """If True, this step must be completed before subsequent steps."""
+
+
+WORKFLOW_STEPS: List[WorkflowStep] = [
+    WorkflowStep(
+        name="Temperature",
+        tab="Temperature Tower",
+        set_key="res_set_temp",
+        value_key="res_temp",
+        mandatory=True,
+    ),
+    WorkflowStep(
+        name="Volumetric Flow",
+        tab="Volumetric Flow",
+        set_key="res_set_flow",
+        value_key="res_flow",
+    ),
+    WorkflowStep(
+        name="Pressure Advance",
+        tab="Pressure Advance",
+        set_key="res_set_pa",
+        value_key="res_pa",
+    ),
+    WorkflowStep(
+        name="Extrusion Multiplier",
+        tab="Extrusion Multiplier",
+        set_key="res_set_em",
+        value_key="res_em",
+    ),
+    WorkflowStep(
+        name="Retraction Length",
+        tab="Retraction",
+        set_key="res_set_retraction",
+        value_key="res_retraction",
+    ),
+    WorkflowStep(
+        name="Retraction Speed",
+        tab="Retraction",
+        set_key="res_set_retraction_speed",
+        value_key="res_retraction_speed",
+    ),
+    WorkflowStep(
+        name="Shrinkage",
+        tab="Shrinkage & Tolerance",
+        set_key="res_set_shrinkage",
+        value_key="res_xy_shrinkage",
+    ),
+]
+
+
+def get_workflow_status(state: Dict[str, Any]) -> List[Dict[str, Any]]:
+    """Derive completion status for each workflow step from session state.
+
+    Returns a list of dicts with keys ``name``, ``tab``, ``completed``,
+    ``value``, ``mandatory``, ``set_key``, and ``value_key``.
+    """
+    result: List[Dict[str, Any]] = []
+    for step in WORKFLOW_STEPS:
+        completed = bool(state.get(step.set_key, False))
+        value = state.get(step.value_key)
+        result.append({
+            "name": step.name,
+            "tab": step.tab,
+            "completed": completed,
+            "value": value,
+            "mandatory": step.mandatory,
+            "set_key": step.set_key,
+            "value_key": step.value_key,
+        })
+    return result
+
+
+def format_workflow_value(key: str, value: Any) -> str:
+    """Format a workflow result value for display.
+
+    *key* is the session-state key (e.g. ``res_temp``).
+    """
+    if value is None:
+        return "—"
+    if key == "res_temp":
+        return f"{int(value)} °C"
+    if key == "res_em":
+        return f"{float(value):.2f}"
+    if key in ("res_retraction", "res_retraction_speed"):
+        return f"{float(value):.1f} mm/s" if "speed" in key else f"{float(value):.1f} mm"
+    if key == "res_pa":
+        return f"{float(value):.4f}"
+    if key == "res_flow":
+        return f"{float(value):.1f} mm³/s"
+    if key in ("res_xy_shrinkage", "res_z_shrinkage"):
+        return f"{float(value):.1f} %"
+    return str(value)
+
+
+def check_workflow_reset_needed(
+    state: Dict[str, Any],
+    filament_type: str,
+    config_ini: Optional[str],
+) -> bool:
+    """Return True if the workflow should be reset.
+
+    A reset is needed when the filament type or config.ini path has
+    changed since the last workflow run.
+    """
+    prev_filament = state.get("_wf_filament")
+    prev_ini = state.get("_wf_config_ini")
+    if prev_filament is None and prev_ini is None:
+        # First run — no previous state, no reset needed.
+        return False
+    return prev_filament != filament_type or prev_ini != config_ini
+
+
+def export_all_results() -> Optional[str]:
+    """Read the results.json file and return its contents as a JSON string.
+
+    Returns ``None`` if the file doesn't exist or can't be read.
+    """
+    path = _results_file_path()
+    if not path.is_file():
+        return None
+    try:
+        with open(path, "r", encoding="utf-8") as f:
+            data = json.load(f)
+        return json.dumps(data, indent=2, sort_keys=True)
+    except (json.JSONDecodeError, OSError):
+        return None
+
+
+def backup_results_file() -> Optional[Path]:
+    """Create a timestamped backup of results.json.
+
+    Returns the backup path, or ``None`` if the source file doesn't exist.
+    """
+    path = _results_file_path()
+    if not path.is_file():
+        return None
+    stamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+    backup = path.with_suffix(f".{stamp}.bak")
+    shutil.copy2(path, backup)
+    return backup
+
+
+def import_results_from_json(
+    json_text: str,
+    state: Dict[str, Any],
+    filament_type: str,
+    nozzle_size: float,
+    printer: str,
+) -> Tuple[bool, str]:
+    """Import results from a JSON string and apply the matching entry.
+
+    Looks up the entry matching *(filament_type, nozzle_size, printer)*
+    and writes the values into *state* via
+    :func:`apply_saved_results_to_session`.
+
+    Returns ``(True, message)`` on success, ``(False, message)`` on error.
+    """
+    try:
+        data = json.loads(json_text)
+    except (json.JSONDecodeError, TypeError) as exc:
+        return False, f"Invalid JSON: {exc}"
+    if not isinstance(data, dict):
+        return False, "Expected a JSON object at the top level."
+    key = _results_key(filament_type, nozzle_size, printer)
+    entry = data.get(key)
+    if not isinstance(entry, dict):
+        available = list(data.keys())
+        return False, (
+            f"No entry for key '{key}'. "
+            f"Available keys: {available}"
+        )
+    apply_saved_results_to_session(state, entry)
+    return True, f"Imported results for '{key}'."
+
+
 # ---------------------------------------------------------------------------
 # Streamlit app (only imported when actually running the GUI)
 # ---------------------------------------------------------------------------
@@ -1444,13 +1659,61 @@ def _app() -> None:  # pragma: no cover
                 st.session_state[_rk] = False
 
     # --- Tabs ---
-    (tab_temp, tab_em, tab_retraction, tab_pa, tab_flow,
+    (tab_workflow, tab_temp, tab_em, tab_retraction, tab_pa, tab_flow,
      tab_shrinkage, tab_bridge_overhang, tab_cooling,
      tab_results) = st.tabs([
+        "Workflow",
         "Temperature Tower", "Extrusion Multiplier", "Retraction",
         "Pressure Advance", "Volumetric Flow", "Shrinkage & Tolerance",
         "Bridging & Overhang", "Cooling", "Results",
     ])
+
+    # === Workflow Tab ===
+    with tab_workflow:
+        st.subheader("Guided Calibration Workflow")
+        st.caption(
+            "Follow these steps in order to calibrate your filament. "
+            "Temperature is mandatory; all other steps are optional."
+        )
+
+        # Detect config changes that should reset the workflow.
+        _config_ini_path = st.session_state.get("config_ini", "")
+        if check_workflow_reset_needed(
+            st.session_state, filament_type, _config_ini_path,
+        ):
+            st.warning(
+                "Filament type or config.ini changed since the last "
+                "workflow run. Consider resetting your results."
+            )
+        st.session_state["_wf_filament"] = filament_type
+        st.session_state["_wf_config_ini"] = _config_ini_path
+
+        wf_status = get_workflow_status(st.session_state)
+        completed_count = sum(1 for s in wf_status if s["completed"])
+        total_count = len(wf_status)
+        st.progress(
+            completed_count / total_count if total_count else 0,
+            text=f"{completed_count}/{total_count} steps completed",
+        )
+
+        for idx, step in enumerate(wf_status, 1):
+            icon = "✅" if step["completed"] else (
+                "🔴" if step["mandatory"] else "⬜"
+            )
+            val_text = format_workflow_value(
+                step["value_key"], step["value"],
+            ) if step["completed"] else ""
+            label = step["name"]
+            if step["mandatory"]:
+                label += " (required)"
+            suffix = f" — {val_text}" if val_text else ""
+            st.markdown(
+                f"{icon} **Step {idx}: {label}**{suffix}"
+            )
+
+        if st.button("Reset all results", key="wf_reset"):
+            for _step in wf_status:
+                st.session_state[_step["set_key"]] = False
 
     # === Tab 1: Temperature Tower ===
     with tab_temp:
@@ -1516,6 +1779,21 @@ def _app() -> None:  # pragma: no cover
         elif spread <= 0:
             st.warning("Start temp must be higher than end temp.")
 
+        with st.expander("Advanced Slicer Settings",
+                          key="tt_advanced"):
+            tt_brim_width = st.number_input(
+                "Brim Width (mm)",
+                value=0.0, min_value=0.0, max_value=20.0,
+                step=1.0, format="%.1f", key="tt_brim_width",
+                help="0 = use slicer default",
+            )
+            tt_brim_sep = st.number_input(
+                "Brim Separation (mm)",
+                value=0.0, min_value=0.0, max_value=2.0,
+                step=0.05, format="%.2f", key="tt_brim_sep",
+                help="0 = use slicer default",
+            )
+
         if st.button("Generate Temperature Tower", type="primary",
                       key="run_temp"):
             _temp_err = _check_printer_temps(printer, start_temp, tt_bed_temp)
@@ -1544,14 +1822,17 @@ def _app() -> None:  # pragma: no cover
                 api_key=None,
                 no_upload=True,
                 print_after_upload=False,
+                brim_width=tt_brim_width or None,
+                brim_separation=tt_brim_sep or None,
             )
             with st.spinner("Running temperature tower pipeline..."):
-                success, log = run_pipeline(temp_run, args)
+                success, log, estimate = run_pipeline(temp_run, args)
             st.session_state["_last_run"] = {
                 "output_dir": run_dir,
                 "ascii_gcode": ascii_gcode,
                 "success": success,
                 "log": log,
+                "estimate": estimate,
                 "tab": "temp",
                 "upload_enabled": enable_upload,
                 "printer_url": printer_url,
@@ -1621,6 +1902,18 @@ def _app() -> None:  # pragma: no cover
                 format="%.2f",
                 key="em_ew",
             )
+            em_brim_width = st.number_input(
+                "Brim Width (mm)",
+                value=0.0, min_value=0.0, max_value=20.0,
+                step=1.0, format="%.1f", key="em_brim_width",
+                help="0 = default (5 mm for this vase-mode tool)",
+            )
+            em_brim_sep = st.number_input(
+                "Brim Separation (mm)",
+                value=0.0, min_value=0.0, max_value=2.0,
+                step=0.05, format="%.2f", key="em_brim_sep",
+                help="0 = default (0.1 mm for this vase-mode tool)",
+            )
 
         st.info(f"Expected wall thickness: {em_extrusion_width:.2f} mm")
 
@@ -1653,14 +1946,17 @@ def _app() -> None:  # pragma: no cover
                 api_key=None,
                 no_upload=True,
                 print_after_upload=False,
+                brim_width=em_brim_width or None,
+                brim_separation=em_brim_sep or None,
             )
             with st.spinner("Running extrusion multiplier pipeline..."):
-                success, log = run_pipeline(em_run, args)
+                success, log, estimate = run_pipeline(em_run, args)
             st.session_state["_last_run"] = {
                 "output_dir": run_dir,
                 "ascii_gcode": ascii_gcode,
                 "success": success,
                 "log": log,
+                "estimate": estimate,
                 "tab": "em",
                 "upload_enabled": enable_upload,
                 "printer_url": printer_url,
@@ -1763,6 +2059,18 @@ def _app() -> None:  # pragma: no cover
                     format="%.2f",
                     key="retraction_ew",
                 )
+                retraction_brim_width = st.number_input(
+                    "Brim Width (mm)",
+                    value=0.0, min_value=0.0, max_value=20.0,
+                    step=1.0, format="%.1f", key="retraction_brim_width",
+                    help="0 = use slicer default",
+                )
+                retraction_brim_sep = st.number_input(
+                    "Brim Separation (mm)",
+                    value=0.0, min_value=0.0, max_value=2.0,
+                    step=0.05, format="%.2f", key="retraction_brim_sep",
+                    help="0 = use slicer default",
+                )
 
             # Level count preview
             if end_retraction > start_retraction and retraction_step_val > 0:
@@ -1810,14 +2118,17 @@ def _app() -> None:  # pragma: no cover
                     api_key=None,
                     no_upload=True,
                     print_after_upload=False,
+                    brim_width=retraction_brim_width or None,
+                    brim_separation=retraction_brim_sep or None,
                 )
                 with st.spinner("Running retraction test pipeline..."):
-                    success, log = run_pipeline(retraction_run, args)
+                    success, log, estimate = run_pipeline(retraction_run, args)
                 st.session_state["_last_run"] = {
                     "output_dir": run_dir,
                     "ascii_gcode": ascii_gcode,
                     "success": success,
                     "log": log,
+                    "estimate": estimate,
                     "tab": "retraction",
                     "upload_enabled": enable_upload,
                     "printer_url": printer_url,
@@ -1924,6 +2235,18 @@ def _app() -> None:  # pragma: no cover
                     format="%.2f",
                     key="rs_ew",
                 )
+                rs_brim_width = st.number_input(
+                    "Brim Width (mm)",
+                    value=0.0, min_value=0.0, max_value=20.0,
+                    step=1.0, format="%.1f", key="rs_brim_width",
+                    help="0 = use slicer default",
+                )
+                rs_brim_sep = st.number_input(
+                    "Brim Separation (mm)",
+                    value=0.0, min_value=0.0, max_value=2.0,
+                    step=0.05, format="%.2f", key="rs_brim_sep",
+                    help="0 = use slicer default",
+                )
 
             # Level count preview
             if rs_end_speed > rs_start_speed and rs_speed_step > 0:
@@ -1971,11 +2294,13 @@ def _app() -> None:  # pragma: no cover
                     api_key=None,
                     no_upload=True,
                     print_after_upload=False,
+                    brim_width=rs_brim_width or None,
+                    brim_separation=rs_brim_sep or None,
                 )
                 with st.spinner(
                     "Running retraction speed test pipeline..."
                 ):
-                    success, log = run_pipeline(
+                    success, log, estimate = run_pipeline(
                         retraction_speed_run, args,
                     )
                 st.session_state["_last_run"] = {
@@ -1983,6 +2308,7 @@ def _app() -> None:  # pragma: no cover
                     "ascii_gcode": ascii_gcode,
                     "success": success,
                     "log": log,
+                    "estimate": estimate,
                     "tab": "retraction_speed",
                     "upload_enabled": enable_upload,
                     "printer_url": printer_url,
@@ -2157,6 +2483,18 @@ def _app() -> None:  # pragma: no cover
                 format="%.2f",
                 key="pa_ew",
             )
+            pa_brim_width = st.number_input(
+                "Brim Width (mm)",
+                value=0.0, min_value=0.0, max_value=20.0,
+                step=1.0, format="%.1f", key="pa_brim_width",
+                help="0 = use slicer default",
+            )
+            pa_brim_sep = st.number_input(
+                "Brim Separation (mm)",
+                value=0.0, min_value=0.0, max_value=2.0,
+                step=0.05, format="%.2f", key="pa_brim_sep",
+                help="0 = use slicer default",
+            )
 
         # Level count preview
         if end_pa > start_pa and pa_step_val > 0:
@@ -2207,14 +2545,17 @@ def _app() -> None:  # pragma: no cover
                 api_key=None,
                 no_upload=True,
                 print_after_upload=False,
+                brim_width=pa_brim_width or None,
+                brim_separation=pa_brim_sep or None,
             )
             with st.spinner("Running pressure advance pipeline..."):
-                success, log = run_pipeline(pa_run, args)
+                success, log, estimate = run_pipeline(pa_run, args)
             st.session_state["_last_run"] = {
                 "output_dir": run_dir,
                 "ascii_gcode": ascii_gcode,
                 "success": success,
                 "log": log,
+                "estimate": estimate,
                 "tab": "pa",
                 "upload_enabled": enable_upload,
                 "printer_url": printer_url,
@@ -2308,6 +2649,18 @@ def _app() -> None:  # pragma: no cover
                 format="%.2f",
                 key="flow_ew",
             )
+            flow_brim_width = st.number_input(
+                "Brim Width (mm)",
+                value=0.0, min_value=0.0, max_value=20.0,
+                step=1.0, format="%.1f", key="flow_brim_width",
+                help="0 = default (5 mm for this vase-mode tool)",
+            )
+            flow_brim_sep = st.number_input(
+                "Brim Separation (mm)",
+                value=0.0, min_value=0.0, max_value=2.0,
+                step=0.05, format="%.2f", key="flow_brim_sep",
+                help="0 = default (0.1 mm for this vase-mode tool)",
+            )
 
         # Level count preview
         if end_speed > start_speed and flow_step > 0:
@@ -2349,14 +2702,17 @@ def _app() -> None:  # pragma: no cover
                 api_key=None,
                 no_upload=True,
                 print_after_upload=False,
+                brim_width=flow_brim_width or None,
+                brim_separation=flow_brim_sep or None,
             )
             with st.spinner("Running volumetric flow pipeline..."):
-                success, log = run_pipeline(flow_run, args)
+                success, log, estimate = run_pipeline(flow_run, args)
             st.session_state["_last_run"] = {
                 "output_dir": run_dir,
                 "ascii_gcode": ascii_gcode,
                 "success": success,
                 "log": log,
+                "estimate": estimate,
                 "tab": "flow",
                 "upload_enabled": enable_upload,
                 "printer_url": printer_url,
@@ -2426,6 +2782,18 @@ def _app() -> None:  # pragma: no cover
                 format="%.2f",
                 key="shrinkage_ew",
             )
+            shrinkage_brim_width = st.number_input(
+                "Brim Width (mm)",
+                value=0.0, min_value=0.0, max_value=20.0,
+                step=1.0, format="%.1f", key="shrinkage_brim_width",
+                help="0 = use slicer default",
+            )
+            shrinkage_brim_sep = st.number_input(
+                "Brim Separation (mm)",
+                value=0.0, min_value=0.0, max_value=2.0,
+                step=0.05, format="%.2f", key="shrinkage_brim_sep",
+                help="0 = use slicer default",
+            )
 
         st.info(
             f"Expected dimensions: X={shrinkage_arm_length:.1f}  "
@@ -2462,14 +2830,17 @@ def _app() -> None:  # pragma: no cover
                 api_key=None,
                 no_upload=True,
                 print_after_upload=False,
+                brim_width=shrinkage_brim_width or None,
+                brim_separation=shrinkage_brim_sep or None,
             )
             with st.spinner("Running shrinkage test pipeline..."):
-                success, log = run_pipeline(shrinkage_run, args)
+                success, log, estimate = run_pipeline(shrinkage_run, args)
             st.session_state["_last_run"] = {
                 "output_dir": run_dir,
                 "ascii_gcode": ascii_gcode,
                 "success": success,
                 "log": log,
+                "estimate": estimate,
                 "tab": "shrinkage",
                 "upload_enabled": enable_upload,
                 "printer_url": printer_url,
@@ -2538,6 +2909,18 @@ def _app() -> None:  # pragma: no cover
                 format="%.2f",
                 key="tol_ew",
             )
+            tol_brim_width = st.number_input(
+                "Brim Width (mm)",
+                value=0.0, min_value=0.0, max_value=20.0,
+                step=1.0, format="%.1f", key="tol_brim_width",
+                help="0 = use slicer default",
+            )
+            tol_brim_sep = st.number_input(
+                "Brim Separation (mm)",
+                value=0.0, min_value=0.0, max_value=2.0,
+                step=0.05, format="%.2f", key="tol_brim_sep",
+                help="0 = use slicer default",
+            )
 
         if st.button("Generate Tolerance Test", type="primary",
                       key="run_tolerance"):
@@ -2568,14 +2951,17 @@ def _app() -> None:  # pragma: no cover
                 api_key=None,
                 no_upload=True,
                 print_after_upload=False,
+                brim_width=tol_brim_width or None,
+                brim_separation=tol_brim_sep or None,
             )
             with st.spinner("Running tolerance test pipeline..."):
-                success, log = run_pipeline(tolerance_run, args)
+                success, log, estimate = run_pipeline(tolerance_run, args)
             st.session_state["_last_run"] = {
                 "output_dir": run_dir,
                 "ascii_gcode": ascii_gcode,
                 "success": success,
                 "log": log,
+                "estimate": estimate,
                 "tab": "tolerance",
                 "upload_enabled": enable_upload,
                 "printer_url": printer_url,
@@ -2653,6 +3039,18 @@ def _app() -> None:  # pragma: no cover
                 format="%.2f",
                 key="br_ew",
             )
+            br_brim_width = st.number_input(
+                "Brim Width (mm)",
+                value=0.0, min_value=0.0, max_value=20.0,
+                step=1.0, format="%.1f", key="br_brim_width",
+                help="0 = use slicer default",
+            )
+            br_brim_sep = st.number_input(
+                "Brim Separation (mm)",
+                value=0.0, min_value=0.0, max_value=2.0,
+                step=0.05, format="%.2f", key="br_brim_sep",
+                help="0 = use slicer default",
+            )
 
         if st.button("Generate Bridging Test", type="primary",
                       key="run_bridge"):
@@ -2684,14 +3082,17 @@ def _app() -> None:  # pragma: no cover
                 api_key=None,
                 no_upload=True,
                 print_after_upload=False,
+                brim_width=br_brim_width or None,
+                brim_separation=br_brim_sep or None,
             )
             with st.spinner("Running bridging test pipeline..."):
-                success, log = run_pipeline(bridge_run, args)
+                success, log, estimate = run_pipeline(bridge_run, args)
             st.session_state["_last_run"] = {
                 "output_dir": run_dir,
                 "ascii_gcode": ascii_gcode,
                 "success": success,
                 "log": log,
+                "estimate": estimate,
                 "tab": "bridge",
                 "upload_enabled": enable_upload,
                 "printer_url": printer_url,
@@ -2760,6 +3161,18 @@ def _app() -> None:  # pragma: no cover
                 format="%.2f",
                 key="oh_ew",
             )
+            oh_brim_width = st.number_input(
+                "Brim Width (mm)",
+                value=0.0, min_value=0.0, max_value=20.0,
+                step=1.0, format="%.1f", key="oh_brim_width",
+                help="0 = use slicer default",
+            )
+            oh_brim_sep = st.number_input(
+                "Brim Separation (mm)",
+                value=0.0, min_value=0.0, max_value=2.0,
+                step=0.05, format="%.2f", key="oh_brim_sep",
+                help="0 = use slicer default",
+            )
 
         if st.button("Generate Overhang Test", type="primary",
                       key="run_overhang"):
@@ -2790,14 +3203,17 @@ def _app() -> None:  # pragma: no cover
                 api_key=None,
                 no_upload=True,
                 print_after_upload=False,
+                brim_width=oh_brim_width or None,
+                brim_separation=oh_brim_sep or None,
             )
             with st.spinner("Running overhang test pipeline..."):
-                success, log = run_pipeline(overhang_run, args)
+                success, log, estimate = run_pipeline(overhang_run, args)
             st.session_state["_last_run"] = {
                 "output_dir": run_dir,
                 "ascii_gcode": ascii_gcode,
                 "success": success,
                 "log": log,
+                "estimate": estimate,
                 "tab": "overhang",
                 "upload_enabled": enable_upload,
                 "printer_url": printer_url,
@@ -2896,6 +3312,18 @@ def _app() -> None:  # pragma: no cover
                 format="%.2f",
                 key="cool_ew",
             )
+            cool_brim_width = st.number_input(
+                "Brim Width (mm)",
+                value=0.0, min_value=0.0, max_value=20.0,
+                step=1.0, format="%.1f", key="cool_brim_width",
+                help="0 = use slicer default",
+            )
+            cool_brim_sep = st.number_input(
+                "Brim Separation (mm)",
+                value=0.0, min_value=0.0, max_value=2.0,
+                step=0.05, format="%.2f", key="cool_brim_sep",
+                help="0 = use slicer default",
+            )
 
         # Level count preview
         if cool_end_fan > cool_start_fan and cool_fan_step > 0:
@@ -2942,14 +3370,17 @@ def _app() -> None:  # pragma: no cover
                 api_key=None,
                 no_upload=True,
                 print_after_upload=False,
+                brim_width=cool_brim_width or None,
+                brim_separation=cool_brim_sep or None,
             )
             with st.spinner("Running cooling test pipeline..."):
-                success, log = run_pipeline(cooling_run, args)
+                success, log, estimate = run_pipeline(cooling_run, args)
             st.session_state["_last_run"] = {
                 "output_dir": run_dir,
                 "ascii_gcode": ascii_gcode,
                 "success": success,
                 "log": log,
+                "estimate": estimate,
                 "tab": "cooling",
                 "upload_enabled": enable_upload,
                 "printer_url": printer_url,
@@ -3122,6 +3553,70 @@ def _app() -> None:  # pragma: no cover
                 "merge results and download."
             )
 
+        # --- Export / Import / Backup ---
+        st.divider()
+        st.markdown("### File Management")
+
+        exp_col, imp_col, bak_col = st.columns(3)
+
+        with exp_col:
+            json_export = export_all_results()
+            if json_export is not None:
+                st.download_button(
+                    label="Export results.json",
+                    data=json_export.encode("utf-8"),
+                    file_name="results.json",
+                    mime="application/json",
+                    key="export_results_json",
+                )
+            else:
+                st.caption("No results file to export.")
+
+        with imp_col:
+            uploaded = st.file_uploader(
+                "Import results JSON",
+                type=["json"],
+                key="import_results_file",
+            )
+            if uploaded is not None:
+                ok, msg = import_results_from_json(
+                    uploaded.getvalue().decode("utf-8"),
+                    st.session_state,
+                    filament_type, nozzle_size, printer,
+                )
+                if ok:
+                    st.success(msg)
+                else:
+                    st.warning(msg)
+
+        with bak_col:
+            if st.button("Save with backup", key="backup_and_save"):
+                bak = backup_results_file()
+                if bak is not None:
+                    st.success(f"Backup: {bak.name}")
+                else:
+                    st.info("No existing file to back up.")
+                save_results(
+                    filament_type, nozzle_size, printer,
+                    results_to_dict(
+                        set_temp=set_temp,
+                        temperature=int(res_temp),
+                        set_em=set_em,
+                        extrusion_multiplier=float(res_em),
+                        set_retraction=set_retraction,
+                        retraction_length=float(res_retraction),
+                        set_retraction_speed=set_retraction_speed,
+                        retraction_speed=float(res_retraction_speed),
+                        set_pa=set_pa, pa_value=float(res_pa),
+                        set_flow=set_flow,
+                        max_volumetric_speed=float(res_flow),
+                        set_shrinkage=set_shrinkage,
+                        xy_shrinkage=float(res_xy_shrinkage),
+                        z_shrinkage=float(res_z_shrinkage),
+                    ),
+                )
+                st.success("Results saved.")
+
 
 def _show_results(
     st: Any,
@@ -3138,6 +3633,17 @@ def _show_results(
         st.success("Pipeline completed!")
     else:
         st.error("Pipeline failed!")
+
+    # Filament estimate
+    estimate = run_info.get("estimate")
+    if success and estimate:
+        c1, c2, c3 = st.columns(3)
+        with c1:
+            st.metric("Print Time", estimate["time"])
+        with c2:
+            st.metric("Filament", estimate["length"])
+        with c3:
+            st.metric("Weight", estimate["weight"])
 
     # Download button
     gcode_path = find_output_file(output_dir, ascii_gcode)
@@ -3199,10 +3705,19 @@ def _show_upload_section(
         if upload_status is None:
             # --- Confirmation step ---
             file_size_mb = gcode_path.stat().st_size / (1024 * 1024)
+            _est = run_info.get("estimate")
+            _est_lines = ""
+            if _est:
+                _est_lines = (
+                    f"  \n**Time:** {_est['time']}"
+                    f"  \n**Filament:** {_est['length']}"
+                    f"  \n**Weight:** {_est['weight']}"
+                )
             st.markdown(
                 f"**Printer:** `{run_info['printer_url']}`  \n"
                 f"**File:** `{gcode_path.name}`  \n"
                 f"**Size:** {file_size_mb:.1f} MB"
+                f"{_est_lines}"
             )
             print_after = st.checkbox(
                 "Print after upload", value=False,

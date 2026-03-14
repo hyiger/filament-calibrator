@@ -22,6 +22,7 @@ from filament_calibrator.cli import (
     _redact_config_for_debug,
     _resolve_output_dir,
     _validate_printer_temps,
+    _print_estimate,
     add_common_args,
 )
 from filament_calibrator.config import _find_config_path, load_config
@@ -65,7 +66,7 @@ def build_parser() -> argparse.ArgumentParser:
     return p
 
 
-def run(args: argparse.Namespace) -> None:
+def run(args: argparse.Namespace) -> Optional[Dict[str, str]]:
     """Execute the full extrusion-multiplier calibration pipeline.
 
     1. Generate a cube STL.
@@ -129,6 +130,8 @@ def run(args: argparse.Namespace) -> None:
         args.extrusion_width if args.extrusion_width is not _UNSET
         else round(nozzle_size * 1.125, 2)
     )
+    brim_width = args.brim_width if args.brim_width is not _UNSET else None
+    brim_sep = args.brim_separation if args.brim_separation is not _UNSET else None
 
     if args.verbose:
         filament_key = args.filament_type.upper()
@@ -195,6 +198,8 @@ def run(args: argparse.Namespace) -> None:
         nozzle_diameter=nozzle_size,
         printer_model=printer_name,
         binary_gcode=not args.ascii_gcode,
+        brim_width=brim_width,
+        brim_separation=brim_sep,
     )
     if args.verbose:
         print(f"[DEBUG] PrusaSlicer command: {' '.join(result.cmd)}")
@@ -221,6 +226,7 @@ def run(args: argparse.Namespace) -> None:
         nozzle_high_flow=args.nozzle_high_flow,
     )
     gl.save(gf, final_gcode_path)
+    estimate = _print_estimate(gf, args.filament_type)
 
     print(f"Expected wall thickness: {extrusion_width} mm")
 
@@ -248,6 +254,7 @@ def run(args: argparse.Namespace) -> None:
         print(f"G-code saved to: {final_gcode_path}")
 
     print("Done.")
+    return estimate
 
 
 def main(argv: Optional[List[str]] = None) -> None:
