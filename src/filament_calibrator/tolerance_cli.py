@@ -23,6 +23,7 @@ from filament_calibrator.cli import (
     _redact_config_for_debug,
     _resolve_output_dir,
     _validate_printer_temps,
+    add_common_args,
 )
 from filament_calibrator.config import _find_config_path, load_config
 from filament_calibrator.tolerance_model import (
@@ -69,147 +70,8 @@ def build_parser() -> argparse.ArgumentParser:
         ),
     )
 
-    # --- Nozzle options ---
-    nozzle = p.add_argument_group("nozzle options")
-    nozzle.add_argument(
-        "--nozzle-size", type=float, default=0.4,
-        help=(
-            "Nozzle diameter in mm. Sets defaults for "
-            "--layer-height (nozzle × 0.5) and --extrusion-width "
-            "(nozzle × 1.125) when they are not explicitly provided. "
-            "Default: 0.4"
-        ),
-    )
-    nozzle.add_argument(
-        "--nozzle-high-flow", action="store_true", default=False,
-        help="Nozzle is a high-flow variant (sets F flag in M862.1).",
-    )
-    nozzle.add_argument(
-        "--nozzle-hardened", action="store_true", default=False,
-        help="Nozzle is hardened/abrasive-resistant (sets A flag in M862.1).",
-    )
-
-    # --- Slicer options ---
-    slicer = p.add_argument_group("slicer options")
-    slicer.add_argument(
-        "--layer-height", type=float, default=_UNSET,
-        help=(
-            "Slicer layer height in mm. Default: derived from "
-            "--nozzle-size (nozzle × 0.5)."
-        ),
-    )
-    slicer.add_argument(
-        "--extrusion-width", type=float, default=_UNSET,
-        help=(
-            "Slicer extrusion width in mm. Default: derived from "
-            "--nozzle-size (nozzle × 1.125)."
-        ),
-    )
-    slicer.add_argument(
-        "--bed-temp", type=int, default=_UNSET,
-        help=(
-            "Bed temperature in °C. Overrides the default from "
-            "--filament-type preset."
-        ),
-    )
-    slicer.add_argument(
-        "--fan-speed", type=int, default=_UNSET,
-        help=(
-            "Fan speed 0–100%%. Overrides the default from "
-            "--filament-type preset."
-        ),
-    )
-    slicer.add_argument(
-        "--nozzle-temp", type=int, default=_UNSET,
-        help=(
-            "Nozzle temperature in °C. Overrides the default from "
-            "--filament-type preset."
-        ),
-    )
-    slicer.add_argument(
-        "--config-ini", type=str, default=None,
-        help="PrusaSlicer .ini config file. If omitted, built-in defaults are used.",
-    )
-    slicer.add_argument(
-        "--prusaslicer-path", type=str, default=None,
-        help="Explicit path to PrusaSlicer executable.",
-    )
-    slicer.add_argument(
-        "--bed-center", type=str, default=None,
-        help=(
-            "Bed centre as X,Y in mm (e.g. 125,110). Default: 125,110 "
-            "(Prusa MK-series)."
-        ),
-    )
-    slicer.add_argument(
-        "--extra-slicer-args", type=str, nargs=argparse.REMAINDER, default=None,
-        help="Additional raw CLI arguments for PrusaSlicer (must be last).",
-    )
-
-    # --- Printer model ---
-    printer_names = ", ".join(sorted(gl.KNOWN_PRINTERS))
-    p.add_argument(
-        "--printer", type=str, default="COREONE",
-        help=(
-            f"Printer model for bed dimensions and metadata. "
-            f"Available: {printer_names} (also accepts mk4 as alias for mk4s). "
-            "Auto-sets --bed-center and bed shape from the printer's preset."
-        ),
-    )
-
-    # --- Printer / upload options ---
-    printer = p.add_argument_group("printer options")
-    printer.add_argument(
-        "--printer-url", type=str, default=None,
-        help="PrusaLink printer URL (e.g. http://192.168.1.100).",
-    )
-    printer.add_argument(
-        "--api-key", type=str, default=None,
-        help="PrusaLink API key.",
-    )
-    printer.add_argument(
-        "--no-upload", action="store_true", default=False,
-        help="Skip uploading to the printer.",
-    )
-    printer.add_argument(
-        "--print-after-upload", action="store_true", default=False,
-        help="Start printing immediately after upload.",
-    )
-
-    # --- Config file ---
-    p.add_argument(
-        "--config", type=str, default=None, metavar="PATH",
-        help=(
-            "Path to a TOML config file. "
-            "Default lookup: ./filament-calibrator.toml, "
-            "then ~/.config/filament-calibrator/config.toml."
-        ),
-    )
-
-    # --- Output options ---
-    output = p.add_argument_group("output options")
-    output.add_argument(
-        "--output-dir", type=str, default=None,
-        help="Directory for output files. Default: temp directory.",
-    )
-    output.add_argument(
-        "--keep-files", action="store_true", default=False,
-        help="Keep intermediate files (STL, raw G-code).",
-    )
-    output.add_argument(
-        "--ascii-gcode", action="store_true", default=False,
-        help=(
-            "Output ASCII (.gcode) instead of binary (.bgcode). "
-            "Binary is the default; it supports thumbnail previews "
-            "on the printer LCD."
-        ),
-    )
-
-    # --- Verbosity ---
-    p.add_argument(
-        "-v", "--verbose", action="store_true", default=False,
-        help="Show detailed debug output.",
-    )
+    # --- Common options (nozzle, slicer, printer, output, verbosity) ---
+    add_common_args(p)
 
     return p
 

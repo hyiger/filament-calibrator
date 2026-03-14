@@ -10,6 +10,10 @@ from typing import List
 
 import gcode_lib as gl
 
+from filament_calibrator._insert_helpers import (
+    insert_commands_by_z,
+    level_for_z,
+)
 from filament_calibrator.model import BASE_HEIGHT, TIER_HEIGHT
 
 
@@ -73,12 +77,8 @@ def compute_temp_tiers(
     return tiers
 
 
-def _tier_for_z(z: float, tiers: List[TempTier]) -> TempTier | None:
-    """Return the tier that contains height *z*, or ``None``."""
-    for tier in tiers:
-        if tier.z_start <= z <= tier.z_end:
-            return tier
-    return None
+# Re-export under the original name used by tests.
+_tier_for_z = level_for_z
 
 
 def insert_temperatures(
@@ -102,28 +102,8 @@ def insert_temperatures(
     lines: Parsed G-code lines.
     tiers: Temperature tiers from :func:`compute_temp_tiers`.
     """
-    if not tiers:
-        return list(lines)
-
-    result: List[gl.GCodeLine] = []
-    prev_temp: int | None = None
-
-    for z_height, layer_lines in gl.iter_layers(lines):
-        tier = _tier_for_z(z_height, tiers)
-        if tier is not None:
-            target_temp = tier.temp
-        elif z_height < tiers[0].z_start:
-            # Base plate — use first tier's temperature
-            target_temp = tiers[0].temp
-        else:
-            # Above the last tier — keep previous temperature
-            target_temp = prev_temp
-
-        if target_temp is not None and target_temp != prev_temp:
-            cmd = f"M104 S{target_temp} ; temp tower tier"
-            result.append(gl.parse_line(cmd))
-            prev_temp = target_temp
-
-        result.extend(layer_lines)
-
-    return result
+    return insert_commands_by_z(
+        lines, tiers,
+        get_value=lambda t: t.temp,
+        make_command=lambda temp: f"M104 S{temp} ; temp tower tier",
+    )

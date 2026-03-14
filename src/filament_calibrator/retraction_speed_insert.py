@@ -11,6 +11,11 @@ from typing import List
 
 import gcode_lib as gl
 
+from filament_calibrator._insert_helpers import (
+    insert_commands_by_z,
+    level_for_z as _level_for_z,
+)
+
 
 # ---------------------------------------------------------------------------
 # Data structures
@@ -91,17 +96,6 @@ def compute_retraction_speed_levels(
     return levels
 
 
-def _level_for_z(
-    z: float,
-    levels: List[RetractionSpeedLevel],
-) -> RetractionSpeedLevel | None:
-    """Return the level that contains height *z*, or ``None``."""
-    for level in levels:
-        if level.z_start <= z <= level.z_end:
-            return level
-    return None
-
-
 def insert_retraction_speed_commands(
     lines: List[gl.GCodeLine],
     levels: List[RetractionSpeedLevel],
@@ -126,28 +120,10 @@ def insert_retraction_speed_commands(
                         :func:`compute_retraction_speed_levels`.
     retraction_length:  Fixed retraction length in mm.
     """
-    if not levels:
-        return list(lines)
-
-    result: List[gl.GCodeLine] = []
-    prev_speed: float | None = None
-
-    for z_height, layer_lines in gl.iter_layers(lines):
-        level = _level_for_z(z_height, levels)
-        if level is not None:
-            target_speed = level.speed_mm_s
-        elif z_height < levels[0].z_start:
-            # Base plate — use first level's retraction speed
-            target_speed = levels[0].speed_mm_s
-        else:
-            # Above the last level — keep previous retraction speed
-            target_speed = prev_speed
-
-        if target_speed is not None and target_speed != prev_speed:
-            cmd = retraction_speed_command(retraction_length, target_speed)
-            result.append(gl.parse_line(cmd))
-            prev_speed = target_speed
-
-        result.extend(layer_lines)
-
-    return result
+    return insert_commands_by_z(
+        lines, levels,
+        get_value=lambda lv: lv.speed_mm_s,
+        make_command=lambda speed: retraction_speed_command(
+            retraction_length, speed,
+        ),
+    )

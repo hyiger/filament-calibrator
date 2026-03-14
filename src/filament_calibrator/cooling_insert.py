@@ -10,6 +10,11 @@ from typing import List
 
 import gcode_lib as gl
 
+from filament_calibrator._insert_helpers import (
+    insert_commands_by_z,
+    level_for_z as _level_for_z,
+)
+
 
 # ---------------------------------------------------------------------------
 # Data structures
@@ -86,17 +91,6 @@ def compute_cooling_levels(
     return levels
 
 
-def _level_for_z(
-    z: float,
-    levels: List[CoolingLevel],
-) -> CoolingLevel | None:
-    """Return the level that contains height *z*, or ``None``."""
-    for level in levels:
-        if level.z_start <= z <= level.z_end:
-            return level
-    return None
-
-
 def insert_cooling_commands(
     lines: List[gl.GCodeLine],
     levels: List[CoolingLevel],
@@ -118,28 +112,8 @@ def insert_cooling_commands(
     lines:  Parsed G-code lines.
     levels: Cooling levels from :func:`compute_cooling_levels`.
     """
-    if not levels:
-        return list(lines)
-
-    result: List[gl.GCodeLine] = []
-    prev_percent: int | None = None
-
-    for z_height, layer_lines in gl.iter_layers(lines):
-        level = _level_for_z(z_height, levels)
-        if level is not None:
-            target_percent = level.fan_percent
-        elif z_height < levels[0].z_start:
-            # Base plate — use first level's fan percentage
-            target_percent = levels[0].fan_percent
-        else:
-            # Above the last level — keep previous fan percentage
-            target_percent = prev_percent
-
-        if target_percent is not None and target_percent != prev_percent:
-            cmd = fan_command(target_percent)
-            result.append(gl.parse_line(cmd))
-            prev_percent = target_percent
-
-        result.extend(layer_lines)
-
-    return result
+    return insert_commands_by_z(
+        lines, levels,
+        get_value=lambda lv: lv.fan_percent,
+        make_command=fan_command,
+    )

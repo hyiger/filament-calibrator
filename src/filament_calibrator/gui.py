@@ -129,6 +129,26 @@ def _check_printer_temps(
     return None
 
 
+def _build_namespace(**kwargs: Any) -> argparse.Namespace:
+    """Build an ``argparse.Namespace`` with common GUI defaults.
+
+    Normalises "or None" string fields, injects constant defaults
+    (``bed_center``, ``extra_slicer_args``, ``config``, ``keep_files``,
+    ``verbose``, ``_explicit_keys``), then creates the namespace from
+    all remaining keyword arguments.
+    """
+    for key in ("config_ini", "prusaslicer_path", "printer_url", "api_key"):
+        if key in kwargs:
+            kwargs[key] = kwargs[key] or None
+    kwargs.setdefault("bed_center", None)
+    kwargs.setdefault("extra_slicer_args", None)
+    kwargs.setdefault("_explicit_keys", _GUI_EXPLICIT_KEYS)
+    kwargs.setdefault("config", None)
+    kwargs.setdefault("keep_files", True)
+    kwargs.setdefault("verbose", True)
+    return argparse.Namespace(**kwargs)
+
+
 def build_temp_tower_namespace(
     *,
     filament_type: str,
@@ -153,34 +173,7 @@ def build_temp_tower_namespace(
     print_after_upload: bool,
 ) -> argparse.Namespace:
     """Build an ``argparse.Namespace`` for the temperature-tower pipeline."""
-    return argparse.Namespace(
-        filament_type=filament_type,
-        start_temp=start_temp,
-        end_temp=end_temp,
-        temp_step=temp_step,
-        bed_temp=bed_temp,
-        fan_speed=fan_speed,
-        brand_top=brand_top,
-        brand_bottom=brand_bottom,
-        nozzle_size=nozzle_size,
-        nozzle_high_flow=nozzle_high_flow,
-        nozzle_hardened=nozzle_hardened,
-        printer=printer,
-        ascii_gcode=ascii_gcode,
-        output_dir=output_dir,
-        config_ini=config_ini or None,
-        prusaslicer_path=prusaslicer_path or None,
-        bed_center=None,
-        extra_slicer_args=None,
-        printer_url=printer_url or None,
-        api_key=api_key or None,
-        no_upload=no_upload,
-        print_after_upload=print_after_upload,
-        _explicit_keys=_GUI_EXPLICIT_KEYS,
-        config=None,
-        keep_files=True,
-        verbose=True,
-    )
+    return _build_namespace(**locals())
 
 
 def build_flow_namespace(
@@ -209,36 +202,7 @@ def build_flow_namespace(
     print_after_upload: bool,
 ) -> argparse.Namespace:
     """Build an ``argparse.Namespace`` for the volumetric-flow pipeline."""
-    return argparse.Namespace(
-        filament_type=filament_type,
-        start_speed=start_speed,
-        end_speed=end_speed,
-        step=step,
-        level_height=level_height,
-        nozzle_temp=nozzle_temp,
-        bed_temp=bed_temp,
-        fan_speed=fan_speed,
-        nozzle_size=nozzle_size,
-        nozzle_high_flow=nozzle_high_flow,
-        nozzle_hardened=nozzle_hardened,
-        layer_height=layer_height,
-        extrusion_width=extrusion_width,
-        printer=printer,
-        ascii_gcode=ascii_gcode,
-        output_dir=output_dir,
-        config_ini=config_ini or None,
-        prusaslicer_path=prusaslicer_path or None,
-        bed_center=None,
-        extra_slicer_args=None,
-        printer_url=printer_url or None,
-        api_key=api_key or None,
-        no_upload=no_upload,
-        print_after_upload=print_after_upload,
-        _explicit_keys=_GUI_EXPLICIT_KEYS,
-        config=None,
-        keep_files=True,
-        verbose=True,
-    )
+    return _build_namespace(**locals())
 
 
 def build_pa_namespace(
@@ -275,44 +239,7 @@ def build_pa_namespace(
     print_after_upload: bool,
 ) -> argparse.Namespace:
     """Build an ``argparse.Namespace`` for the pressure-advance pipeline."""
-    return argparse.Namespace(
-        filament_type=filament_type,
-        start_pa=start_pa,
-        end_pa=end_pa,
-        pa_step=pa_step,
-        method=method,
-        level_height=level_height,
-        nozzle_temp=nozzle_temp,
-        bed_temp=bed_temp,
-        fan_speed=fan_speed,
-        nozzle_size=nozzle_size,
-        nozzle_high_flow=nozzle_high_flow,
-        nozzle_hardened=nozzle_hardened,
-        layer_height=layer_height,
-        extrusion_width=extrusion_width,
-        corner_angle=corner_angle,
-        arm_length=arm_length,
-        wall_count=wall_count,
-        num_layers=num_layers,
-        frame_layers=frame_layers,
-        pattern_spacing=pattern_spacing,
-        frame_offset=frame_offset,
-        printer=printer,
-        ascii_gcode=ascii_gcode,
-        output_dir=output_dir,
-        config_ini=config_ini or None,
-        prusaslicer_path=prusaslicer_path or None,
-        bed_center=None,
-        extra_slicer_args=None,
-        printer_url=printer_url or None,
-        api_key=api_key or None,
-        no_upload=no_upload,
-        print_after_upload=print_after_upload,
-        _explicit_keys=_GUI_EXPLICIT_KEYS,
-        config=None,
-        keep_files=True,
-        verbose=True,
-    )
+    return _build_namespace(**locals())
 
 
 def build_em_namespace(
@@ -338,33 +265,7 @@ def build_em_namespace(
     print_after_upload: bool,
 ) -> argparse.Namespace:
     """Build an ``argparse.Namespace`` for the extrusion-multiplier pipeline."""
-    return argparse.Namespace(
-        filament_type=filament_type,
-        cube_size=cube_size,
-        nozzle_temp=nozzle_temp,
-        bed_temp=bed_temp,
-        fan_speed=fan_speed,
-        nozzle_size=nozzle_size,
-        nozzle_high_flow=nozzle_high_flow,
-        nozzle_hardened=nozzle_hardened,
-        layer_height=layer_height,
-        extrusion_width=extrusion_width,
-        printer=printer,
-        ascii_gcode=ascii_gcode,
-        output_dir=output_dir,
-        config_ini=config_ini or None,
-        prusaslicer_path=prusaslicer_path or None,
-        bed_center=None,
-        extra_slicer_args=None,
-        printer_url=printer_url or None,
-        api_key=api_key or None,
-        no_upload=no_upload,
-        print_after_upload=print_after_upload,
-        _explicit_keys=_GUI_EXPLICIT_KEYS,
-        config=None,
-        keep_files=True,
-        verbose=True,
-    )
+    return _build_namespace(**locals())
 
 
 def build_retraction_namespace(
@@ -393,36 +294,7 @@ def build_retraction_namespace(
     print_after_upload: bool,
 ) -> argparse.Namespace:
     """Build an ``argparse.Namespace`` for the retraction-test pipeline."""
-    return argparse.Namespace(
-        filament_type=filament_type,
-        start_retraction=start_retraction,
-        end_retraction=end_retraction,
-        retraction_step=retraction_step,
-        level_height=level_height,
-        nozzle_temp=nozzle_temp,
-        bed_temp=bed_temp,
-        fan_speed=fan_speed,
-        nozzle_size=nozzle_size,
-        nozzle_high_flow=nozzle_high_flow,
-        nozzle_hardened=nozzle_hardened,
-        layer_height=layer_height,
-        extrusion_width=extrusion_width,
-        printer=printer,
-        ascii_gcode=ascii_gcode,
-        output_dir=output_dir,
-        config_ini=config_ini or None,
-        prusaslicer_path=prusaslicer_path or None,
-        bed_center=None,
-        extra_slicer_args=None,
-        printer_url=printer_url or None,
-        api_key=api_key or None,
-        no_upload=no_upload,
-        print_after_upload=print_after_upload,
-        _explicit_keys=_GUI_EXPLICIT_KEYS,
-        config=None,
-        keep_files=True,
-        verbose=True,
-    )
+    return _build_namespace(**locals())
 
 
 def build_shrinkage_namespace(
@@ -448,33 +320,7 @@ def build_shrinkage_namespace(
     print_after_upload: bool,
 ) -> argparse.Namespace:
     """Build an ``argparse.Namespace`` for the shrinkage-test pipeline."""
-    return argparse.Namespace(
-        filament_type=filament_type,
-        arm_length=arm_length,
-        nozzle_temp=nozzle_temp,
-        bed_temp=bed_temp,
-        fan_speed=fan_speed,
-        nozzle_size=nozzle_size,
-        nozzle_high_flow=nozzle_high_flow,
-        nozzle_hardened=nozzle_hardened,
-        layer_height=layer_height,
-        extrusion_width=extrusion_width,
-        printer=printer,
-        ascii_gcode=ascii_gcode,
-        output_dir=output_dir,
-        config_ini=config_ini or None,
-        prusaslicer_path=prusaslicer_path or None,
-        bed_center=None,
-        extra_slicer_args=None,
-        printer_url=printer_url or None,
-        api_key=api_key or None,
-        no_upload=no_upload,
-        print_after_upload=print_after_upload,
-        _explicit_keys=_GUI_EXPLICIT_KEYS,
-        config=None,
-        keep_files=True,
-        verbose=True,
-    )
+    return _build_namespace(**locals())
 
 
 def build_retraction_speed_namespace(
@@ -504,37 +350,7 @@ def build_retraction_speed_namespace(
     print_after_upload: bool,
 ) -> argparse.Namespace:
     """Build an ``argparse.Namespace`` for the retraction-speed pipeline."""
-    return argparse.Namespace(
-        filament_type=filament_type,
-        retraction_length=retraction_length,
-        start_speed=start_speed,
-        end_speed=end_speed,
-        speed_step=speed_step,
-        level_height=level_height,
-        nozzle_temp=nozzle_temp,
-        bed_temp=bed_temp,
-        fan_speed=fan_speed,
-        nozzle_size=nozzle_size,
-        nozzle_high_flow=nozzle_high_flow,
-        nozzle_hardened=nozzle_hardened,
-        layer_height=layer_height,
-        extrusion_width=extrusion_width,
-        printer=printer,
-        ascii_gcode=ascii_gcode,
-        output_dir=output_dir,
-        config_ini=config_ini or None,
-        prusaslicer_path=prusaslicer_path or None,
-        bed_center=None,
-        extra_slicer_args=None,
-        printer_url=printer_url or None,
-        api_key=api_key or None,
-        no_upload=no_upload,
-        print_after_upload=print_after_upload,
-        _explicit_keys=_GUI_EXPLICIT_KEYS,
-        config=None,
-        keep_files=True,
-        verbose=True,
-    )
+    return _build_namespace(**locals())
 
 
 def build_bridge_namespace(
@@ -561,34 +377,7 @@ def build_bridge_namespace(
     print_after_upload: bool,
 ) -> argparse.Namespace:
     """Build an ``argparse.Namespace`` for the bridging-test pipeline."""
-    return argparse.Namespace(
-        filament_type=filament_type,
-        spans=spans,
-        pillar_height=pillar_height,
-        nozzle_temp=nozzle_temp,
-        bed_temp=bed_temp,
-        fan_speed=fan_speed,
-        nozzle_size=nozzle_size,
-        nozzle_high_flow=nozzle_high_flow,
-        nozzle_hardened=nozzle_hardened,
-        layer_height=layer_height,
-        extrusion_width=extrusion_width,
-        printer=printer,
-        ascii_gcode=ascii_gcode,
-        output_dir=output_dir,
-        config_ini=config_ini or None,
-        prusaslicer_path=prusaslicer_path or None,
-        bed_center=None,
-        extra_slicer_args=None,
-        printer_url=printer_url or None,
-        api_key=api_key or None,
-        no_upload=no_upload,
-        print_after_upload=print_after_upload,
-        _explicit_keys=_GUI_EXPLICIT_KEYS,
-        config=None,
-        keep_files=True,
-        verbose=True,
-    )
+    return _build_namespace(**locals())
 
 
 def build_overhang_namespace(
@@ -614,33 +403,7 @@ def build_overhang_namespace(
     print_after_upload: bool,
 ) -> argparse.Namespace:
     """Build an ``argparse.Namespace`` for the overhang-test pipeline."""
-    return argparse.Namespace(
-        filament_type=filament_type,
-        angles=angles,
-        nozzle_temp=nozzle_temp,
-        bed_temp=bed_temp,
-        fan_speed=fan_speed,
-        nozzle_size=nozzle_size,
-        nozzle_high_flow=nozzle_high_flow,
-        nozzle_hardened=nozzle_hardened,
-        layer_height=layer_height,
-        extrusion_width=extrusion_width,
-        printer=printer,
-        ascii_gcode=ascii_gcode,
-        output_dir=output_dir,
-        config_ini=config_ini or None,
-        prusaslicer_path=prusaslicer_path or None,
-        bed_center=None,
-        extra_slicer_args=None,
-        printer_url=printer_url or None,
-        api_key=api_key or None,
-        no_upload=no_upload,
-        print_after_upload=print_after_upload,
-        _explicit_keys=_GUI_EXPLICIT_KEYS,
-        config=None,
-        keep_files=True,
-        verbose=True,
-    )
+    return _build_namespace(**locals())
 
 
 def build_tolerance_namespace(
@@ -666,33 +429,7 @@ def build_tolerance_namespace(
     print_after_upload: bool,
 ) -> argparse.Namespace:
     """Build an ``argparse.Namespace`` for the tolerance-test pipeline."""
-    return argparse.Namespace(
-        filament_type=filament_type,
-        diameters=diameters,
-        nozzle_temp=nozzle_temp,
-        bed_temp=bed_temp,
-        fan_speed=fan_speed,
-        nozzle_size=nozzle_size,
-        nozzle_high_flow=nozzle_high_flow,
-        nozzle_hardened=nozzle_hardened,
-        layer_height=layer_height,
-        extrusion_width=extrusion_width,
-        printer=printer,
-        ascii_gcode=ascii_gcode,
-        output_dir=output_dir,
-        config_ini=config_ini or None,
-        prusaslicer_path=prusaslicer_path or None,
-        bed_center=None,
-        extra_slicer_args=None,
-        printer_url=printer_url or None,
-        api_key=api_key or None,
-        no_upload=no_upload,
-        print_after_upload=print_after_upload,
-        _explicit_keys=_GUI_EXPLICIT_KEYS,
-        config=None,
-        keep_files=True,
-        verbose=True,
-    )
+    return _build_namespace(**locals())
 
 
 def build_cooling_namespace(
@@ -721,36 +458,7 @@ def build_cooling_namespace(
     print_after_upload: bool,
 ) -> argparse.Namespace:
     """Build an ``argparse.Namespace`` for the cooling-test pipeline."""
-    return argparse.Namespace(
-        filament_type=filament_type,
-        start_fan=start_fan,
-        end_fan=end_fan,
-        fan_step=fan_step,
-        level_height=level_height,
-        nozzle_temp=nozzle_temp,
-        bed_temp=bed_temp,
-        fan_speed=fan_speed,
-        nozzle_size=nozzle_size,
-        nozzle_high_flow=nozzle_high_flow,
-        nozzle_hardened=nozzle_hardened,
-        layer_height=layer_height,
-        extrusion_width=extrusion_width,
-        printer=printer,
-        ascii_gcode=ascii_gcode,
-        output_dir=output_dir,
-        config_ini=config_ini or None,
-        prusaslicer_path=prusaslicer_path or None,
-        bed_center=None,
-        extra_slicer_args=None,
-        printer_url=printer_url or None,
-        api_key=api_key or None,
-        no_upload=no_upload,
-        print_after_upload=print_after_upload,
-        _explicit_keys=_GUI_EXPLICIT_KEYS,
-        config=None,
-        keep_files=True,
-        verbose=True,
-    )
+    return _build_namespace(**locals())
 
 
 def _fresh_output_dir(custom_output_dir: str) -> str:

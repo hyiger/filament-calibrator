@@ -14,8 +14,12 @@ from dataclasses import dataclass
 from typing import List
 
 import gcode_lib as gl
-
 from gcode_lib import is_extrusion_move as _is_extrusion_move
+
+from filament_calibrator._insert_helpers import (
+    insert_commands_by_z,
+    level_for_z as _level_for_z,
+)
 
 
 # ---------------------------------------------------------------------------
@@ -102,19 +106,6 @@ def compute_pa_levels(
 
 
 # ---------------------------------------------------------------------------
-# Internal helpers
-# ---------------------------------------------------------------------------
-
-
-def _level_for_z(z: float, levels: List[PALevel]) -> PALevel | None:
-    """Return the level that contains height *z*, or ``None``."""
-    for level in levels:
-        if level.z_start <= z <= level.z_end:
-            return level
-    return None
-
-
-# ---------------------------------------------------------------------------
 # Public API
 # ---------------------------------------------------------------------------
 
@@ -140,28 +131,11 @@ def insert_pa_commands(
     levels:   PA levels from :func:`compute_pa_levels`.
     printer:  Printer model name (determines M900 vs M572).
     """
-    if not levels:
-        return list(lines)
-
-    result: List[gl.GCodeLine] = []
-    prev_pa: float | None = None
-
-    for z_height, layer_lines in gl.iter_layers(lines):
-        level = _level_for_z(z_height, levels)
-        if level is not None:
-            target_pa = level.pa_value
-        else:
-            # Above the last level — keep previous PA
-            target_pa = prev_pa
-
-        if target_pa is not None and target_pa != prev_pa:
-            cmd = pa_command(target_pa, printer=printer)
-            result.append(gl.parse_line(cmd))
-            prev_pa = target_pa
-
-        result.extend(layer_lines)
-
-    return result
+    return insert_commands_by_z(
+        lines, levels,
+        get_value=lambda lv: lv.pa_value,
+        make_command=lambda pa: pa_command(pa, printer=printer),
+    )
 
 
 # ---------------------------------------------------------------------------

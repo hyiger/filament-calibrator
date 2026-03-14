@@ -23,6 +23,7 @@ from filament_calibrator.cli import (
     _redact_config_for_debug,
     _resolve_output_dir,
     _validate_printer_temps,
+    add_common_args,
 )
 from filament_calibrator.config import _find_config_path, load_config
 from filament_calibrator.retraction_insert import (
@@ -67,7 +68,6 @@ def build_parser() -> argparse.ArgumentParser:
         ),
     )
 
-    # -- Retraction options --
     retract = parser.add_argument_group("retraction options")
     retract.add_argument(
         "--start-retraction", type=float, default=0.0,
@@ -82,7 +82,6 @@ def build_parser() -> argparse.ArgumentParser:
         help="Retraction length increment per level in mm (default: 0.1).",
     )
 
-    # -- Model options --
     model = parser.add_argument_group("model options")
     model.add_argument(
         "--level-height", type=float, default=1.0,
@@ -96,82 +95,7 @@ def build_parser() -> argparse.ArgumentParser:
         ),
     )
 
-    # -- Nozzle options --
-    nozzle = parser.add_argument_group("nozzle options")
-    nozzle.add_argument(
-        "--nozzle-size", type=float, default=0.4,
-        help="Nozzle diameter in mm (default: 0.4).",
-    )
-    nozzle.add_argument(
-        "--nozzle-high-flow", action="store_true", default=False,
-        help="Nozzle is a high-flow variant (sets F flag in M862.1).",
-    )
-    nozzle.add_argument(
-        "--nozzle-hardened", action="store_true", default=False,
-        help="Nozzle is hardened/abrasive-resistant (sets A flag in M862.1).",
-    )
-
-    # -- Slicer options --
-    slicer = parser.add_argument_group("slicer options")
-    slicer.add_argument(
-        "--layer-height", type=float, default=_UNSET,
-        help="Slicer layer height in mm (default: nozzle × 0.5).",
-    )
-    slicer.add_argument(
-        "--extrusion-width", type=float, default=_UNSET,
-        help="Slicer extrusion width in mm (default: nozzle × 1.125).",
-    )
-    slicer.add_argument("--nozzle-temp", type=int, default=_UNSET)
-    slicer.add_argument("--bed-temp", type=int, default=_UNSET)
-    slicer.add_argument("--fan-speed", type=int, default=_UNSET)
-    slicer.add_argument("--config-ini", type=str, default=None)
-    slicer.add_argument("--prusaslicer-path", type=str, default=None)
-    slicer.add_argument("--bed-center", type=str, default=None)
-    slicer.add_argument(
-        "--extra-slicer-args", type=str,
-        nargs=argparse.REMAINDER, default=None,
-        help="Additional PrusaSlicer CLI arguments (must be last).",
-    )
-
-    # -- Printer model --
-    printer_group = parser.add_argument_group("printer model")
-    printer_group.add_argument(
-        "--printer", type=str, default="COREONE",
-        help="Printer model (default: COREONE).",
-    )
-
-    # -- Printer / upload --
-    upload = parser.add_argument_group("printer / upload")
-    upload.add_argument("--printer-url", type=str, default=None)
-    upload.add_argument("--api-key", type=str, default=None)
-    upload.add_argument(
-        "--no-upload", action="store_true", default=False,
-        help="Skip uploading to the printer.",
-    )
-    upload.add_argument(
-        "--print-after-upload", action="store_true", default=False,
-    )
-
-    # -- Config file --
-    parser.add_argument("--config", type=str, default=None)
-
-    # -- Output --
-    output = parser.add_argument_group("output options")
-    output.add_argument("--output-dir", type=str, default=None)
-    output.add_argument(
-        "--keep-files", action="store_true", default=False,
-        help="Keep intermediate STL and raw G-code files.",
-    )
-    output.add_argument(
-        "--ascii-gcode", action="store_true", default=False,
-        help="Output text .gcode instead of binary .bgcode.",
-    )
-
-    # -- Verbosity --
-    parser.add_argument(
-        "-v", "--verbose", action="store_true", default=False,
-    )
-
+    add_common_args(parser)
     return parser
 
 

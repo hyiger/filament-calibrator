@@ -16,6 +16,8 @@ from typing import List
 import gcode_lib as gl
 from gcode_lib import flow_to_feedrate
 
+from filament_calibrator._insert_helpers import level_for_z
+
 
 # ---------------------------------------------------------------------------
 # Data structures
@@ -86,18 +88,8 @@ def compute_flow_levels(
     return levels
 
 
-# ---------------------------------------------------------------------------
-# Internal helpers
-# ---------------------------------------------------------------------------
-
-
-def _level_for_z(z: float, levels: List[FlowLevel]) -> FlowLevel | None:
-    """Return the level that contains height *z*, or ``None``."""
-    for level in levels:
-        if level.z_start <= z <= level.z_end:
-            return level
-    return None
-
+# Re-export under the original name used by tests.
+_level_for_z = level_for_z
 
 # Import from gcode-lib under the private name used throughout this module.
 _is_extrusion_move = gl.is_extrusion_move
