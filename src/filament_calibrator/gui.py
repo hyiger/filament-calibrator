@@ -867,6 +867,11 @@ def apply_ini_to_session(
         state["pa_nozzle_temp"] = nt
         state["retraction_nozzle_temp"] = nt
         state["shrinkage_nozzle_temp"] = nt
+        state["rs_nozzle_temp"] = nt
+        state["tol_nozzle_temp"] = nt
+        state["br_nozzle_temp"] = nt
+        state["oh_nozzle_temp"] = nt
+        state["cool_nozzle_temp"] = nt
         # Derive a temp tower range centred on the INI temperature.
         state["tt_start_temp"] = nt + 15
         state["tt_end_temp"] = nt - 15
@@ -879,6 +884,11 @@ def apply_ini_to_session(
         state["pa_bed_temp"] = bt
         state["retraction_bed_temp"] = bt
         state["shrinkage_bed_temp"] = bt
+        state["rs_bed_temp"] = bt
+        state["tol_bed_temp"] = bt
+        state["br_bed_temp"] = bt
+        state["oh_bed_temp"] = bt
+        state["cool_bed_temp"] = bt
 
     if "fan_speed" in ini_vals:
         fs = ini_vals["fan_speed"]
@@ -888,6 +898,11 @@ def apply_ini_to_session(
         state["pa_fan"] = fs
         state["retraction_fan"] = fs
         state["shrinkage_fan"] = fs
+        state["rs_fan"] = fs
+        state["tol_fan"] = fs
+        state["br_fan"] = fs
+        state["oh_fan"] = fs
+        state["cool_fan_speed"] = fs
 
     if "layer_height" in ini_vals:
         lh = ini_vals["layer_height"]
@@ -896,6 +911,11 @@ def apply_ini_to_session(
         state["pa_lh"] = lh
         state["retraction_lh"] = lh
         state["shrinkage_lh"] = lh
+        state["rs_lh"] = lh
+        state["tol_lh"] = lh
+        state["br_lh"] = lh
+        state["oh_lh"] = lh
+        state["cool_lh"] = lh
 
     if "extrusion_width" in ini_vals:
         ew = ini_vals["extrusion_width"]
@@ -904,6 +924,11 @@ def apply_ini_to_session(
         state["pa_ew"] = ew
         state["retraction_ew"] = ew
         state["shrinkage_ew"] = ew
+        state["rs_ew"] = ew
+        state["tol_ew"] = ew
+        state["br_ew"] = ew
+        state["oh_ew"] = ew
+        state["cool_ew"] = ew
 
     if sidebar and "nozzle_diameter" in ini_vals:
         snapped = snap_nozzle_size(ini_vals["nozzle_diameter"])
@@ -1873,6 +1898,7 @@ def _app() -> None:  # pragma: no cover
             or results.pa_value is not None
             or results.extrusion_multiplier is not None
             or results.retraction_length is not None
+            or results.retraction_speed is not None
             or results.xy_shrinkage is not None
             or results.z_shrinkage is not None
         )
@@ -2003,6 +2029,7 @@ def _app() -> None:  # pragma: no cover
                 min_value=1,
                 max_value=50,
                 step=1,
+                key="tt_temp_step",
             )
 
         col4, col5 = st.columns(2)
@@ -2023,9 +2050,9 @@ def _app() -> None:  # pragma: no cover
 
         col6, col7 = st.columns(2)
         with col6:
-            brand_top = st.text_input("Brand Label (top)", value="")
+            brand_top = st.text_input("Brand Label (top)", value="", key="tt_brand_top")
         with col7:
-            brand_bottom = st.text_input("Brand Label (bottom)", value="")
+            brand_bottom = st.text_input("Brand Label (bottom)", value="", key="tt_brand_bottom")
 
         # Tier count preview
         spread = start_temp - end_temp
@@ -2258,6 +2285,7 @@ def _app() -> None:  # pragma: no cover
                     min_value=0.0,
                     step=0.1,
                     format="%.1f",
+                    key="retraction_start",
                 )
             with col2:
                 end_retraction = st.number_input(
@@ -2266,6 +2294,7 @@ def _app() -> None:  # pragma: no cover
                     min_value=0.0,
                     step=0.1,
                     format="%.1f",
+                    key="retraction_end",
                 )
             with col3:
                 retraction_step_val = st.number_input(
@@ -2274,6 +2303,7 @@ def _app() -> None:  # pragma: no cover
                     min_value=0.01,
                     step=0.1,
                     format="%.2f",
+                    key="retraction_step",
                 )
 
             col4, col5, col6 = st.columns(3)
@@ -2634,6 +2664,7 @@ def _app() -> None:  # pragma: no cover
                 min_value=0.0,
                 step=0.005,
                 format="%.4f",
+                key="pa_start",
             )
         with col2:
             end_pa = st.number_input(
@@ -2642,6 +2673,7 @@ def _app() -> None:  # pragma: no cover
                 min_value=0.0,
                 step=0.005,
                 format="%.4f",
+                key="pa_end",
             )
         with col3:
             pa_step_val = st.number_input(
@@ -2650,6 +2682,7 @@ def _app() -> None:  # pragma: no cover
                 min_value=0.001,
                 step=0.001,
                 format="%.4f",
+                key="pa_step",
             )
 
         col4, col5, col6 = st.columns(3)
@@ -2868,6 +2901,7 @@ def _app() -> None:  # pragma: no cover
                 min_value=0.1,
                 step=0.5,
                 format="%.1f",
+                key="flow_start_speed",
             )
         with col2:
             end_speed = st.number_input(
@@ -2876,6 +2910,7 @@ def _app() -> None:  # pragma: no cover
                 min_value=0.1,
                 step=0.5,
                 format="%.1f",
+                key="flow_end_speed",
             )
         with col3:
             flow_step = st.number_input(
@@ -2884,6 +2919,7 @@ def _app() -> None:  # pragma: no cover
                 min_value=0.1,
                 step=0.5,
                 format="%.1f",
+                key="flow_step",
             )
 
         col4, col5, col6 = st.columns(3)

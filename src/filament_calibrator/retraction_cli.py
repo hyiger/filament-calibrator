@@ -312,7 +312,7 @@ def _upload(args: argparse.Namespace, gcode_path: str) -> None:
 def _run_pipeline(
     args: argparse.Namespace,
     toml_config: Dict[str, object],
-) -> None:
+) -> Optional[Dict[str, str]]:
     """Execute the retraction calibration pipeline."""
     common = _resolve_common(args)
     num_levels = common["num_levels"]

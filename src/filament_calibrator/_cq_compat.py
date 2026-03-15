@@ -13,7 +13,7 @@ This module provides:
 * :func:`ensure_cq` — lazy-import cadquery on first call (calling
   :func:`stub_casadi` first) and cache the module in a global.
 
-All seven model modules import from here instead of duplicating the stub logic.
+All eleven model modules import from here instead of duplicating the stub logic.
 """
 from __future__ import annotations
 

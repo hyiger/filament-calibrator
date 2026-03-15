@@ -66,7 +66,7 @@ pip install -e .
 
 This pulls all Python dependencies from PyPI automatically:
 [CadQuery](https://cadquery.readthedocs.io/) for model generation and
-[gcode-lib](https://github.com/hyiger/gcode-lib) (>= 1.0.0) for G-code
+[gcode-lib](https://github.com/hyiger/gcode-lib) (>= 1.1.13) for G-code
 manipulation.
 
 All eleven calibration commands are available whenever the venv is active.

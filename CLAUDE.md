@@ -64,6 +64,10 @@ src/filament_calibrator/
   model.py          # CadQuery parametric temperature tower model
   _cq_compat.py    # CadQuery/casadi import compatibility helpers for
                     #   PyInstaller bundles (stub_casadi, ensure_cq)
+  _insert_helpers.py # Shared Z-based G-code insertion logic
+                    #   (insert_commands_by_z, level_for_z) used by
+                    #   tempinsert, pa_insert, retraction_insert,
+                    #   retraction_speed_insert, cooling_insert
   slicer.py         # PrusaSlicer CLI wrapper (slice_tower, slice_flow_specimen,
                     #   slice_pa_specimen, slice_pa_pattern, slice_em_specimen,
                     #   slice_retraction_specimen, slice_shrinkage_specimen,
@@ -104,10 +108,10 @@ src/filament_calibrator/
   cooling_insert.py   # G-code M106 fan speed command insertion
   cooling_cli.py      # cooling-test argparse CLI, pipeline orchestration
   gui.py            # Streamlit browser GUI wrapping all eleven CLIs.
-                    #   Tabs: Temperature Tower, Extrusion Multiplier,
+                    #   Tabs: Workflow, Temperature Tower, Extrusion Multiplier,
                     #   Retraction (Distance + Speed modes), Pressure Advance,
                     #   Volumetric Flow, Shrinkage & Tolerance, Bridging &
-                    #   Overhang, Cooling, Results.
+                    #   Overhang, Cooling.
                     #   Calibration results persistence (load_saved_results,
                     #   save_results, results_to_dict,
                     #   apply_saved_results_to_session) to
@@ -118,7 +122,7 @@ src/filament_calibrator/
 ### Key Dependencies
 
 - **cadquery** (>= 2.4): Parametric CAD model generation (OCCT kernel)
-- **gcode-lib** (>= 1.1.9): G-code parsing, PrusaSlicer integration,
+- **gcode-lib** (>= 1.1.13): G-code parsing, PrusaSlicer integration,
   PrusaLink API, filament presets, printer G-code templates, thumbnail
   injection, INI parsing/writing helpers, flow/PA helpers. Published on PyPI.
 - **vtk** (>= 9.0): Off-screen STL rendering for bgcode thumbnail

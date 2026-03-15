@@ -74,7 +74,7 @@ PA_SLICER_ARGS: Dict[str, str] = dict(_HOLLOW_PROFILE)
 PA_PATTERN_SLICER_ARGS: Dict[str, str] = {
     k: v for k, v in _HOLLOW_PROFILE.items() if k != "perimeters"
 }
-"""PA pattern: like PA tower but ``perimeters`` set by ``--wall-count``."""
+"""PA pattern: like PA tower but ``perimeters`` set explicitly by the caller."""
 
 EM_SLICER_ARGS: Dict[str, str] = dict(_VASE_PROFILE)
 """EM cube: vase-mode with classic walls, ``layer-height`` passed explicitly."""

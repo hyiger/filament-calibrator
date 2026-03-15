@@ -1043,42 +1043,51 @@ class TestApplyIniToSession:
         }
         apply_ini_to_session(state, ini_vals)
 
-        # Nozzle temp → EM + flow + PA + retraction + shrinkage tabs, temp tower range.
+        # Nozzle temp → all tool tabs + temp tower range.
         assert state["em_nozzle_temp"] == 220
         assert state["flow_nozzle_temp"] == 220
         assert state["pa_nozzle_temp"] == 220
         assert state["retraction_nozzle_temp"] == 220
         assert state["shrinkage_nozzle_temp"] == 220
+        assert state["rs_nozzle_temp"] == 220
+        assert state["tol_nozzle_temp"] == 220
+        assert state["br_nozzle_temp"] == 220
+        assert state["oh_nozzle_temp"] == 220
+        assert state["cool_nozzle_temp"] == 220
         assert state["tt_start_temp"] == 235
         assert state["tt_end_temp"] == 205
 
-        # Bed temp → all six tabs.
+        # Bed temp → all eleven tabs.
         assert state["tt_bed_temp"] == 65
         assert state["em_bed_temp"] == 65
         assert state["flow_bed_temp"] == 65
         assert state["pa_bed_temp"] == 65
         assert state["retraction_bed_temp"] == 65
         assert state["shrinkage_bed_temp"] == 65
+        assert state["rs_bed_temp"] == 65
+        assert state["tol_bed_temp"] == 65
+        assert state["br_bed_temp"] == 65
+        assert state["oh_bed_temp"] == 65
+        assert state["cool_bed_temp"] == 65
 
-        # Fan speed → all six tabs.
+        # Fan speed → all eleven tabs.
         assert state["tt_fan"] == 80
         assert state["em_fan"] == 80
         assert state["flow_fan"] == 80
         assert state["pa_fan"] == 80
         assert state["retraction_fan"] == 80
         assert state["shrinkage_fan"] == 80
+        assert state["rs_fan"] == 80
+        assert state["tol_fan"] == 80
+        assert state["br_fan"] == 80
+        assert state["oh_fan"] == 80
+        assert state["cool_fan_speed"] == 80
 
-        # Layer height / extrusion width → EM + flow + PA + retraction + shrinkage.
-        assert state["em_lh"] == 0.15
-        assert state["flow_lh"] == 0.15
-        assert state["pa_lh"] == 0.15
-        assert state["retraction_lh"] == 0.15
-        assert state["shrinkage_lh"] == 0.15
-        assert state["em_ew"] == 0.45
-        assert state["flow_ew"] == 0.45
-        assert state["pa_ew"] == 0.45
-        assert state["retraction_ew"] == 0.45
-        assert state["shrinkage_ew"] == 0.45
+        # Layer height / extrusion width → all tool tabs (not TT).
+        for pfx in ("em", "flow", "pa", "retraction", "shrinkage",
+                     "rs", "tol", "br", "oh", "cool"):
+            assert state[f"{pfx}_lh"] == 0.15
+            assert state[f"{pfx}_ew"] == 0.45
 
         # Selectbox widget keys (written directly for Streamlit key= binding).
         assert state["sidebar_nozzle_size"] == 0.4

@@ -343,12 +343,12 @@ it finishes:
   output from model generation and slicing.  Expanded by default on
   failure to help with troubleshooting.
 
-## Results Tab
+## Workflow Tab
 
-![Results tab](images/gui/gui-tab-results.png)
+![Workflow tab](images/gui/gui-tab-results.png)
 
 After printing and inspecting each calibration specimen, record your
-measured values in the Results tab.  Each value has a checkbox to
+measured values in the Workflow tab.  Each value has a checkbox to
 include or exclude it:
 
 | Checkbox | Field | Description |
@@ -387,6 +387,6 @@ For best results, run the tools in this order:
 7. **Bridging & Overhang** — evaluate structural capabilities.
 8. **Cooling** — find optimal fan speed (especially important for ABS/ASA).
 
-After each test, enter the result in the **Results** tab.  When all values
+After each test, enter the result in the **Workflow** tab.  When all values
 are recorded, download the merged `.ini` config and import it into
 PrusaSlicer.
