@@ -18,6 +18,8 @@ a = Analysis(
         # PyInstaller compiles modules to .pyc in the PYZ archive, so we
         # must include gui.py as a data file for Streamlit to find it.
         ("../src/filament_calibrator/gui.py", "filament_calibrator"),
+        # Quick-start guide bundled at the top level of the distribution.
+        ("../QUICKSTART.md", "."),
     ],
     hiddenimports=[
         # --- filament_calibrator package ---
