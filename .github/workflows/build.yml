@@ -67,6 +67,15 @@ jobs:
         working-directory: pyinstaller
         run: pyinstaller filament-calibrator.spec
 
+      - name: Copy QUICKSTART into distribution
+        run: cp QUICKSTART.md pyinstaller/dist/FilamentCalibrator/
+        if: runner.os != 'Windows'
+
+      - name: Copy QUICKSTART into distribution (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: Copy-Item QUICKSTART.md pyinstaller\dist\FilamentCalibrator\
+
       - name: Package (Linux/macOS)
         if: runner.os != 'Windows'
         run: |
