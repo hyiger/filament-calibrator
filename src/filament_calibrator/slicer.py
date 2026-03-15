@@ -298,10 +298,10 @@ def slice_flow_specimen(
     ]
     if binary_gcode:
         cli_extra.append("--binary-gcode")
-    # Vase-mode tools default to a 5 mm brim with 0.2 mm separation for
+    # Vase-mode tools default to a 5 mm brim with 0.5 mm separation for
     # easy removal; the user can override via --brim-width / --brim-separation.
     eff_brim_width = brim_width if brim_width is not None else 5.0
-    eff_brim_sep = brim_separation if brim_separation is not None else 0.2
+    eff_brim_sep = brim_separation if brim_separation is not None else 0.5
     cli_extra.append(f"--brim-width={eff_brim_width}")
     cli_extra.append(f"--brim-separation={eff_brim_sep}")
 
@@ -649,10 +649,10 @@ def slice_em_specimen(
     ]
     if binary_gcode:
         cli_extra.append("--binary-gcode")
-    # Vase-mode tools default to a 5 mm brim with 0.2 mm separation for
+    # Vase-mode tools default to a 5 mm brim with 0.5 mm separation for
     # easy removal; the user can override via --brim-width / --brim-separation.
     eff_brim_width = brim_width if brim_width is not None else 5.0
-    eff_brim_sep = brim_separation if brim_separation is not None else 0.2
+    eff_brim_sep = brim_separation if brim_separation is not None else 0.5
     cli_extra.append(f"--brim-width={eff_brim_width}")
     cli_extra.append(f"--brim-separation={eff_brim_sep}")
 

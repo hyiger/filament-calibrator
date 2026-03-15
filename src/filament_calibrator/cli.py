@@ -131,7 +131,7 @@ def add_common_args(
         "--brim-separation", type=float, default=_UNSET,
         help=(
             "Gap between brim and part in mm for easy removal. "
-            "Default: 0.2 mm for vase-mode tools, unset for others."
+            "Default: 0.5 mm for vase-mode tools, unset for others."
         ),
     )
     slicer.add_argument(
