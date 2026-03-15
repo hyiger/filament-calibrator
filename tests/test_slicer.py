@@ -642,7 +642,7 @@ class TestSliceFlowSpecimen:
         req = mock_slice.call_args[0][1]
         assert "--bottom-solid-layers=0" in req.extra_args
         assert "--brim-width=5.0" in req.extra_args
-        assert "--brim-separation=0.1" in req.extra_args
+        assert "--brim-separation=0.2" in req.extra_args
 
     @patch("filament_calibrator.slicer.gl.slice_model")
     @patch("filament_calibrator.slicer.gl.find_prusaslicer_executable")
@@ -1702,7 +1702,7 @@ class TestSliceEmSpecimen:
         req = mock_slice.call_args[0][1]
         assert "--bottom-solid-layers=0" in req.extra_args
         assert "--brim-width=5.0" in req.extra_args
-        assert "--brim-separation=0.1" in req.extra_args
+        assert "--brim-separation=0.2" in req.extra_args
 
     @patch("filament_calibrator.slicer.gl.slice_model")
     @patch("filament_calibrator.slicer.gl.find_prusaslicer_executable")

@@ -2047,7 +2047,7 @@ def _app() -> None:  # pragma: no cover
         with _bc2:
             tt_brim_sep = st.number_input(
                 "Brim Separation (mm)",
-                value=0.10, min_value=0.0, max_value=2.0,
+                value=0.20, min_value=0.0, max_value=2.0,
                 step=0.05, format="%.2f", key="tt_brim_sep",
                 disabled=not tt_enable_brim,
             )
@@ -2149,7 +2149,7 @@ def _app() -> None:  # pragma: no cover
         with _bc2:
             em_brim_sep = st.number_input(
                 "Brim Separation (mm)",
-                value=0.10, min_value=0.0, max_value=2.0,
+                value=0.20, min_value=0.0, max_value=2.0,
                 step=0.05, format="%.2f", key="em_brim_sep",
                 disabled=not em_enable_brim,
             )
@@ -2313,7 +2313,7 @@ def _app() -> None:  # pragma: no cover
             with _bc2:
                 retraction_brim_sep = st.number_input(
                     "Brim Separation (mm)",
-                    value=0.10, min_value=0.0, max_value=2.0,
+                    value=0.20, min_value=0.0, max_value=2.0,
                     step=0.05, format="%.2f", key="retraction_brim_sep",
                     disabled=not retraction_enable_brim,
                 )
@@ -2496,7 +2496,7 @@ def _app() -> None:  # pragma: no cover
             with _bc2:
                 rs_brim_sep = st.number_input(
                     "Brim Separation (mm)",
-                    value=0.10, min_value=0.0, max_value=2.0,
+                    value=0.20, min_value=0.0, max_value=2.0,
                     step=0.05, format="%.2f", key="rs_brim_sep",
                     disabled=not rs_enable_brim,
                 )
@@ -2687,7 +2687,7 @@ def _app() -> None:  # pragma: no cover
         with _bc2:
             pa_brim_sep = st.number_input(
                 "Brim Separation (mm)",
-                value=0.10, min_value=0.0, max_value=2.0,
+                value=0.20, min_value=0.0, max_value=2.0,
                 step=0.05, format="%.2f", key="pa_brim_sep",
                 disabled=not pa_enable_brim,
             )
@@ -2921,7 +2921,7 @@ def _app() -> None:  # pragma: no cover
         with _bc2:
             flow_brim_sep = st.number_input(
                 "Brim Separation (mm)",
-                value=0.10, min_value=0.0, max_value=2.0,
+                value=0.20, min_value=0.0, max_value=2.0,
                 step=0.05, format="%.2f", key="flow_brim_sep",
                 disabled=not flow_enable_brim,
             )
@@ -3060,7 +3060,7 @@ def _app() -> None:  # pragma: no cover
         with _bc2:
             shrinkage_brim_sep = st.number_input(
                 "Brim Separation (mm)",
-                value=0.10, min_value=0.0, max_value=2.0,
+                value=0.20, min_value=0.0, max_value=2.0,
                 step=0.05, format="%.2f", key="shrinkage_brim_sep",
                 disabled=not shrinkage_enable_brim,
             )
@@ -3199,7 +3199,7 @@ def _app() -> None:  # pragma: no cover
         with _bc2:
             tol_brim_sep = st.number_input(
                 "Brim Separation (mm)",
-                value=0.10, min_value=0.0, max_value=2.0,
+                value=0.20, min_value=0.0, max_value=2.0,
                 step=0.05, format="%.2f", key="tol_brim_sep",
                 disabled=not tol_enable_brim,
             )
@@ -3334,7 +3334,7 @@ def _app() -> None:  # pragma: no cover
         with _bc2:
             br_brim_sep = st.number_input(
                 "Brim Separation (mm)",
-                value=0.10, min_value=0.0, max_value=2.0,
+                value=0.20, min_value=0.0, max_value=2.0,
                 step=0.05, format="%.2f", key="br_brim_sep",
                 disabled=not br_enable_brim,
             )
@@ -3461,7 +3461,7 @@ def _app() -> None:  # pragma: no cover
         with _bc2:
             oh_brim_sep = st.number_input(
                 "Brim Separation (mm)",
-                value=0.10, min_value=0.0, max_value=2.0,
+                value=0.20, min_value=0.0, max_value=2.0,
                 step=0.05, format="%.2f", key="oh_brim_sep",
                 disabled=not oh_enable_brim,
             )
@@ -3609,7 +3609,7 @@ def _app() -> None:  # pragma: no cover
         with _bc2:
             cool_brim_sep = st.number_input(
                 "Brim Separation (mm)",
-                value=0.10, min_value=0.0, max_value=2.0,
+                value=0.20, min_value=0.0, max_value=2.0,
                 step=0.05, format="%.2f", key="cool_brim_sep",
                 disabled=not cool_enable_brim,
             )
