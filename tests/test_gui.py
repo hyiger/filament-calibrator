@@ -16,6 +16,7 @@ from filament_calibrator.gui import (
     _NOZZLE_SIZES,
     _PRINTER_LIST,
     _RESULTS_STATE_MAPPING,
+    _TAB_PREFIXES,
     _check_printer_temps,
     _clean_path,
     _fresh_output_dir,
@@ -1005,10 +1006,9 @@ class TestSnapNozzleSize:
         assert snap_nozzle_size(0.6) == 0.6
 
     def test_between_snaps_to_nearest(self) -> None:
-        # 0.35 is between 0.3 and 0.4 → 0.35 is equidistant, picks 0.3
-        # (min picks the first match with equal distance)
-        result = snap_nozzle_size(0.35)
-        assert result in (0.3, 0.4)
+        # 0.35 is equidistant between 0.3 and 0.4; min() returns the
+        # first element with the smallest key, which is 0.3.
+        assert snap_nozzle_size(0.35) == 0.3
 
     def test_below_minimum(self) -> None:
         assert snap_nozzle_size(0.1) == 0.25
@@ -1081,7 +1081,7 @@ class TestApplyIniToSession:
         assert state["tol_fan"] == 80
         assert state["br_fan"] == 80
         assert state["oh_fan"] == 80
-        assert state["cool_fan_speed"] == 80
+        assert state["cool_fan"] == 80
 
         # Layer height / extrusion width → all tool tabs (not TT).
         for pfx in ("em", "flow", "pa", "retraction", "shrinkage",
@@ -2230,6 +2230,7 @@ class TestFormatWorkflowValue:
     def test_z_shrinkage(self) -> None:
         result = format_workflow_value("res_z_shrinkage", 0.5)
         assert "0.5" in result
+        assert "%" in result
 
     def test_unknown_key(self) -> None:
         assert format_workflow_value("unknown", 42) == "42"
@@ -2259,3 +2260,87 @@ class TestCheckWorkflowResetNeeded:
     def test_both_changed(self) -> None:
         state = {"_wf_filament": "PLA", "_wf_config_ini": "/old.ini"}
         assert check_workflow_reset_needed(state, "ABS", "/new.ini") is True
+
+
+# ---------------------------------------------------------------------------
+# import_results_from_json — TypeError path
+# ---------------------------------------------------------------------------
+
+
+class TestImportResultsTypeError:
+    """Test import_results_from_json() TypeError handling."""
+
+    def test_none_input_triggers_type_error(self) -> None:
+        ok, msg = import_results_from_json(
+            None, {}, "PLA", 0.4, "MK4S",  # type: ignore[arg-type]
+        )
+        assert not ok
+        assert "Invalid JSON" in msg
+
+
+# ---------------------------------------------------------------------------
+# _osascript_file_dialog — multiple file types
+# ---------------------------------------------------------------------------
+
+
+class TestOsascriptMultipleFileTypes:
+    """Test _osascript_file_dialog() with multiple file type patterns."""
+
+    @patch("filament_calibrator.gui._run_osascript",
+           return_value="/path/f.ini")
+    def test_multiple_extensions(self, mock_osa: MagicMock) -> None:
+        _osascript_file_dialog(
+            "Pick config",
+            [("INI files", "*.ini"), ("TOML files", "*.toml")],
+        )
+        script = mock_osa.call_args[0][0]
+        assert '"ini"' in script
+        assert '"toml"' in script
+        assert "of type" in script
+
+
+# ---------------------------------------------------------------------------
+# _RESULTS_STATE_MAPPING ↔ results_to_dict cross-check
+# ---------------------------------------------------------------------------
+
+
+class TestResultsMappingCompleteness:
+    """Verify _RESULTS_STATE_MAPPING covers all keys from results_to_dict."""
+
+    def test_mapping_keys_match_dict_keys(self) -> None:
+        d = results_to_dict(
+            set_temp=True, temperature=210,
+            set_em=True, extrusion_multiplier=1.0,
+            set_retraction=True, retraction_length=0.8,
+            set_retraction_speed=True, retraction_speed=30.0,
+            set_pa=True, pa_value=0.04,
+            set_flow=True, max_volumetric_speed=11.0,
+            set_shrinkage=True, xy_shrinkage=0.0, z_shrinkage=0.0,
+        )
+        assert set(_RESULTS_STATE_MAPPING.keys()) == set(d.keys())
+
+
+# ---------------------------------------------------------------------------
+# _TAB_PREFIXES consistency
+# ---------------------------------------------------------------------------
+
+
+class TestTabPrefixes:
+    """Verify _TAB_PREFIXES is consistent with apply_ini_to_session."""
+
+    def test_all_prefixes_populated_by_ini(self) -> None:
+        state: dict = {}
+        ini_vals = {
+            "nozzle_temp": 220,
+            "bed_temp": 65,
+            "fan_speed": 80,
+            "layer_height": 0.15,
+            "extrusion_width": 0.45,
+        }
+        apply_ini_to_session(state, ini_vals)
+        for pfx in _TAB_PREFIXES:
+            assert state[f"{pfx}_nozzle_temp"] == 220
+            assert state[f"{pfx}_bed_temp"] == 65
+            assert state[f"{pfx}_fan"] == 80
+            assert state[f"{pfx}_lh"] == 0.15
+            assert state[f"{pfx}_ew"] == 0.45
